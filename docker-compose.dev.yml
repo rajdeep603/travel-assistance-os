@@ -1,0 +1,23 @@
+# Development stack: PostgreSQL only. Run the app with `npm run dev`.
+name: taap-dev
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: taap-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taap
+      POSTGRES_PASSWORD: taap_dev_password
+      POSTGRES_DB: taap
+    ports:
+      - "5434:5432"
+    volumes:
+      - taap_pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taap -d taap"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  taap_pgdata_dev:

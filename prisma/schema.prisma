@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// All data in this schema is FICTIONAL demo data for the ITIC Global
+// demonstration platform. It must never hold real patient information.
+// ---------------------------------------------------------------------------
+
+enum CaseStatus {
+  NEW
+  IN_PROGRESS
+  PENDING_INFO
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+enum CasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AssistanceType {
+  MEDICAL
+  DENTAL
+  HOSPITALIZATION
+  EVACUATION
+  REPATRIATION
+  GENERAL
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum ClaimStatus {
+  SUBMITTED
+  PROCESSING
+  NEEDS_REVIEW
+  INFO_REQUESTED
+  APPROVED
+  ESCALATED
+  REJECTED
+  PAID
+}
+
+enum DocumentKind {
+  MEDICAL_REPORT
+  HOSPITAL_INVOICE
+  PRESCRIPTION
+  DISCHARGE_SUMMARY
+  OTHER
+}
+
+enum DocumentStatus {
+  UPLOADED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum ConversationChannel {
+  VOICE
+  CHAT
+  ASSISTANT
+}
+
+model Patient {
+  id           String        @id @default(cuid())
+  ref          String        @unique // e.g. PAT-1001
+  firstName    String
+  lastName     String
+  dateOfBirth  DateTime
+  nationality  String
+  language     String
+  phone        String
+  email        String
+  policyNumber String        @unique
+  createdAt    DateTime      @default(now())
+  cases        Case[]
+  appointments Appointment[]
+  claims       Claim[]
+  documents    Document[]
+}
+
+model Case {
+  id               String              @id @default(cuid())
+  ref              String              @unique // e.g. CASE-1024
+  title            String
+  description      String
+  location         String
+  country          String              @default("Turkiye")
+  assistanceType   AssistanceType      @default(MEDICAL)
+  priority         CasePriority        @default(MEDIUM)
+  status           CaseStatus          @default(NEW)
+  urgency          String?
+  symptoms         String[]
+  aiSummary        String?
+  suggestedActions Json?
+  assignedTo       String?
+  patient          Patient             @relation(fields: [patientId], references: [id])
+  patientId        String
+  appointments     Appointment[]
+  claims           Claim[]
+  documents        Document[]
+  conversations    Conversation[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model Provider {
+  id           String        @id @default(cuid())
+  ref          String        @unique // e.g. PRV-2001
+  name         String // doctor name
+  facility     String
+  specialty    String
+  address      String
+  district     String
+  city         String
+  country      String        @default("Turkiye")
+  latitude     Float
+  longitude    Float
+  languages    String[]
+  phone        String
+  email        String
+  rating       Float         @default(4.5)
+  // Array of { date: "YYYY-MM-DD", times: ["14:00", ...] }
+  availability Json
+  createdAt    DateTime      @default(now())
+  appointments Appointment[]
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  ref         String            @unique // e.g. APT-2026-1024
+  scheduledAt DateTime
+  status      AppointmentStatus @default(PENDING)
+  reason      String
+  notes       String?
+  source      String            @default("WEB") // WEB | VOICE
+  patient     Patient           @relation(fields: [patientId], references: [id])
+  patientId   String
+  provider    Provider          @relation(fields: [providerId], references: [id])
+  providerId  String
+  case        Case?             @relation(fields: [caseId], references: [id])
+  caseId      String?
+  createdAt   DateTime          @default(now())
+}
+
+model Claim {
+  id        String      @id @default(cuid())
+  ref       String      @unique // e.g. CLM-10245
+  status    ClaimStatus @default(SUBMITTED)
+  amount    Decimal?    @db.Decimal(12, 2)
+  currency  String?
+  summary   String?
+  // Array of { severity: "error" | "ok" | "warning", message: string }
+  issues    Json?
+  history   Json? // Array of { at, action, note }
+  patient   Patient     @relation(fields: [patientId], references: [id])
+  patientId String
+  case      Case?       @relation(fields: [caseId], references: [id])
+  caseId    String?
+  documents Document[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model Document {
+  id          String              @id @default(cuid())
+  filename    String
+  mimeType    String
+  sizeBytes   Int
+  kind        DocumentKind        @default(OTHER)
+  status      DocumentStatus      @default(UPLOADED)
+  storagePath String?
+  textContent String?
+  error       String?
+  patient     Patient?            @relation(fields: [patientId], references: [id])
+  patientId   String?
+  case        Case?               @relation(fields: [caseId], references: [id])
+  caseId      String?
+  claim       Claim?              @relation(fields: [claimId], references: [id])
+  claimId     String?
+  extraction  DocumentExtraction?
+  createdAt   DateTime            @default(now())
+}
+
+model DocumentExtraction {
+  id              String   @id @default(cuid())
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId      String   @unique
+  patientName     String?
+  dateOfBirth     String?
+  hospital        String?
+  doctor          String?
+  diagnosis       String?
+  symptoms        String[]
+  admissionDate   String?
+  dischargeDate   String?
+  procedures      String[]
+  medications     String[]
+  invoiceAmount   Decimal? @db.Decimal(12, 2)
+  currency        String?
+  policyReference String?
+  summary         String?
+  missingInfo     String[]
+  confidence      Float?
+  raw             Json?
+  createdAt       DateTime @default(now())
+}
+
+model Conversation {
+  id        String              @id @default(cuid())
+  channel   ConversationChannel
+  // Array of { role: "user" | "agent", text: string, at: ISO string }
+  messages  Json
+  // Voice agent dialog state machine snapshot
+  state     Json?
+  summary   String?
+  case      Case?               @relation(fields: [caseId], references: [id])
+  caseId    String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+}
+
+model KnowledgeDocument {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  category  String
+  content   String
+  createdAt DateTime @default(now())
+}

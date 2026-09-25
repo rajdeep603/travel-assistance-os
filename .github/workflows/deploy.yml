@@ -1,0 +1,77 @@
+name: CI & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: taap
+          POSTGRES_PASSWORD: taap_ci_password
+          POSTGRES_DB: taap
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taap"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://taap:taap_ci_password@localhost:5432/taap?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx next lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Migrate & seed test database
+        run: |
+          npx prisma migrate deploy
+          npm run demo:pdfs
+          npm run db:seed
+
+      - name: Unit & integration tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy to EC2 over SSH
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            ${{ secrets.EC2_APP_DIR || '~/travel-assistance-os' }}/scripts/deploy.sh ${{ secrets.EC2_APP_DIR || '~/travel-assistance-os' }}
