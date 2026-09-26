@@ -32,6 +32,10 @@ RUN addgroup -S nodejs -g 1001 && adduser -S nextjs -u 1001
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Output tracing misses pdf-parse's dynamically imported worker — ship the
+# whole module.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/pdf-parse ./node_modules/pdf-parse
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/pdfjs-dist ./node_modules/pdfjs-dist
 
 # Prisma CLI (self-contained install) for `migrate deploy` at container start,
 # plus @napi-rs/canvas: pdf.js's optional DOM polyfill provider, which Next's
