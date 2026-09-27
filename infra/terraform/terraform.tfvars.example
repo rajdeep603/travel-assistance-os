@@ -5,6 +5,13 @@
 repo_url = "https://github.com/<your-org>/travel-assistance-os.git"
 
 aws_region    = "eu-central-1"
+
+# Which AWS account/profile to deploy into. Pinning both here means a wrong
+# AWS_PROFILE in your shell can never apply to the wrong account:
+#   aws configure list-profiles                  # available profiles
+#   aws sts get-caller-identity --profile <p>    # account ID of a profile
+aws_profile        = ""   # e.g. "personal-cloud"
+allowed_account_id = ""   # e.g. "009846316535"
 instance_type = "t3.small"
 repo_branch   = "main"
 

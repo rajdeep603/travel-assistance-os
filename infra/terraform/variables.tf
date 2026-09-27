@@ -61,3 +61,20 @@ variable "vpc_cidr" {
   type        = string
   default     = "10.42.0.0/24"
 }
+
+variable "aws_profile" {
+  description = "AWS CLI profile to use (from ~/.aws/config). Empty = default credential chain (env vars / AWS_PROFILE / default profile)."
+  type        = string
+  default     = ""
+}
+
+variable "allowed_account_id" {
+  description = "Safety pin: Terraform refuses to run against any other AWS account. Find yours with: aws sts get-caller-identity. Empty = no check."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.allowed_account_id == "" || can(regex("^\\d{12}$", var.allowed_account_id))
+    error_message = "allowed_account_id must be a 12-digit AWS account ID."
+  }
+}
