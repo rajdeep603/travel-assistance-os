@@ -133,7 +133,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled || busy}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
     >
       {busy ? <Loader2 size={15} className="animate-spin" /> : null}
       {children}
@@ -143,8 +143,8 @@ export function Button({
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <div className="flex items-center gap-2 text-sm text-slate-500">
-      <Loader2 size={16} className="animate-spin text-blue-600" />
+    <div className="flex items-center gap-2 text-sm text-slate-500" role="status" aria-live="polite">
+      <Loader2 size={16} className="animate-spin text-blue-600" aria-hidden />
       {label ?? "Loading…"}
     </div>
   );
@@ -152,8 +152,8 @@ export function Spinner({ label }: { label?: string }) {
 
 export function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+    <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
       <span>{message}</span>
     </div>
   );
@@ -169,7 +169,7 @@ export function EmptyState({
   return (
     <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
       <p className="text-sm font-medium text-slate-600">{title}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-400">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
   );
 }
@@ -183,7 +183,7 @@ export function KeyValue({
 }) {
   return (
     <div className="py-1.5">
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </dt>
       <dd className="mt-0.5 text-sm text-slate-800">

@@ -29,10 +29,13 @@ export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatBoxRef = useRef<HTMLDivElement>(null);
 
+  // Pin the chat to the latest message (scoped to the box — scrollIntoView
+  // would also scroll the page).
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const box = chatBoxRef.current;
+    if (box) box.scrollTop = box.scrollHeight;
   }, [turns, busy]);
 
   async function ask(question: string) {
@@ -74,7 +77,7 @@ export default function AssistantPage() {
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
       <Card className="flex h-[560px] flex-col">
-        <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+        <div ref={chatBoxRef} className="flex-1 space-y-4 overflow-y-auto pr-1">
           {turns.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <BookOpenText size={28} className="text-slate-300" />
@@ -119,7 +122,6 @@ export default function AssistantPage() {
             )
           )}
           {busy ? <Spinner label="Searching the knowledge base…" /> : null}
-          <div ref={bottomRef} />
         </div>
         <form
           className="mt-4 flex gap-2 border-t border-slate-100 pt-4"
@@ -132,7 +134,8 @@ export default function AssistantPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a question…"
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
+            aria-label="Ask the assistant a question"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
           <Button type="submit" disabled={busy || input.trim().length === 0}>
             <SendHorizonal size={15} />

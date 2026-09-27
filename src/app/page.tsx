@@ -108,7 +108,7 @@ export default async function DashboardPage() {
           ].map(([label, value]) => (
             <Card key={label} className="py-4">
               <p className="text-2xl font-semibold text-slate-900">{value}</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">
                 {label}
               </p>
             </Card>

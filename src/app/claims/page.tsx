@@ -165,7 +165,7 @@ export default function ClaimsPage() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-400">
+                <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-4 font-semibold">Claim</th>
                   <th className="py-2 pr-4 font-semibold">Patient</th>
                   <th className="py-2 pr-4 font-semibold">Case</th>

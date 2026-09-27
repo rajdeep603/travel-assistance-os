@@ -224,7 +224,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <div className="mt-2 space-y-2">
                 {data.conversations.map((c) => (
                   <div key={c.id} className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       {c.channel} interaction
                     </p>
                     <p className="mt-1 text-sm text-slate-700">

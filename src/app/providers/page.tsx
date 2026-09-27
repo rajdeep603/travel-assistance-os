@@ -162,7 +162,7 @@ export default function ProvidersPage() {
       <Card className="mb-5">
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">City</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">City</span>
             <select value={form.city} onChange={set("city")} className={selectCls}>
               {["Istanbul", "Ankara", "Antalya"].map((c) => (
                 <option key={c}>{c}</option>
@@ -170,7 +170,7 @@ export default function ProvidersPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">District</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">District</span>
             <select value={form.district} onChange={set("district")} className={selectCls}>
               <option value="">Any</option>
               {DISTRICTS.map((d) => (
@@ -179,7 +179,7 @@ export default function ProvidersPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Specialty</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Specialty</span>
             <select value={form.specialty} onChange={set("specialty")} className={selectCls}>
               {SPECIALTIES.map((s) => (
                 <option key={s}>{s}</option>
@@ -187,11 +187,11 @@ export default function ProvidersPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Date</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Date</span>
             <input type="date" value={form.date} onChange={set("date")} className={selectCls} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Time</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Time</span>
             <select value={form.timeOfDay} onChange={set("timeOfDay")} className={selectCls}>
               <option value="">Any</option>
               <option value="morning">Morning</option>
@@ -200,7 +200,7 @@ export default function ProvidersPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Language</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Language</span>
             <select value={form.language} onChange={set("language")} className={selectCls}>
               <option value="">Any</option>
               {LANGUAGES.map((l) => (
@@ -261,7 +261,7 @@ export default function ProvidersPage() {
                   </p>
                 </div>
                 <div className="w-full sm:w-auto">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Available slots
                   </p>
                   {r.slots.length === 0 ? (
@@ -286,7 +286,7 @@ export default function ProvidersPage() {
                 </div>
               </div>
               <div className="mt-3 rounded-lg bg-slate-50 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   Why this provider?
                 </p>
                 <ul className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
@@ -318,7 +318,7 @@ export default function ProvidersPage() {
               </span>
             </p>
             <label className="mt-4 block">
-              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Patient
               </span>
               <select
