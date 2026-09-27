@@ -14,6 +14,25 @@ PostgreSQL container (data on a named Docker volume)
 
 ---
 
+## 0. Provision with Terraform (recommended)
+
+Everything in §1.1–1.5 below is automated in
+[`infra/terraform/`](infra/terraform/README.md):
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars   # set repo_url (+ optional SSH key)
+terraform init && terraform apply
+terraform output app_url                        # live ~5 minutes after apply
+```
+
+The instance bootstraps itself: Docker install, repo clone, `.env` with a
+locally generated database password, `docker compose up -d --build`, health
+gate. `terraform output github_actions_secrets` prints the values for §3.
+The manual path below remains for anyone provisioning by hand.
+
+---
+
 ## 1. First-time EC2 deployment (manual)
 
 ### 1.1 Provision the instance

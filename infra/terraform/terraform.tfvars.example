@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is git-ignored.
+
+# REQUIRED — where the instance clones the application from on first boot.
+# Must be reachable from the instance (public repo, or embed a read-only token).
+repo_url = "https://github.com/<your-org>/travel-assistance-os.git"
+
+aws_region    = "eu-central-1"
+instance_type = "t3.small"
+repo_branch   = "main"
+
+# SSH access (optional — omit both to use SSM Session Manager instead):
+# ssh-keygen -t ed25519 -f ~/.ssh/taap-demo && cat ~/.ssh/taap-demo.pub
+ssh_public_key   = ""
+allowed_ssh_cidr = "" # your IP, e.g. "203.0.113.7/32"
+
+# Open port 443 once you configure TLS in nginx:
+enable_https_port = false

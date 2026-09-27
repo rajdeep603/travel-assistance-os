@@ -70,6 +70,7 @@ remains as an automatic fallback if the API call fails. See
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — system design, service interfaces, data model
 - [DEPLOYMENT.md](DEPLOYMENT.md) — first-time EC2 deployment, CI/CD, rollback
+- [infra/terraform](infra/terraform/README.md) — one-command EC2 provisioning (VPC, EIP, bootstrap)
 - [TESTING.md](TESTING.md) — test suites and how to run them
 - [DEMO_GUIDE.md](DEMO_GUIDE.md) — how to run the ITIC demo conversation
 - [ENVIRONMENT.md](ENVIRONMENT.md) — every environment variable explained

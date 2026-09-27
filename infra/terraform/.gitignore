@@ -1,0 +1,8 @@
+# Terraform local state & workspace — never commit
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+crash.log
