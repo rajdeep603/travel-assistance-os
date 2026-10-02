@@ -11,10 +11,91 @@ import {
   KeyValue,
   PageHeader,
   SectionTitle,
-  Spinner,
+  SkeletonRows,
   StatusBadge,
   readApiError,
 } from "@/components/ui";
+import { AIPipeline } from "@/components/ai-progress";
+import { formatEnum } from "@/lib/format";
+
+const ANALYSIS_STAGES = [
+  "Reading the request",
+  "Identifying patient, location and symptoms",
+  "Assessing urgency",
+  "Preparing suggested actions",
+];
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const HIGHLIGHT_STYLES = {
+  location: "bg-sky-100 text-sky-900",
+  symptom: "bg-rose-100 text-rose-900",
+  patient: "bg-violet-100 text-violet-900",
+  caseRef: "bg-amber-100 text-amber-900",
+} as const;
+
+type HighlightKind = keyof typeof HIGHLIGHT_STYLES;
+
+/**
+ * Renders the request text with the AI's extracted entities highlighted in
+ * place — the audience sees exactly where each field came from.
+ */
+function HighlightedRequest({
+  text,
+  analysis,
+}: {
+  text: string;
+  analysis: Analysis;
+}) {
+  // Extracted values are canonical ("Taksim, Istanbul", "Abdominal pain") and
+  // rarely appear verbatim, so each phrase is also matched word-by-word.
+  const STOPWORDS = new Set([
+    "the", "and", "with", "near", "severe", "acute", "chronic", "mild",
+    "traveller's", "traveller", "patient", "unknown", "general",
+  ]);
+  const termMap = new Map<string, HighlightKind>();
+  const addTerm = (value: string | null, kind: HighlightKind) => {
+    if (!value) return;
+    const phrase = value.trim();
+    if (phrase.length >= 3) termMap.set(phrase.toLowerCase(), kind);
+    for (const word of phrase.split(/[\s,;/]+/)) {
+      const w = word.trim();
+      if (w.length >= 4 && !STOPWORDS.has(w.toLowerCase())) {
+        if (!termMap.has(w.toLowerCase())) termMap.set(w.toLowerCase(), kind);
+      }
+    }
+  };
+  addTerm(analysis.location, "location");
+  for (const s of analysis.symptoms) addTerm(s, "symptom");
+  addTerm(analysis.medicalIssue, "symptom");
+  addTerm(analysis.patient, "patient");
+  addTerm(analysis.existingCaseRef, "caseRef");
+
+  // Longest first so full phrases win over their own words.
+  const usable = [...termMap.keys()].sort((a, b) => b.length - a.length);
+  if (usable.length === 0) {
+    return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{text}</p>;
+  }
+  const pattern = new RegExp(`(${usable.map(escapeRegExp).join("|")})`, "gi");
+  const kindFor = (match: string): HighlightKind =>
+    termMap.get(match.toLowerCase()) ?? "location";
+  const parts = text.split(pattern);
+  return (
+    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <mark key={i} className={`rounded px-1 py-0.5 font-medium ${HIGHLIGHT_STYLES[kindFor(part)]}`}>
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </p>
+  );
+}
 
 const SAMPLE_REQUEST =
   "My husband is travelling in Istanbul and has developed severe stomach pain. We are staying near Taksim. We need help finding a hospital.";
@@ -151,7 +232,7 @@ export default function CasesPage() {
             onChange={(e) => setText(e.target.value)}
             rows={6}
             placeholder="Describe the request — e.g. an email or call transcript from a traveller…"
-            className="mt-3 w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
+            className="mt-3 w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-800 transition-shadow placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
           <div className="mt-3 flex flex-wrap gap-2">
             <Button onClick={analyze} busy={analyzing}>
@@ -173,11 +254,11 @@ export default function CasesPage() {
         <div className="space-y-5">
           {analyzing ? (
             <Card>
-              <Spinner label="AI is analysing the request…" />
+              <AIPipeline busy stages={ANALYSIS_STAGES} />
             </Card>
           ) : analysis ? (
             <>
-              <Card>
+              <Card className="animate-fade-up">
                 <SectionTitle>Case summary</SectionTitle>
                 <p className="mt-2 text-sm leading-relaxed text-slate-700">
                   {analysis.summary}
@@ -191,11 +272,23 @@ export default function CasesPage() {
                     >
                       {analysis.existingCase.ref}
                     </Link>{" "}
-                    ({analysis.existingCase.status.replace(/_/g, " ")}).
+                    ({formatEnum(analysis.existingCase.status)}).
                   </p>
                 ) : null}
               </Card>
-              <Card>
+              <Card className="animate-fade-up" style={{ animationDelay: "70ms" }}>
+                <SectionTitle>What the AI read</SectionTitle>
+                <div className="mt-2">
+                  <HighlightedRequest text={text} analysis={analysis} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-[11px] text-slate-400">
+                  <span><span className="rounded bg-sky-100 px-1">location</span></span>
+                  <span><span className="rounded bg-rose-100 px-1">symptoms</span></span>
+                  <span><span className="rounded bg-violet-100 px-1">patient</span></span>
+                  <span><span className="rounded bg-amber-100 px-1">case reference</span></span>
+                </div>
+              </Card>
+              <Card className="animate-fade-up" style={{ animationDelay: "140ms" }}>
                 <SectionTitle>Extracted information</SectionTitle>
                 <dl className="mt-2 grid grid-cols-2 gap-x-4">
                   <KeyValue label="Patient" value={analysis.patient} />
@@ -203,7 +296,7 @@ export default function CasesPage() {
                   <KeyValue label="Medical issue" value={analysis.medicalIssue} />
                   <KeyValue
                     label="Assistance type"
-                    value={analysis.assistanceType.replace(/_/g, " ")}
+                    value={formatEnum(analysis.assistanceType)}
                   />
                   <KeyValue
                     label="Urgency"
@@ -212,7 +305,7 @@ export default function CasesPage() {
                   <KeyValue label="Requested action" value={analysis.requestedAction} />
                 </dl>
               </Card>
-              <Card>
+              <Card className="animate-fade-up" style={{ animationDelay: "210ms" }}>
                 <SectionTitle>Suggested actions</SectionTitle>
                 <ul className="mt-2 space-y-1.5">
                   {analysis.suggestedActions.map((a) => (
@@ -243,7 +336,7 @@ export default function CasesPage() {
       <Card className="mt-5">
         <SectionTitle>Recent cases</SectionTitle>
         {listLoading ? (
-          <div className="mt-3"><Spinner /></div>
+          <div className="mt-3"><SkeletonRows rows={5} /></div>
         ) : cases.length === 0 ? (
           <div className="mt-3"><EmptyState title="No cases yet" /></div>
         ) : (

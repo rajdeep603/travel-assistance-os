@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, MapPin, Phone, Search, Star } from "lucide-react";
 import {
   Button,
@@ -9,9 +9,12 @@ import {
   ErrorBanner,
   PageHeader,
   SectionTitle,
-  Spinner,
   readApiError,
 } from "@/components/ui";
+import { AIPipeline } from "@/components/ai-progress";
+import { ProviderMap } from "@/components/provider-map";
+import { formatSlotDate } from "@/lib/format";
+import { ISTANBUL_DISTRICTS } from "@/lib/services/nlu";
 
 interface ProviderResult {
   provider: {
@@ -25,10 +28,13 @@ interface ProviderResult {
     phone: string;
     email: string;
     rating: number;
+    latitude: number;
+    longitude: number;
   };
   distanceKm: number | null;
   slots: { date: string; time: string }[];
   reasons: string[];
+  score: number;
 }
 
 interface PatientOption {
@@ -49,6 +55,9 @@ const DISTRICTS = [
 ];
 const LANGUAGES = ["English", "German", "French", "Russian", "Arabic", "Spanish", "Turkish"];
 
+/** Theoretical maximum of the ranking score — used to show a match %. */
+const MAX_SCORE = 110;
+
 function tomorrow(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -65,6 +74,8 @@ export default function ProvidersPage() {
     language: "English",
   });
   const [results, setResults] = useState<ProviderResult[] | null>(null);
+  const [searchedDistrict, setSearchedDistrict] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -75,6 +86,7 @@ export default function ProvidersPage() {
   const [bookingPatient, setBookingPatient] = useState("");
   const [bookingBusy, setBookingBusy] = useState(false);
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     fetch("/api/patients")
@@ -83,11 +95,22 @@ export default function ProvidersPage() {
       .catch(() => setPatients([]));
   }, []);
 
+  // Close the booking dialog with Escape.
+  useEffect(() => {
+    if (!booking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setBooking(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [booking]);
+
   async function search() {
     setSearching(true);
     setError(null);
     setResults(null);
     setConfirmation(null);
+    setSelectedId(null);
     try {
       const res = await fetch("/api/providers/search", {
         method: "POST",
@@ -98,12 +121,20 @@ export default function ProvidersPage() {
         setError(await readApiError(res, "The provider search failed."));
         return;
       }
-      setResults((await res.json()).results ?? []);
+      const list: ProviderResult[] = (await res.json()).results ?? [];
+      setResults(list);
+      setSearchedDistrict(form.city === "Istanbul" ? form.district || null : null);
+      setSelectedId(list[0]?.provider.id ?? null);
     } catch {
       setError("The provider search failed — please check your connection.");
     } finally {
       setSearching(false);
     }
+  }
+
+  function selectProvider(id: string) {
+    setSelectedId(id);
+    cardRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   async function book() {
@@ -128,7 +159,7 @@ export default function ProvidersPage() {
       }
       const body = await res.json();
       setConfirmation(
-        `Appointment ${body.appointment.ref} confirmed with ${booking.result.provider.name} on ${booking.slot.date} at ${booking.slot.time}.`
+        `Appointment ${body.appointment.ref} confirmed with ${booking.result.provider.name} on ${formatSlotDate(booking.slot.date)} at ${booking.slot.time}.`
       );
       setBooking(null);
       setBookingPatient("");
@@ -143,10 +174,19 @@ export default function ProvidersPage() {
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const selectCls =
-    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none";
+    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition-shadow focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100";
+
+  const originCoords =
+    searchedDistrict != null
+      ? ISTANBUL_DISTRICTS[searchedDistrict.toLowerCase()] ?? null
+      : null;
+  const origin =
+    originCoords && searchedDistrict
+      ? { ...originCoords, label: searchedDistrict }
+      : null;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-7xl">
       <PageHeader
         title="Provider Search"
         subtitle="Find suitable healthcare providers in the demo network — matched on specialty, language, availability and distance."
@@ -154,7 +194,7 @@ export default function ProvidersPage() {
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
       {confirmation ? (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          <CheckCircle2 size={16} />
+          <CheckCircle2 size={16} aria-hidden />
           {confirmation}
         </div>
       ) : null}
@@ -163,7 +203,17 @@ export default function ProvidersPage() {
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <label className="block">
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">City</span>
-            <select value={form.city} onChange={set("city")} className={selectCls}>
+            <select
+              value={form.city}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  city: e.target.value,
+                  district: e.target.value === "Istanbul" ? f.district : "",
+                }))
+              }
+              className={selectCls}
+            >
               {["Istanbul", "Ankara", "Antalya"].map((c) => (
                 <option key={c}>{c}</option>
               ))}
@@ -171,11 +221,16 @@ export default function ProvidersPage() {
           </label>
           <label className="block">
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">District</span>
-            <select value={form.district} onChange={set("district")} className={selectCls}>
+            <select
+              value={form.district}
+              onChange={set("district")}
+              className={selectCls}
+              disabled={form.city !== "Istanbul"}
+            >
               <option value="">Any</option>
-              {DISTRICTS.map((d) => (
-                <option key={d}>{d}</option>
-              ))}
+              {form.city === "Istanbul"
+                ? DISTRICTS.map((d) => <option key={d}>{d}</option>)
+                : null}
             </select>
           </label>
           <label className="block">
@@ -209,16 +264,32 @@ export default function ProvidersPage() {
             </select>
           </label>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button onClick={search} busy={searching}>
-            <Search size={15} />
+            <Search size={15} aria-hidden />
             Search providers
           </Button>
+          {form.city !== "Istanbul" ? (
+            <p className="text-xs text-slate-400">
+              The demo network is Istanbul-focused — other cities have limited coverage.
+            </p>
+          ) : null}
         </div>
       </Card>
 
       {searching ? (
-        <Card><Spinner label="Matching providers…" /></Card>
+        <Card>
+          <AIPipeline
+            busy={searching}
+            stages={[
+              "Filtering the provider network",
+              "Checking live availability",
+              "Scoring distance, language and rating",
+              "Ranking the best matches",
+            ]}
+            stepMs={400}
+          />
+        </Card>
       ) : results == null ? (
         <Card>
           <EmptyState
@@ -234,87 +305,158 @@ export default function ProvidersPage() {
           />
         </Card>
       ) : (
-        <div className="space-y-4">
-          {results.map((r) => (
-            <Card key={r.provider.id}>
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h3 className="text-base font-semibold text-slate-900">
-                    {r.provider.name}
-                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-amber-500">
-                      <Star size={12} fill="currentColor" /> {r.provider.rating.toFixed(1)}
-                    </span>
-                  </h3>
-                  <p className="text-sm text-slate-500">
-                    {r.provider.facility} · {r.provider.specialty}
-                  </p>
-                  <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin size={12} />
-                      {r.provider.district}, {r.provider.city}
-                      {r.distanceKm != null ? ` · ${r.distanceKm} km` : ""}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Phone size={12} /> {r.provider.phone}
-                    </span>
-                    <span>Languages: {r.provider.languages.join(", ")}</span>
-                  </p>
-                </div>
-                <div className="w-full sm:w-auto">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    Available slots
-                  </p>
-                  {r.slots.length === 0 ? (
-                    <p className="text-xs text-slate-400">No slots on this date</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {r.slots.slice(0, 4).map((s) => (
-                        <button
-                          key={`${s.date}-${s.time}`}
-                          type="button"
-                          onClick={() => {
-                            setBooking({ result: r, slot: s });
-                            setConfirmation(null);
-                          }}
-                          className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                        >
-                          {s.time}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+        <div className="grid gap-5 lg:grid-cols-5">
+          <div className="lg:col-span-2">
+            <Card className="lg:sticky lg:top-20">
+              <SectionTitle>Network map</SectionTitle>
+              <div className="mt-3">
+                <ProviderMap
+                  providers={results.map((r) => ({
+                    id: r.provider.id,
+                    name: r.provider.name,
+                    facility: r.provider.facility,
+                    latitude: r.provider.latitude,
+                    longitude: r.provider.longitude,
+                  }))}
+                  origin={origin}
+                  selectedId={selectedId}
+                  onSelect={selectProvider}
+                />
               </div>
-              <div className="mt-3 rounded-lg bg-slate-50 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  Why this provider?
-                </p>
-                <ul className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
-                  {r.reasons.map((reason) => (
-                    <li
-                      key={reason}
-                      className="flex items-center gap-1.5 text-xs text-slate-600"
-                    >
-                      <CheckCircle2 size={13} className="text-emerald-500" />
-                      {reason}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Pins are ranked matches{origin ? ` around ${origin.label}` : ""} —
+                click a pin to highlight the provider.
+              </p>
             </Card>
-          ))}
+          </div>
+
+          <div className="space-y-4 lg:col-span-3">
+            {results.map((r, i) => {
+              const selected = r.provider.id === selectedId;
+              const matchPct = Math.min(99, Math.round((r.score / MAX_SCORE) * 100));
+              return (
+                <div
+                  key={r.provider.id}
+                  ref={(el) => {
+                    cardRefs.current[r.provider.id] = el;
+                  }}
+                >
+                  <Card
+                    className={`animate-fade-up cursor-pointer transition-all ${
+                      selected ? "border-blue-400 ring-2 ring-blue-100" : "hover:-translate-y-0.5"
+                    }`}
+                    style={{ animationDelay: `${i * 70}ms` }}
+                  >
+                    <div onClick={() => setSelectedId(r.provider.id)}>
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+                            {i + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="text-base font-semibold text-slate-900">
+                              {r.provider.name}
+                              <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-amber-500">
+                                <Star size={12} fill="currentColor" aria-hidden /> {r.provider.rating.toFixed(1)}
+                              </span>
+                            </h3>
+                            <p className="text-sm text-slate-500">
+                              {r.provider.facility} · {r.provider.specialty}
+                            </p>
+                            <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin size={12} aria-hidden />
+                                {r.provider.district}, {r.provider.city}
+                                {r.distanceKm != null ? ` · ${r.distanceKm} km` : ""}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <Phone size={12} aria-hidden /> {r.provider.phone}
+                              </span>
+                              <span>Languages: {r.provider.languages.join(", ")}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span
+                            className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"
+                            title="AI match score against this search"
+                          >
+                            {matchPct}% match
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Available slots · {formatSlotDate(form.date)}
+                          </p>
+                          {r.slots.length === 0 ? (
+                            <p className="text-xs text-slate-400">No slots on this date</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {r.slots.slice(0, 4).map((s) => (
+                                <button
+                                  key={`${s.date}-${s.time}`}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBooking({ result: r, slot: s });
+                                    setConfirmation(null);
+                                  }}
+                                  className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                                >
+                                  {s.time}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 rounded-lg bg-slate-50 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Why this provider?
+                        </p>
+                        <ul className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
+                          {r.reasons.map((reason) => (
+                            <li
+                              key={reason}
+                              className="flex items-center gap-1.5 text-xs text-slate-600"
+                            >
+                              <CheckCircle2 size={13} className="text-emerald-500" aria-hidden />
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {booking ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <div
+          className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]"
+          onClick={() => setBooking(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Book appointment"
+            className="animate-modal-in w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <SectionTitle>Book appointment</SectionTitle>
             <p className="mt-2 text-sm text-slate-700">
               {booking.result.provider.name} · {booking.result.provider.facility}
               <br />
               <span className="font-semibold">
-                {booking.slot.date} at {booking.slot.time}
+                {formatSlotDate(booking.slot.date)} at {booking.slot.time}
               </span>
             </p>
             <label className="mt-4 block">
@@ -329,7 +471,7 @@ export default function ProvidersPage() {
                 <option value="">Select patient…</option>
                 {patients.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.ref} — {p.firstName} {p.lastName}
+                    {p.firstName} {p.lastName} ({p.ref})
                   </option>
                 ))}
               </select>

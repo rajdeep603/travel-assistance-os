@@ -1,14 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BookOpenText, SendHorizonal } from "lucide-react";
+import Markdown from "react-markdown";
+import { BookOpenText, FileText, SendHorizonal, Sparkles } from "lucide-react";
 import {
   Button,
   Card,
   ErrorBanner,
   PageHeader,
-  Spinner,
 } from "@/components/ui";
+
+/** Animated "assistant is thinking" indicator. */
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start" role="status" aria-label="The assistant is thinking">
+      <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-3">
+        <Sparkles size={14} className="text-blue-500" aria-hidden />
+        <span className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="animate-typing-dot h-1.5 w-1.5 rounded-full bg-slate-400"
+              style={{ animationDelay: `${i * 0.18}s` }}
+            />
+          ))}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 interface Turn {
   role: "user" | "assistant";
@@ -76,7 +96,7 @@ export default function AssistantPage() {
       />
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
-      <Card className="flex h-[560px] flex-col">
+      <Card className="flex h-[62vh] min-h-[480px] flex-col">
         <div ref={chatBoxRef} className="flex-1 space-y-4 overflow-y-auto pr-1">
           {turns.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
@@ -100,28 +120,39 @@ export default function AssistantPage() {
           ) : (
             turns.map((t, i) =>
               t.role === "user" ? (
-                <div key={i} className="flex justify-end">
-                  <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-blue-600 px-4 py-2.5 text-sm text-white">
+                <div key={i} className="animate-fade-up flex justify-end">
+                  <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-blue-600 px-4 py-2.5 text-sm text-white shadow-sm">
                     {t.text}
                   </div>
                 </div>
               ) : (
-                <div key={i} className="flex justify-start">
+                <div key={i} className="animate-fade-up flex justify-start">
                   <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-2.5">
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-                      {t.text}
-                    </p>
+                    <div className="prose-chat text-sm leading-relaxed text-slate-800">
+                      <Markdown>{t.text}</Markdown>
+                    </div>
                     {t.sources?.length ? (
-                      <p className="mt-2 border-t border-slate-200 pt-1.5 text-[11px] text-slate-400">
-                        Sources: {t.sources.map((s) => s.title).join(" · ")}
-                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-200 pt-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          Sources
+                        </span>
+                        {t.sources.map((s) => (
+                          <span
+                            key={s.title}
+                            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500"
+                          >
+                            <FileText size={10} aria-hidden />
+                            {s.title}
+                          </span>
+                        ))}
+                      </div>
                     ) : null}
                   </div>
                 </div>
               )
             )
           )}
-          {busy ? <Spinner label="Searching the knowledge base…" /> : null}
+          {busy ? <TypingIndicator /> : null}
         </div>
         <form
           className="mt-4 flex gap-2 border-t border-slate-100 pt-4"

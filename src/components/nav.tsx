@@ -88,7 +88,7 @@ export function MobileNav() {
         <div className="fixed inset-0 top-[53px] z-40 flex flex-col bg-slate-900/50" onClick={() => setOpen(false)}>
           <nav
             aria-label="Main navigation"
-            className="flex flex-col gap-1 border-b border-slate-200 bg-white p-3 shadow-lg"
+            className="animate-slide-down flex flex-col gap-1 border-b border-slate-200 bg-white p-3 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             {NAV_ITEMS.map(({ href, label, icon: Icon }) => {

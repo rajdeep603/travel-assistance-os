@@ -56,6 +56,17 @@ function inTimeOfDay(time: string, timeOfDay?: string): boolean {
   }
 }
 
+/** "2026-10-03" → "Fri 3 Oct" for human-readable match reasons. */
+function friendlyDate(date: string): string {
+  const d = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return date;
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(d);
+}
+
 function defaultDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
@@ -133,12 +144,12 @@ export async function searchProviders(
       score += 25;
       reasons.push(
         query.timeOfDay
-          ? `Available on ${date} in the requested time window`
-          : `Available on ${date}`
+          ? `Available on ${friendlyDate(date)} in the requested time window`
+          : `Available on ${friendlyDate(date)}`
       );
     } else if (allSlots.length > 0) {
       score += 8;
-      reasons.push(`Available on ${date} outside the requested window`);
+      reasons.push(`Available on ${friendlyDate(date)} outside the requested window`);
       slots.push(...allSlots.slice(0, 2).map((time) => ({ date, time })));
     }
 

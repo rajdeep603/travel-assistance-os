@@ -70,29 +70,40 @@ export async function reviewClaim(claimId: string): Promise<ClaimWithRelations> 
   if (!claim) throw notFound("Claim");
 
   const issues = checkCompleteness(claim);
-  const extraction = claim.documents.find((d) => d.extraction)?.extraction;
+  // Financial fields come from the invoice when there is one; the first
+  // extraction is only a fallback (a medical report has no amount).
+  const extractions = claim.documents
+    .map((d) => d.extraction)
+    .filter((e): e is DocumentExtraction => e != null);
+  const invoiceExtraction =
+    claim.documents.find((d) => d.kind === "HOSPITAL_INVOICE" && d.extraction)
+      ?.extraction ?? extractions.find((e) => e.invoiceAmount != null);
+  const extraction = {
+    diagnosis: extractions.find((e) => e.diagnosis)?.diagnosis ?? null,
+    hospital: extractions.find((e) => e.hospital)?.hospital ?? null,
+    invoiceAmount: invoiceExtraction?.invoiceAmount ?? null,
+    currency: invoiceExtraction?.currency ?? null,
+    policyReference:
+      extractions.find((e) => e.policyReference)?.policyReference ?? null,
+  };
 
   const summary = await getAIService().summarizeClaim({
     claimRef: claim.ref,
     patientName: `${claim.patient.firstName} ${claim.patient.lastName}`,
     documents: claim.documents.map((d) => ({ kind: d.kind, filename: d.filename })),
-    extraction: extraction
-      ? {
-          diagnosis: extraction.diagnosis,
-          hospital: extraction.hospital,
-          invoiceAmount: extraction.invoiceAmount ? Number(extraction.invoiceAmount) : null,
-          currency: extraction.currency,
-          policyReference: extraction.policyReference,
-        }
-      : {},
+    extraction: {
+      diagnosis: extraction.diagnosis,
+      hospital: extraction.hospital,
+      invoiceAmount:
+        extraction.invoiceAmount != null ? Number(extraction.invoiceAmount) : null,
+      currency: extraction.currency,
+      policyReference: extraction.policyReference,
+    },
     issues,
   });
 
-  const amount =
-    claim.amount ??
-    (extraction?.invoiceAmount != null ? extraction.invoiceAmount : null);
-  const currency = claim.currency ?? extraction?.currency ?? null;
-  const hasErrors = issues.some((i) => i.severity === "error");
+  const amount = claim.amount ?? extraction.invoiceAmount ?? null;
+  const currency = claim.currency ?? extraction.currency ?? null;
 
   return prisma.claim.update({
     where: { id: claimId },
@@ -101,11 +112,11 @@ export async function reviewClaim(claimId: string): Promise<ClaimWithRelations> 
       summary,
       amount,
       currency,
-      status: claim.status === "SUBMITTED" || claim.status === "PROCESSING"
-        ? hasErrors
+      // Every analysed claim lands with a human — the AI never auto-approves.
+      status:
+        claim.status === "SUBMITTED" || claim.status === "PROCESSING"
           ? "NEEDS_REVIEW"
-          : "NEEDS_REVIEW"
-        : claim.status,
+          : claim.status,
       history: appendHistory(claim.history, "AI review completed", summary),
     },
     include: { patient: true, documents: { include: { extraction: true } } },

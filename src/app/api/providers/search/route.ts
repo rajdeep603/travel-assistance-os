@@ -32,6 +32,7 @@ export const POST = withErrorHandling(async (req: Request) => {
         distanceKm: r.distanceKm,
         slots: r.slots,
         reasons: r.reasons,
+        score: r.score,
       }))
     ),
   });

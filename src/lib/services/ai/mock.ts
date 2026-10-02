@@ -55,10 +55,24 @@ function grabList(text: string, labels: string[]): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Small jittered delay so the offline provider feels like a model thinking
+ * rather than a canned lookup. Skipped under tests, and tunable via
+ * MOCK_AI_LATENCY_MS (set to 0 to disable).
+ */
+async function thinkingDelay(): Promise<void> {
+  if (process.env.NODE_ENV === "test") return;
+  const base = Number(process.env.MOCK_AI_LATENCY_MS ?? 450);
+  if (!Number.isFinite(base) || base <= 0) return;
+  const ms = base + Math.random() * base;
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class MockAIService implements AIService {
   readonly name = "demo-deterministic";
 
   async extractMedicalDocument(text: string): Promise<MedicalExtractionResult> {
+    await thinkingDelay();
     const amountRaw = grab(text, [
       "Total Amount Due",
       "Invoice Total",
@@ -129,6 +143,7 @@ export class MockAIService implements AIService {
   }
 
   async analyzeAssistanceRequest(text: string): Promise<CaseIntakeAnalysis> {
+    await thinkingDelay();
     const symptoms = matchSymptoms(text);
     const urgency = maxUrgency(symptoms, text);
     const district = findDistrict(text);
@@ -191,6 +206,7 @@ export class MockAIService implements AIService {
   }
 
   async classifyDocument(text: string, filename = ""): Promise<DocumentKind> {
+    await thinkingDelay();
     const t = `${filename}\n${text}`.toLowerCase();
     if (/invoice|amount due|billing|total amount/.test(t)) return "HOSPITAL_INVOICE";
     if (/discharge summary|discharge date|discharged/.test(t)) return "DISCHARGE_SUMMARY";
@@ -200,6 +216,7 @@ export class MockAIService implements AIService {
   }
 
   async answerWithContext(question: string, context: ContextChunk[]): Promise<string> {
+    await thinkingDelay();
     if (context.length === 0) {
       return "I could not find anything about that in the operational knowledge base. Try asking about case procedures, required documents, providers or claims processes.";
     }
@@ -286,6 +303,7 @@ export class MockAIService implements AIService {
   }
 
   async summarizeClaim(input: ClaimSummaryInput): Promise<string> {
+    await thinkingDelay();
     const docKinds = input.documents.map((d) => d.kind.replace(/_/g, " ").toLowerCase());
     const errors = input.issues.filter((i) => i.severity === "error");
     const lines = [

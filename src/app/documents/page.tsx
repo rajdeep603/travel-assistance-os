@@ -4,15 +4,38 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, FileText, UploadCloud } from "lucide-react";
 import {
   Card,
+  ConfidenceBar,
   EmptyState,
   ErrorBanner,
   KeyValue,
   PageHeader,
   SectionTitle,
-  Spinner,
   StatusBadge,
   readApiError,
 } from "@/components/ui";
+import { AIPipeline } from "@/components/ai-progress";
+import { formatEnum } from "@/lib/format";
+
+/** "medical-report-aylin-yilmaz.pdf" → "Medical report — Aylin Yilmaz" */
+function sampleLabel(filename: string): string {
+  const base = filename.replace(/\.pdf$/i, "");
+  const m = base.match(
+    /^(medical-report|hospital-invoice|discharge-summary|emergency-report|prescription)-(.+)$/
+  );
+  if (!m) return base.replace(/-/g, " ");
+  const name = m[2]
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return `${formatEnum(m[1].replace(/-/g, "_"))} — ${name}`;
+}
+
+const PIPELINE_STAGES = [
+  "Reading the PDF",
+  "Classifying the document",
+  "Extracting structured fields",
+  "Checking for missing information",
+];
 
 interface Extraction {
   patientName: string | null;
@@ -76,7 +99,7 @@ export default function DocumentsPage() {
   async function handleUpload(file: File) {
     setError(null);
     setCurrent(null);
-    setProcessing(`Processing “${file.name}” — extraction in progress…`);
+    setProcessing(`Processing “${file.name}”…`);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -101,7 +124,7 @@ export default function DocumentsPage() {
   async function handleSample(file: string) {
     setError(null);
     setCurrent(null);
-    setProcessing(`Processing sample “${file}” — extraction in progress…`);
+    setProcessing(`Processing “${sampleLabel(file)}”…`);
     try {
       const res = await fetch("/api/documents/sample", {
         method: "POST",
@@ -140,7 +163,7 @@ export default function DocumentsPage() {
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
-              className="mt-3 flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-slate-500 transition-colors hover:border-blue-400 hover:text-blue-600"
+              className="mt-3 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-slate-500 transition-all hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-600"
             >
               <UploadCloud size={28} />
               <span className="text-sm font-medium">
@@ -175,7 +198,7 @@ export default function DocumentsPage() {
                       disabled={processing != null}
                       className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
                     >
-                      {s}
+                      {sampleLabel(s)}
                     </button>
                   ))
                 )}
@@ -192,9 +215,14 @@ export default function DocumentsPage() {
                 className="mt-3 h-[430px] w-full rounded-lg border border-slate-200"
               />
             ) : current?.textContent ? (
-              <pre className="mt-3 h-[430px] w-full overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-                {current.textContent}
-              </pre>
+              <div className="mt-3">
+                <p className="mb-2 text-xs text-slate-400">
+                  Text extracted from the uploaded document:
+                </p>
+                <pre className="h-[400px] w-full overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+                  {current.textContent}
+                </pre>
+              </div>
             ) : (
               <div className="mt-3">
                 <EmptyState
@@ -214,7 +242,10 @@ export default function DocumentsPage() {
               {current ? <StatusBadge value={current.status} /> : null}
             </div>
             {processing ? (
-              <div className="mt-4"><Spinner label={processing} /></div>
+              <div className="mt-4">
+                <p className="mb-3 text-sm text-slate-500">{processing}</p>
+                <AIPipeline busy stages={PIPELINE_STAGES} />
+              </div>
             ) : current?.status === "FAILED" ? (
               <div className="mt-4">
                 <ErrorBanner
@@ -222,7 +253,7 @@ export default function DocumentsPage() {
                 />
               </div>
             ) : e ? (
-              <dl className="mt-2 grid grid-cols-2 gap-x-4">
+              <dl className="animate-fade-up mt-2 grid grid-cols-2 gap-x-4">
                 <KeyValue label="Patient name" value={e.patientName} />
                 <KeyValue label="Date of birth" value={e.dateOfBirth} />
                 <KeyValue label="Hospital" value={e.hospital} />
@@ -253,13 +284,7 @@ export default function DocumentsPage() {
                 <KeyValue label="Policy / claim reference" value={e.policyReference} />
                 <KeyValue
                   label="Document type"
-                  value={current?.kind.replace(/_/g, " ")}
-                />
-                <KeyValue
-                  label="Extraction confidence"
-                  value={
-                    e.confidence != null ? `${Math.round(e.confidence * 100)}%` : null
-                  }
+                  value={current ? formatEnum(current.kind) : null}
                 />
               </dl>
             ) : (
@@ -272,15 +297,21 @@ export default function DocumentsPage() {
             )}
           </Card>
 
+          {e?.confidence != null ? (
+            <Card className="animate-fade-up" style={{ animationDelay: "70ms" }}>
+              <ConfidenceBar value={e.confidence} />
+            </Card>
+          ) : null}
+
           {e?.summary ? (
-            <Card>
+            <Card className="animate-fade-up" style={{ animationDelay: "140ms" }}>
               <SectionTitle>AI summary</SectionTitle>
               <p className="mt-2 text-sm leading-relaxed text-slate-700">{e.summary}</p>
             </Card>
           ) : null}
 
           {e ? (
-            <Card>
+            <Card className="animate-fade-up" style={{ animationDelay: "210ms" }}>
               <SectionTitle>Missing information</SectionTitle>
               {e.missingInfo.length === 0 ? (
                 <p className="mt-2 flex items-center gap-2 text-sm text-emerald-600">
@@ -328,7 +359,7 @@ export default function DocumentsPage() {
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <span className="hidden text-xs text-slate-400 sm:inline">
-                    {d.kind.replace(/_/g, " ")}
+                    {formatEnum(d.kind)}
                   </span>
                   <StatusBadge value={d.status} />
                 </span>

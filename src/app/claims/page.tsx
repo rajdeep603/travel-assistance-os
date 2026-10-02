@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { UploadCloud } from "lucide-react";
+import { Sparkles, UploadCloud } from "lucide-react";
 import {
   Button,
   Card,
@@ -10,10 +10,20 @@ import {
   ErrorBanner,
   PageHeader,
   SectionTitle,
-  Spinner,
+  SkeletonRows,
   StatusBadge,
   readApiError,
 } from "@/components/ui";
+import { AIPipeline } from "@/components/ai-progress";
+import { formatMoney } from "@/lib/format";
+
+const CLAIM_STAGES = [
+  "Reading the documents",
+  "Classifying each document",
+  "Extracting the claim data",
+  "Checking completeness",
+  "Preparing for human review",
+];
 
 interface ClaimRow {
   id: string;
@@ -64,6 +74,27 @@ export default function ClaimsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function submitSamplePack() {
+    setError(null);
+    setNotice(null);
+    setUploading(true);
+    try {
+      const res = await fetch("/api/claims/sample", { method: "POST" });
+      if (!res.ok) {
+        setError(await readApiError(res, "The sample claim could not be created."));
+        return;
+      }
+      const body = await res.json();
+      const warn = body.warnings?.length ? ` (${body.warnings.join(" ")})` : "";
+      setNotice(`Claim ${body.claim.ref} created from the sample pack and analysed${warn}.`);
+      load();
+    } catch {
+      setError("The sample claim could not be created — please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function submitClaim() {
     setError(null);
@@ -138,19 +169,33 @@ export default function ClaimsPage() {
             className="hidden"
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
           />
-          <Button onClick={submitClaim} busy={uploading}>
+          <Button onClick={submitClaim} busy={uploading && files.length > 0}>
             Create &amp; analyse claim
           </Button>
+          <span className="text-xs text-slate-400">or</span>
+          <Button
+            variant="secondary"
+            onClick={submitSamplePack}
+            busy={uploading && files.length === 0}
+            disabled={uploading}
+          >
+            <Sparkles size={15} aria-hidden />
+            Use sample claim pack
+          </Button>
         </div>
+        {uploading ? (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <AIPipeline busy stages={CLAIM_STAGES} />
+          </div>
+        ) : null}
         {files.length > 0 ? (
           <p className="mt-2 text-xs text-slate-400">
             {files.map((f) => f.name).join(" · ")}
           </p>
         ) : (
           <p className="mt-2 text-xs text-slate-400">
-            Tip: the fictional sample PDFs from Medical Document AI (in
-            public/demo-documents) work here too — e.g. a medical report, invoice and
-            discharge summary together.
+            The sample pack files a fictional medical report, hospital invoice and
+            discharge summary together — the full claims flow in one click.
           </p>
         )}
       </Card>
@@ -158,7 +203,7 @@ export default function ClaimsPage() {
       <Card>
         <SectionTitle>Claims</SectionTitle>
         {loading ? (
-          <div className="mt-3"><Spinner /></div>
+          <div className="mt-3"><SkeletonRows rows={6} /></div>
         ) : claims.length === 0 ? (
           <div className="mt-3"><EmptyState title="No claims yet" /></div>
         ) : (
@@ -198,9 +243,7 @@ export default function ClaimsPage() {
                       )}
                     </td>
                     <td className="py-2.5 pr-4 text-slate-700">
-                      {c.amount != null
-                        ? `${Number(c.amount).toLocaleString()} ${c.currency ?? ""}`
-                        : "—"}
+                      {c.amount != null ? formatMoney(Number(c.amount), c.currency) : "—"}
                     </td>
                     <td className="py-2.5 pr-4 text-slate-500">{c.documents.length}</td>
                     <td className="py-2.5"><StatusBadge value={c.status} /></td>

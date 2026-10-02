@@ -6,10 +6,249 @@
   color-scheme: light;
 }
 
+/* Presentation mode: scale the whole rem-based UI up for projectors. */
+html[data-present="on"] {
+  font-size: 18.5px;
+}
+
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
+  background-image:
+    radial-gradient(60rem 30rem at 85% -10%, rgba(37, 99, 235, 0.06), transparent),
+    radial-gradient(50rem 26rem at -10% 110%, rgba(14, 165, 233, 0.05), transparent);
+  background-attachment: fixed;
 }
 
 ::selection {
   @apply bg-blue-100;
+}
+
+/* Markdown styling inside chat bubbles (no typography plugin needed). */
+.prose-chat p + p {
+  margin-top: 0.5rem;
+}
+
+.prose-chat ul,
+.prose-chat ol {
+  margin: 0.4rem 0 0.4rem 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.prose-chat ul {
+  list-style: disc;
+}
+
+.prose-chat ol {
+  list-style: decimal;
+}
+
+.prose-chat strong {
+  @apply font-semibold text-slate-900;
+}
+
+.prose-chat code {
+  @apply rounded bg-slate-200/70 px-1 py-0.5 text-[0.85em];
+}
+
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  @apply mt-2 text-sm font-semibold text-slate-900;
+}
+
+/* --- Demo motion ------------------------------------------------------- */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Skeleton shimmer for content that is still loading. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 45%, #f1f5f9 65%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Bars and meters grow in from the left. */
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-bar-grow {
+  transform-origin: left;
+  animation: bar-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Map pins and badges pop into place. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* SVG pins scale around their own centre, not the SVG origin. */
+.map-pin {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Dialog entrance. */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-modal-in {
+  animation: modal-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+/* Mobile navigation slides down from the header. */
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Expanding ring around the voice-agent microphone. */
+@keyframes mic-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+.animate-mic-ring {
+  animation: mic-ring 1.6s ease-out infinite;
+}
+
+/* Equalizer bars while the agent listens or speaks. */
+@keyframes sound-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-sound-bar {
+  animation: sound-bar 1s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Typing indicator dots in chat. */
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+.animate-typing-dot {
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+
+/* Pulsing origin marker on the provider map. */
+@keyframes map-pulse {
+  0% {
+    opacity: 0.5;
+    r: 6px;
+  }
+  100% {
+    opacity: 0;
+    r: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-mic-ring,
+  .animate-sound-bar,
+  .animate-typing-dot,
+  .animate-bar-grow,
+  .animate-pop-in,
+  .animate-modal-in,
+  .animate-fade-in,
+  .animate-slide-down {
+    animation: none;
+  }
+
+  .animate-shimmer {
+    animation: none;
+    background: #f1f5f9;
+  }
 }

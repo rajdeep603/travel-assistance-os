@@ -43,7 +43,7 @@ export interface VoiceTurnResult {
 }
 
 const GREETING =
-  "Hello, you've reached the ITIC travel medical assistance line. I'm the AI assistant — I can help you find a doctor and book an appointment. How can I help you today?";
+  "Hello, you've reached the travel medical assistance line. I'm the AI assistant — I can help you find a doctor and book an appointment. How can I help you today?";
 
 const SLOT_QUESTIONS: [keyof VoicePatientInfo, string][] = [
   ["problem", "I'm sorry to hear that. Could you describe the medical problem?"],

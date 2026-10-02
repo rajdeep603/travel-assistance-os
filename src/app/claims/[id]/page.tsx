@@ -11,10 +11,13 @@ import {
   KeyValue,
   PageHeader,
   SectionTitle,
-  Spinner,
+  Skeleton,
+  SkeletonRows,
   StatusBadge,
   readApiError,
 } from "@/components/ui";
+import { Timeline } from "@/components/ui";
+import { formatDateTime, formatEnum, formatMoney } from "@/lib/format";
 
 interface Issue {
   severity: "error" | "warning" | "ok";
@@ -44,7 +47,12 @@ interface ClaimDetail {
     filename: string;
     kind: string;
     status: string;
-    extraction: { diagnosis: string | null; hospital: string | null } | null;
+    extraction: {
+      diagnosis: string | null;
+      hospital: string | null;
+      confidence: number | null;
+      missingInfo: string[];
+    } | null;
   }[];
 }
 
@@ -131,7 +139,21 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
   }
 
   if (loading) {
-    return <div className="mx-auto max-w-5xl"><Spinner label="Loading claim…" /></div>;
+    return (
+      <div className="mx-auto max-w-5xl" role="status" aria-label="Loading">
+        <Skeleton className="mb-4 h-4 w-24" />
+        <Skeleton className="mb-6 h-8 w-80" />
+        <div className="grid gap-5 lg:grid-cols-3">
+          <div className="space-y-5 lg:col-span-2">
+            <Card><SkeletonRows rows={3} /></Card>
+            <Card><SkeletonRows rows={4} /></Card>
+          </div>
+          <div className="space-y-5">
+            <Card><SkeletonRows rows={5} /></Card>
+          </div>
+        </div>
+      </div>
+    );
   }
   if (error && !claim) {
     return (
@@ -214,17 +236,40 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
             ) : (
               <div className="mt-2 divide-y divide-slate-100">
                 {claim.documents.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800">
-                        {d.filename}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {d.kind.replace(/_/g, " ")}
-                        {d.extraction?.hospital ? ` · ${d.extraction.hospital}` : ""}
-                      </p>
+                  <div key={d.id} className="py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {d.filename}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {formatEnum(d.kind)}
+                          {d.extraction?.hospital ? ` · ${d.extraction.hospital}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {d.extraction?.confidence != null ? (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                              d.extraction.confidence >= 0.8
+                                ? "bg-emerald-50 text-emerald-700"
+                                : d.extraction.confidence >= 0.6
+                                  ? "bg-amber-50 text-amber-700"
+                                  : "bg-red-50 text-red-700"
+                            }`}
+                            title="AI extraction confidence for this document"
+                          >
+                            {Math.round(d.extraction.confidence * 100)}% confidence
+                          </span>
+                        ) : null}
+                        <StatusBadge value={d.status} />
+                      </div>
                     </div>
-                    <StatusBadge value={d.status} />
+                    {d.extraction?.missingInfo?.length ? (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Missing: {d.extraction.missingInfo.join(" · ")}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -234,21 +279,15 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
           {claim.history?.length ? (
             <Card>
               <SectionTitle>History</SectionTitle>
-              <div className="mt-2 space-y-2">
-                {[...claim.history].reverse().map((h, i) => (
-                  <div key={i} className="flex items-start gap-3 text-sm">
-                    <span className="mt-0.5 w-32 shrink-0 text-xs text-slate-400">
-                      {new Date(h.at).toLocaleString("en-GB", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}
-                    </span>
-                    <span className="text-slate-700">
-                      {h.action}
-                      {h.note ? <span className="text-slate-400"> — {h.note}</span> : null}
-                    </span>
-                  </div>
-                ))}
+              <div className="mt-3">
+                <Timeline
+                  items={[...claim.history].reverse().map((h) => ({
+                    title: h.action,
+                    meta: h.note ?? undefined,
+                    time: formatDateTime(h.at),
+                    dotClass: "bg-blue-500",
+                  }))}
+                />
               </div>
             </Card>
           ) : null}
@@ -263,7 +302,7 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
                 label="Amount"
                 value={
                   claim.amount != null
-                    ? `${Number(claim.amount).toLocaleString()} ${claim.currency ?? ""}`
+                    ? formatMoney(Number(claim.amount), claim.currency)
                     : null
                 }
               />
@@ -282,9 +321,7 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
               />
               <KeyValue
                 label="Submitted"
-                value={new Date(claim.createdAt).toLocaleDateString("en-GB", {
-                  dateStyle: "medium",
-                })}
+                value={formatDateTime(claim.createdAt)}
               />
             </dl>
           </Card>

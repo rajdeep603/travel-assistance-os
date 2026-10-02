@@ -4,17 +4,21 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
-  Button,
   Card,
   EmptyState,
   ErrorBanner,
   KeyValue,
   PageHeader,
   SectionTitle,
-  Spinner,
+  Skeleton,
+  SkeletonRows,
   StatusBadge,
+  STATUS_DOTS,
+  Timeline,
   readApiError,
 } from "@/components/ui";
+import type { TimelineItem } from "@/components/ui";
+import { formatDateTime, formatEnum } from "@/lib/format";
 
 interface CaseDetail {
   id: string;
@@ -54,6 +58,53 @@ interface CaseDetail {
 }
 
 const STATUSES = ["NEW", "IN_PROGRESS", "PENDING_INFO", "ESCALATED", "RESOLVED", "CLOSED"];
+
+/** The case journey: intake → conversations → appointments → claims → people. */
+function buildJourney(data: CaseDetail): TimelineItem[] {
+  const items: TimelineItem[] = [
+    {
+      title: "Assistance request received",
+      meta: `AI intake — ${formatEnum(data.assistanceType)}, priority ${formatEnum(data.priority)}`,
+      time: formatDateTime(data.createdAt),
+      dotClass: "bg-blue-500",
+    },
+  ];
+  for (const c of data.conversations) {
+    items.push({
+      title: `${formatEnum(c.channel)} conversation handled by the AI agent`,
+      meta: c.summary ?? undefined,
+      dotClass: "bg-sky-500",
+    });
+  }
+  for (const a of data.appointments) {
+    items.push({
+      title: `Appointment ${a.ref} — ${a.provider.name}`,
+      meta: `${a.provider.facility}, ${a.provider.district} · ${formatEnum(a.status)}`,
+      time: formatDateTime(a.scheduledAt),
+      dotClass: STATUS_DOTS[a.status] ?? "bg-emerald-500",
+    });
+  }
+  for (const c of data.claims) {
+    items.push({
+      title: `Claim ${c.ref}`,
+      meta: formatEnum(c.status),
+      dotClass: STATUS_DOTS[c.status] ?? "bg-indigo-500",
+    });
+  }
+  items.push(
+    data.assignedTo
+      ? {
+          title: `Human case manager in charge: ${data.assignedTo}`,
+          meta: "AI prepares, people decide",
+          dotClass: "bg-slate-700",
+        }
+      : {
+          title: "Awaiting case manager assignment",
+          dotClass: "bg-slate-300",
+        }
+  );
+  return items;
+}
 
 export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const [data, setData] = useState<CaseDetail | null>(null);
@@ -103,7 +154,21 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
   }
 
   if (loading) {
-    return <div className="mx-auto max-w-5xl"><Spinner label="Loading case…" /></div>;
+    return (
+      <div className="mx-auto max-w-5xl" role="status" aria-label="Loading">
+        <Skeleton className="mb-4 h-4 w-24" />
+        <Skeleton className="mb-6 h-8 w-80" />
+        <div className="grid gap-5 lg:grid-cols-3">
+          <div className="space-y-5 lg:col-span-2">
+            <Card><SkeletonRows rows={3} /></Card>
+            <Card><SkeletonRows rows={4} /></Card>
+          </div>
+          <div className="space-y-5">
+            <Card><SkeletonRows rows={5} /></Card>
+          </div>
+        </div>
+      </div>
+    );
   }
   if (error && !data) {
     return (
@@ -146,6 +211,13 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             </p>
           </Card>
 
+          <Card>
+            <SectionTitle>Case journey</SectionTitle>
+            <div className="mt-3">
+              <Timeline items={buildJourney(data)} />
+            </div>
+          </Card>
+
           {data.suggestedActions?.length ? (
             <Card>
               <SectionTitle>Suggested actions</SectionTitle>
@@ -174,10 +246,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                       </p>
                       <p className="text-xs text-slate-400">
                         {a.provider.facility}, {a.provider.district} ·{" "}
-                        {new Date(a.scheduledAt).toLocaleString("en-GB", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
+                        {formatDateTime(a.scheduledAt)}
                       </p>
                     </div>
                     <StatusBadge value={a.status} />
@@ -209,7 +278,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                     <div key={d.id} className="flex items-center justify-between py-1">
                       <span className="truncate text-sm text-slate-700">{d.filename}</span>
                       <span className="ml-3 shrink-0 text-xs text-slate-400">
-                        {d.kind.replace(/_/g, " ")}
+                        {formatEnum(d.kind)}
                       </span>
                     </div>
                   ))}
@@ -225,7 +294,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                 {data.conversations.map((c) => (
                   <div key={c.id} className="rounded-lg bg-slate-50 p-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                      {c.channel} interaction
+                      {formatEnum(c.channel)} interaction
                     </p>
                     <p className="mt-1 text-sm text-slate-700">
                       {c.summary ?? "Transcript stored (no summary)."}
@@ -252,7 +321,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <KeyValue label="Location" value={`${data.location}, ${data.country}`} />
               <KeyValue
                 label="Assistance type"
-                value={data.assistanceType.replace(/_/g, " ")}
+                value={formatEnum(data.assistanceType)}
               />
               <KeyValue
                 label="Symptoms"
@@ -261,10 +330,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               <KeyValue label="Assigned case manager" value={data.assignedTo} />
               <KeyValue
                 label="Created"
-                value={new Date(data.createdAt).toLocaleString("en-GB", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
+                value={formatDateTime(data.createdAt)}
               />
             </dl>
           </Card>
@@ -272,18 +338,29 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <Card>
             <SectionTitle>Update status</SectionTitle>
             <div className="mt-3 flex flex-wrap gap-2">
-              {STATUSES.filter((s) => s !== data.status).map((s) => (
-                <Button
-                  key={s}
-                  variant="secondary"
-                  disabled={updating}
-                  onClick={() => setStatus(s)}
-                  className="px-3 py-1.5 text-xs"
-                >
-                  {s.replace(/_/g, " ")}
-                </Button>
-              ))}
+              {STATUSES.map((s) => {
+                const isCurrent = s === data.status;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    disabled={updating || isCurrent}
+                    onClick={() => setStatus(s)}
+                    aria-pressed={isCurrent}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      isCurrent
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+                    }`}
+                  >
+                    {formatEnum(s)}
+                  </button>
+                );
+              })}
             </div>
+            <p className="mt-2 text-xs text-slate-400">
+              Current status is highlighted — click another to move the case.
+            </p>
           </Card>
         </div>
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
@@ -24,6 +25,7 @@ import {
   SectionTitle,
   StatusBadge,
 } from "@/components/ui";
+import { formatDateTime, formatEnum, formatSlotDate } from "@/lib/format";
 
 type VoiceStatus = "idle" | "listening" | "processing" | "speaking";
 type MicPermission = "unknown" | "granted" | "denied";
@@ -100,12 +102,52 @@ const STATUS_LABELS: Record<VoiceStatus, string> = {
   speaking: "Speaking…",
 };
 
-const STATUS_COLORS: Record<VoiceStatus, string> = {
-  idle: "bg-slate-300",
-  listening: "bg-emerald-500 animate-pulse",
-  processing: "bg-amber-500 animate-pulse",
-  speaking: "bg-blue-500 animate-pulse",
+const STATUS_RING: Record<VoiceStatus, string> = {
+  idle: "bg-slate-200 text-slate-400",
+  listening: "bg-emerald-500 text-white",
+  processing: "bg-amber-400 text-white",
+  speaking: "bg-blue-600 text-white",
 };
+
+/**
+ * The room-visible call indicator: expanding rings while the agent listens,
+ * an equalizer while it speaks — so the audience can see the agent working.
+ */
+function CallVisual({ status }: { status: VoiceStatus }) {
+  return (
+    <div className="relative flex h-20 w-20 items-center justify-center" aria-hidden>
+      {status === "listening" ? (
+        <>
+          <span className="animate-mic-ring absolute inset-0 rounded-full bg-emerald-400" />
+          <span
+            className="animate-mic-ring absolute inset-0 rounded-full bg-emerald-400"
+            style={{ animationDelay: "0.55s" }}
+          />
+        </>
+      ) : null}
+      {status === "processing" ? (
+        <span className="absolute inset-0 animate-pulse rounded-full bg-amber-200" />
+      ) : null}
+      <span
+        className={`relative z-10 flex h-16 w-16 items-center justify-center rounded-full shadow-md transition-colors ${STATUS_RING[status]}`}
+      >
+        {status === "speaking" ? (
+          <span className="flex h-6 items-center gap-[3px]">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <span
+                key={i}
+                className="animate-sound-bar h-full w-[3px] rounded-full bg-white"
+                style={{ animationDelay: `${i * 0.12}s` }}
+              />
+            ))}
+          </span>
+        ) : (
+          <Mic size={26} />
+        )}
+      </span>
+    </div>
+  );
+}
 
 const MIC_DENIED_HELP =
   "Microphone access is blocked, so the call continues in text mode. To enable voice: click the mic/lock icon in the browser's address bar, allow the microphone for this site, then press “Voice on”.";
@@ -427,8 +469,8 @@ export default function VoicePage() {
         ["Location", info.location],
         ["Medical problem", info.problem],
         ["Specialty", info.specialty],
-        ["Preferred date", info.preferredDate],
-        ["Preferred time", info.preferredTime],
+        ["Preferred date", info.preferredDate ? formatSlotDate(info.preferredDate) : null],
+        ["Preferred time", info.preferredTime ? formatEnum(info.preferredTime) : null],
         ["Language", info.language],
         ["Contact", info.contact],
       ] as const)
@@ -466,14 +508,14 @@ export default function VoicePage() {
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className={`h-3 w-3 rounded-full ${STATUS_COLORS[status]}`} aria-hidden />
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <CallVisual status={status} />
                 <div>
-                  <p className="text-sm font-semibold text-slate-900" aria-live="polite">
-                    Voice status: {STATUS_LABELS[status]}
+                  <p className="text-xl font-semibold tracking-tight text-slate-900" aria-live="polite">
+                    {STATUS_LABELS[status]}
                   </p>
-                  <p className="text-xs text-slate-500">
+                  <p className="mt-0.5 text-sm text-slate-500">
                     {conversationId
                       ? done
                         ? "Workflow complete — case handed to a human case manager."
@@ -511,7 +553,7 @@ export default function VoicePage() {
                 transcript.map((t, i) => (
                   <div
                     key={i}
-                    className={`flex ${t.role === "user" ? "justify-end" : "justify-start"}`}
+                    className={`animate-fade-up flex ${t.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
                       className={`flex max-w-[85%] items-start gap-2 rounded-2xl px-4 py-2.5 text-sm ${
@@ -591,9 +633,9 @@ export default function VoicePage() {
                   <>
                     {" "}
                     in{" "}
-                    <a href={`/cases/${caseInfo.ref}`} className="font-semibold underline">
+                    <Link href={`/cases/${caseInfo.ref}`} className="font-semibold underline">
                       {caseInfo.ref}
-                    </a>
+                    </Link>
                   </>
                 ) : null}
                 .
@@ -630,7 +672,8 @@ export default function VoicePage() {
                     type="button"
                     onClick={() => sendUtterance(`Option ${i + 1}`)}
                     disabled={done || status === "processing"}
-                    className="w-full rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-60"
+                    className="animate-fade-up w-full rounded-lg border border-slate-200 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-60"
+                    style={{ animationDelay: `${i * 80}ms` }}
                   >
                     <p className="text-sm font-semibold text-slate-800">
                       {i + 1}. {o.name}
@@ -641,7 +684,7 @@ export default function VoicePage() {
                     </p>
                     {o.slot ? (
                       <p className="mt-1 text-xs font-semibold text-blue-600">
-                        {o.slot.date} at {o.slot.time}
+                        {formatSlotDate(o.slot.date)} at {o.slot.time}
                       </p>
                     ) : null}
                   </button>
@@ -671,11 +714,7 @@ export default function VoicePage() {
                   <StatusBadge value={appointment.status} />
                 </div>
                 <p className="mt-1.5 text-xs text-slate-500">
-                  {appointment.providerName} ·{" "}
-                  {new Date(appointment.scheduledAt).toLocaleString("en-GB", {
-                    dateStyle: "full",
-                    timeStyle: "short",
-                  })}
+                  {appointment.providerName} · {formatDateTime(appointment.scheduledAt)}
                 </p>
               </div>
             ) : (
@@ -691,12 +730,12 @@ export default function VoicePage() {
               <div className="mt-2">
                 <div className="flex items-center gap-2">
                   <FolderKanban size={16} className="text-blue-500" aria-hidden />
-                  <a
+                  <Link
                     href={`/cases/${caseInfo.ref}`}
                     className="text-sm font-semibold text-blue-600 hover:underline"
                   >
                     {caseInfo.ref}
-                  </a>
+                  </Link>
                   <StatusBadge value={caseInfo.status} />
                 </div>
                 <p className="mt-1.5 text-xs text-slate-500">{caseInfo.title}</p>
