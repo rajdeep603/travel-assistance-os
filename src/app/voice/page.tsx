@@ -11,6 +11,7 @@ import {
   Mic,
   MicOff,
   PhoneCall,
+  ShieldAlert,
   SendHorizonal,
   User,
   Volume2,
@@ -176,10 +177,16 @@ export default function VoicePage() {
   const [voiceSupported, setVoiceSupported] = useState(true);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [micPermission, setMicPermission] = useState<MicPermission>("unknown");
+  // Why the microphone cannot work at all, independent of permission:
+  // "insecure" = page not on HTTPS/localhost (browsers hard-disable the mic
+  // there, no prompt is ever shown), "unsupported" = no speech recognition.
+  const [micBarrier, setMicBarrier] = useState<"none" | "insecure" | "unsupported">("none");
+  const [ttsAvailable, setTtsAvailable] = useState(true);
   const [done, setDone] = useState(false);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceEnabledRef = useRef(voiceEnabled);
+  const micBarrierRef = useRef(micBarrier);
   const micPermissionRef = useRef(micPermission);
   const doneRef = useRef(done);
   const conversationRef = useRef<string | null>(null);
@@ -187,6 +194,7 @@ export default function VoicePage() {
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   voiceEnabledRef.current = voiceEnabled;
+  micBarrierRef.current = micBarrier;
   micPermissionRef.current = micPermission;
   doneRef.current = done;
   conversationRef.current = conversationId;
@@ -195,26 +203,36 @@ export default function VoicePage() {
   // the UI reflects a grant/revoke made from browser settings immediately.
   useEffect(() => {
     const w = window as unknown as SpeechWindow;
-    if (!w.SpeechRecognition && !w.webkitSpeechRecognition) {
-      setVoiceSupported(false);
-      setVoiceEnabled(false);
-    }
+    const hasRecognition = Boolean(w.SpeechRecognition || w.webkitSpeechRecognition);
+    const secure = window.isSecureContext !== false;
+    const hasTts = typeof window.speechSynthesis !== "undefined";
+
+    setVoiceSupported(hasRecognition);
+    setTtsAvailable(hasTts);
+    if (!secure) setMicBarrier("insecure");
+    else if (!hasRecognition) setMicBarrier("unsupported");
+    // Spoken replies work even where the mic cannot (plain HTTP, Safari) —
+    // only turn audio off entirely when the browser cannot speak either.
+    if (!hasTts && (!secure || !hasRecognition)) setVoiceEnabled(false);
+
     let permStatus: PermissionStatus | null = null;
-    navigator.permissions
-      ?.query({ name: "microphone" as PermissionName })
-      .then((p) => {
-        const apply = () => {
-          if (p.state === "granted") setMicPermission("granted");
-          else if (p.state === "denied") setMicPermission("denied");
-          else setMicPermission("unknown");
-        };
-        apply();
-        p.onchange = apply;
-        permStatus = p;
-      })
-      .catch(() => {
-        // Permissions API unavailable — we'll learn the state on first use.
-      });
+    if (secure && hasRecognition) {
+      navigator.permissions
+        ?.query({ name: "microphone" as PermissionName })
+        .then((p) => {
+          const apply = () => {
+            if (p.state === "granted") setMicPermission("granted");
+            else if (p.state === "denied") setMicPermission("denied");
+            else setMicPermission("unknown");
+          };
+          apply();
+          p.onchange = apply;
+          permStatus = p;
+        })
+        .catch(() => {
+          // Permissions API unavailable — we'll learn the state on first use.
+        });
+    }
     return () => {
       if (permStatus) permStatus.onchange = null;
       try {
@@ -245,6 +263,7 @@ export default function VoicePage() {
    * moment the user expects it) and records the outcome.
    */
   const ensureMicPermission = useCallback(async (): Promise<boolean> => {
+    if (micBarrierRef.current !== "none") return false;
     if (micPermissionRef.current === "granted") return true;
     if (!navigator.mediaDevices?.getUserMedia) {
       setMicPermission("denied");
@@ -266,6 +285,7 @@ export default function VoicePage() {
     if (
       !voiceEnabledRef.current ||
       doneRef.current ||
+      micBarrierRef.current !== "none" ||
       micPermissionRef.current === "denied"
     ) {
       setStatus("idle");
@@ -387,7 +407,7 @@ export default function VoicePage() {
 
     // Ask for the microphone up front, in direct response to the click —
     // the moment users expect a permission prompt.
-    if (voiceEnabledRef.current && voiceSupported) {
+    if (voiceEnabledRef.current && micBarrierRef.current === "none") {
       await ensureMicPermission();
     }
 
@@ -420,6 +440,11 @@ export default function VoicePage() {
       setInterim("");
       setStatus("idle");
       setVoiceEnabled(false);
+      return;
+    }
+    if (micBarrierRef.current !== "none") {
+      // No mic is possible here — the toggle just re-enables spoken replies.
+      setVoiceEnabled(true);
       return;
     }
     // Turning voice on re-checks the permission (it may have been re-allowed
@@ -476,7 +501,7 @@ export default function VoicePage() {
       ] as const)
     : [];
 
-  const micBlocked = voiceSupported && micPermission === "denied";
+  const micBlocked = micBarrier === "none" && micPermission === "denied";
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -485,11 +510,31 @@ export default function VoicePage() {
         subtitle="A browser-based voice agent that finds a doctor and books a real appointment — then hands the case to a human case manager."
       />
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
-      {!voiceSupported ? (
+      {micBarrier === "insecure" ? (
+        <div
+          className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+          role="status"
+        >
+          <ShieldAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            Voice input needs a secure connection: browsers only allow the
+            microphone on <span className="font-semibold">HTTPS or localhost</span>,
+            and this page is served over plain HTTP — no permission prompt can
+            change that. The call runs in text mode here
+            {ttsAvailable ? " (the agent still speaks its replies aloud)" : ""}.
+            For the full two-way voice demo, open the app over HTTPS or on
+            localhost.
+          </span>
+        </div>
+      ) : null}
+      {micBarrier === "unsupported" ? (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <Info size={16} className="mt-0.5 shrink-0" />
-          This browser does not support speech recognition — the agent works in
-          text mode below. For the full voice demo use Chrome or Edge.
+          <Info size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            This browser does not support speech recognition, so the call runs
+            in text mode{ttsAvailable ? " (the agent still speaks its replies aloud)" : ""}.
+            For the full voice demo use Chrome or Edge.
+          </span>
         </div>
       ) : null}
       {micBlocked ? (
@@ -525,7 +570,7 @@ export default function VoicePage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {voiceSupported ? (
+                {ttsAvailable || micBarrier === "none" ? (
                   <Button variant="secondary" onClick={toggleVoice}>
                     {voiceEnabled ? <Volume2 size={15} /> : <MicOff size={15} />}
                     {voiceEnabled ? "Voice on" : "Voice off"}
@@ -590,7 +635,7 @@ export default function VoicePage() {
                 }
               }}
             >
-              {voiceSupported && voiceEnabled ? (
+              {micBarrier === "none" && voiceSupported && voiceEnabled ? (
                 <Button
                   variant="secondary"
                   onClick={() => void speakPressed()}
