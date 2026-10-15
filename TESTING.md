@@ -27,6 +27,22 @@ MOCK_AI_LATENCY_MS=0 npm test
 Any PostgreSQL works — point `DATABASE_URL` at it (e.g. a local
 `taap_test` database) before migrating and seeding.
 
+### Against a deployment
+
+The API and browser suites run against any deployment; with operator
+sign-in enabled, give them an operator:
+
+```bash
+export E2E_BASE_URL=https://<your-domain> E2E_OPERATOR=admin E2E_PASSWORD=…
+npm run test:e2e && npm run test:ui
+```
+
+Both create records (cases, bookings, inbox messages, Letters of Guarantee)
+in that database. To return a demo server to a clean state afterwards,
+restore the dump taken before testing (`pg_restore --clean --if-exists`, see
+[DEPLOYMENT.md](DEPLOYMENT.md)) or run `node seed.cjs` in the app container,
+which resets the canonical demo records.
+
 ## Test doubles
 
 | Real service | Double | Used for |
