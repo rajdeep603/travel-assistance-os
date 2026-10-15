@@ -4,16 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Languages, PhoneOff } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle } from "@/components/ui";
 import { useInterpreterCall } from "@/lib/voice/client/use-interpreter-call";
+import { INTERPRETER_LANGUAGES } from "@/lib/voice/interpreter-prompt";
 
-const HOSPITAL_LANGUAGES = [
-  ["tr", "Turkish"],
-  ["ar", "Arabic"],
-  ["de", "German"],
-  ["fr", "French"],
-  ["ru", "Russian"],
-  ["es-ES", "Spanish"],
-  ["it", "Italian"],
-];
+const HOSPITAL_LANGUAGES = Object.entries(INTERPRETER_LANGUAGES).filter(([code]) => code !== "en");
 
 const STATUS_TEXT: Record<string, string> = {
   dialing: "Dialling the hospital…",

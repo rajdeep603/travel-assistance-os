@@ -9,7 +9,7 @@ import { ApiError, badRequest, notFound } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
 import { placeOutboundCall } from "@/lib/services/outbound-calls";
 import { gatewayBase } from "@/lib/voice/gateway-url";
-import { INTERPRETER_LANGUAGES } from "@/lib/voice/interpreter";
+import { INTERPRETER_LANGUAGES } from "@/lib/voice/interpreter-prompt";
 
 export const dynamic = "force-dynamic";
 
