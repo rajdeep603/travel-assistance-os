@@ -5,6 +5,7 @@ import { bookAppointment } from "@/lib/services/appointment";
 import { analyzeRequest, createCaseFromAnalysis } from "@/lib/services/case-intake";
 import { reviewClaim, applyClaimAction } from "@/lib/services/claims";
 import { askAssistant, retrieveContext } from "@/lib/services/assistant";
+import { checkCoverage } from "@/lib/services/policy";
 
 // Integration tests run against the seeded demo database (docker-compose.dev).
 const prisma = new PrismaClient();
@@ -228,5 +229,27 @@ describe("Internal assistant (database)", () => {
   it("handles unknown case references gracefully", async () => {
     const res = await askAssistant("What is the status of CASE-99999?");
     expect(res.answer).toMatch(/could not find/i);
+  });
+});
+
+describe("Policy coverage (database)", () => {
+  // Seeded: James Carter, POL-TR-100945, born 1979-11-02.
+  const dob = "1979-11-02";
+
+  it("verifies spoken policy numbers without their dashes, or with misheard letters", async () => {
+    for (const spoken of ["POL-TR-100945", "pol tr 100945", "POLTR100945", "POLER100945", "100945"]) {
+      const result = await checkCoverage({ policyNumber: spoken, dateOfBirth: dob, benefit: "flight delay" });
+      expect(result.verified, spoken).toBe(true);
+      if (result.verified) {
+        expect(result.policyNumber).toBe("POL-TR-100945");
+        expect(result.benefit?.code).toBe("TRIP_DELAY");
+      }
+    }
+  });
+
+  it("still requires the policyholder's date of birth and enough digits", async () => {
+    expect((await checkCoverage({ policyNumber: "POL-TR-100945", dateOfBirth: "1980-11-02" })).verified).toBe(false);
+    expect((await checkCoverage({ policyNumber: "POLER100944", dateOfBirth: dob })).verified).toBe(false);
+    expect((await checkCoverage({ policyNumber: "945", dateOfBirth: dob })).verified).toBe(false);
   });
 });

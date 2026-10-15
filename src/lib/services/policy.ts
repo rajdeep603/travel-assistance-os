@@ -68,6 +68,32 @@ export type CoverageResult =
 
 const CAVEAT = "This is general policy information; the claims team makes the final decision on any claim.";
 
+const alphanumeric = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+const digitsOf = (s: string) => s.replace(/\D/g, "");
+
+/**
+ * Finds the policy a caller means. Spoken numbers lose their dashes
+ * ("POLTR100945") and the letters are often misheard ("P O L E R"), so this
+ * matches letters and digits, then the digits alone. The date of birth must
+ * match the policyholder's either way.
+ */
+async function findPolicyForCaller(policyNumber: string, dateOfBirth: string) {
+  const digits = digitsOf(policyNumber);
+  if (digits.length < 5) return null;
+  const candidates = await prisma.policy.findMany({
+    where: { number: { endsWith: digits } },
+    include: { patient: true },
+  });
+  const dobMatches = (p: (typeof candidates)[number]) =>
+    p.patient?.dateOfBirth.toISOString().slice(0, 10) === dateOfBirth.trim();
+  const wanted = alphanumeric(policyNumber);
+  return (
+    candidates.find((p) => alphanumeric(p.number) === wanted && dobMatches(p)) ??
+    candidates.find((p) => digitsOf(p.number) === digits && dobMatches(p)) ??
+    null
+  );
+}
+
 /**
  * Coverage for a benefit after verifying the caller: the policy number must
  * exist and the date of birth must match the policyholder's.
@@ -77,10 +103,8 @@ export async function checkCoverage(input: {
   dateOfBirth: string;
   benefit?: string | null;
 }): Promise<CoverageResult> {
-  const number = input.policyNumber.trim().toUpperCase().replace(/\s+/g, "");
-  const policy = await prisma.policy.findUnique({ where: { number }, include: { patient: true } });
-  const dob = policy?.patient?.dateOfBirth.toISOString().slice(0, 10);
-  if (!policy || !policy.patient || dob !== input.dateOfBirth.trim()) {
+  const policy = await findPolicyForCaller(input.policyNumber, input.dateOfBirth);
+  if (!policy || !policy.patient) {
     return {
       verified: false,
       reason: "The policy number and date of birth don't match our records.",
