@@ -59,3 +59,40 @@ export function maskPhone(phone: string | null | undefined): string | null {
   if (digits.length < 6) return "•••";
   return `${digits.slice(0, 3)} ••• ••• ${digits.slice(-4)}`;
 }
+
+/**
+ * Who did something, for people: "agent:inbound-hotline" → "AI agent",
+ * "operator:elif" → "Elif", "system:auto-approval" → "Auto-approval rules".
+ */
+export function formatActor(actor: string | null | undefined): string | undefined {
+  if (!actor) return undefined;
+  if (actor.startsWith("agent:")) return "AI agent";
+  if (actor === "system:auto-approval") return "Auto-approval rules";
+  if (actor === "system" || actor.startsWith("system:")) return "System";
+  const name = actor.startsWith("operator:") ? actor.slice("operator:".length) : actor;
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+const END_REASONS: Record<string, string> = {
+  "call ended": "Call completed",
+  "caller hung up": "Caller hung up",
+  "browser disconnected": "Caller closed the page",
+  "browser connection error": "Caller's connection dropped",
+  "media stream closed": "Phone line closed",
+  "media stream error": "Phone line dropped",
+  "voice model disconnected": "Voice service dropped",
+  "voice model unavailable": "Voice service unavailable",
+  "maximum call length reached": "Time limit reached",
+  "case manager left": "Case manager left the call",
+  "hospital did not answer": "Hospital didn't answer",
+  "hospital hung up": "Hospital hung up",
+  "interpreter disconnected": "Interpreter dropped",
+};
+
+/** Why a call ended, as a sentence ("voice model unavailable" → "Voice service unavailable"). */
+export function formatEndReason(reason: string): string {
+  const known = END_REASONS[reason.trim().toLowerCase()];
+  if (known) return known;
+  const text = reason.trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

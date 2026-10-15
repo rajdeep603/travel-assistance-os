@@ -94,7 +94,7 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
           {agent ? (
             <div className="space-y-2 border-t border-slate-100 pt-3">
               {options.allowedNumbers.length === 0 ? (
-                <p className="text-xs text-amber-700">No numbers are allowlisted (OUTBOUND_ALLOWED_NUMBERS), so nothing can be called.</p>
+                <p className="text-xs text-amber-700">No numbers are approved for AI calls yet, so nothing can be called.</p>
               ) : (
                 <label className="block">
                   <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Number to call</span>
@@ -114,7 +114,7 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
               )}
               {agent.suggestedNumber && !agent.suggestedAllowed ? (
                 <p className="text-xs text-slate-500">
-                  The {agent.audience === "provider" ? "hospital's" : "patient's"} number ({maskPhone(agent.suggestedNumber)}) isn&apos;t allowlisted for this demo.
+                  The {agent.audience === "provider" ? "hospital's" : "patient's"} number ({maskPhone(agent.suggestedNumber)}) isn&apos;t on the approved call list.
                 </p>
               ) : null}
               {error ? <ErrorBanner message={error} /> : null}

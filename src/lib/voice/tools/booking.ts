@@ -191,7 +191,7 @@ async function bookSlot(args: z.infer<typeof bookingSchema>, ctx: ToolContext): 
           caseId,
           type: "APPOINTMENT",
           title: `Appointment ${appointment.ref} booked`,
-          body: `${provider.name}, ${provider.facility} (${provider.district}) — ${args.date} ${args.time}`,
+          body: `${provider.name}, ${provider.facility} (${provider.district}) — ${formatPlainDate(args.date)} at ${args.time}`,
           data: { appointmentRef: appointment.ref, callRef: ctx.callRef },
           actor: agentActor(ctx),
         },

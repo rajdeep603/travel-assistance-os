@@ -84,7 +84,7 @@ export async function bookAppointment(
   await getNotificationService().notify({
     kind: "APPOINTMENT_BOOKED",
     subject: `Appointment ${appointment.ref} confirmed`,
-    body: `${patient.ref} → ${provider.name} (${provider.facility}) on ${input.date} at ${input.time}.`,
+    body: `${patient.ref} → ${provider.name} (${provider.facility}) on ${formatPlainDate(input.date)} at ${input.time}.`,
   });
 
   return appointment;

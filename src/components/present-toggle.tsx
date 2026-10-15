@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Presentation } from "lucide-react";
-
-const STORAGE_KEY = "taap-presentation-mode";
+import { PRESENT_STORAGE_KEY as STORAGE_KEY } from "@/lib/present-mode";
 
 /**
  * Toggles presentation mode: a root font-size bump that scales the whole UI
@@ -12,15 +11,9 @@ const STORAGE_KEY = "taap-presentation-mode";
 export function PresentToggle() {
   const [on, setOn] = useState(false);
 
+  // The root layout applies the saved mode before paint; mirror it here.
   useEffect(() => {
-    try {
-      if (localStorage.getItem(STORAGE_KEY) === "on") {
-        setOn(true);
-        document.documentElement.dataset.present = "on";
-      }
-    } catch {
-      // storage unavailable (private mode) — toggle still works per page
-    }
+    setOn(document.documentElement.dataset.present === "on");
   }, []);
 
   function toggle() {

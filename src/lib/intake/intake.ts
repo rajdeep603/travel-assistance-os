@@ -189,14 +189,16 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
 
     // 5. Summary and case timeline.
     const kinds = processed.map((d) => d.kind.replace(/_/g, " ").toLowerCase());
+    const sentence = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}${/[.!?]$/.test(s) ? "" : "."}`;
     const summary = [
-      `${message.channel === "EMAIL" ? "E-mail" : "Fax"} from ${message.fromAddress}`,
-      matched ? `about ${matched.caseRef}` : "with no confident case match",
-      processed.length ? `— ${processed.length} document(s): ${kinds.join(", ")}` : "— no documents",
-      claimRef ? `; filed on claim ${claimRef}` : "",
-      language !== "en" ? `; written in ${LANGUAGE_NAMES[language] ?? language}` : "",
-      ...actions.map((a) => `; ${a}`),
-    ].join(" ");
+      `${message.channel === "EMAIL" ? "E-mail" : "Fax"} from ${message.fromAddress} ${matched ? `about ${matched.caseRef}` : "with no confident case match"}.`,
+      processed.length ? `${processed.length === 1 ? "1 document" : `${processed.length} documents`}: ${kinds.join(", ")}.` : "No documents.",
+      claimRef ? `Filed on claim ${claimRef}.` : "",
+      language !== "en" ? `Written in ${LANGUAGE_NAMES[language] ?? language}.` : "",
+      ...actions.map(sentence),
+    ]
+      .filter(Boolean)
+      .join(" ");
     if (matched) {
       await prisma.caseEvent.create({
         data: {
@@ -276,7 +278,7 @@ async function draftReply(match: CaseCandidate, claimId: string | null, filename
   const lines = [
     `Dear ${patient.firstName} ${patient.lastName},`,
     "",
-    "Thank you for your message — we have received it" + (filenames.length ? ` with ${filenames.length} document(s): ${filenames.join(", ")}.` : "."),
+    "Thank you for your message — we have received it" + (filenames.length ? ` with ${filenames.length === 1 ? "1 document" : `${filenames.length} documents`}: ${filenames.join(", ")}.` : "."),
     claim ? `Your claim ${claim.ref} is now ${claim.status.replace(/_/g, " ").toLowerCase()}.` : "",
     missing.length
       ? `To complete it we still need: ${missing.join("; ")}. You can simply reply to this e-mail with the documents.`

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, FileCheck2, FileDown, Send, ShieldCheck } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle, StatusBadge, readApiError } from "@/components/ui";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatActor, formatDate, formatMoney } from "@/lib/format";
+import { describeGuaranteeDecision } from "@/lib/guarantee-trace";
 
 interface Letter {
   id: string;
@@ -130,18 +131,24 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
             ) : null}
             {l.approvedBy ? (
               <p className="mt-2 text-xs text-slate-500">
-                {l.status === "REJECTED" ? `Declined by ${l.approvedBy}: ${l.rejectionReason}` : `Approved by ${l.approvedBy.replace("system:", "")}`}
+                {l.status === "REJECTED" ? `Declined by ${formatActor(l.approvedBy)}: ${l.rejectionReason}` : `Approved by ${formatActor(l.approvedBy)}`}
                 {l.sentVia ? ` · sent by ${l.sentVia.toLowerCase()} to ${l.sentTo}` : ""}
               </p>
             ) : null}
             <details className="mt-2 text-xs text-slate-600">
-              <summary className="cursor-pointer font-medium text-slate-700">Conditions and how the amount was decided</summary>
+              <summary className="cursor-pointer font-medium text-slate-700">How the amount was decided, and conditions</summary>
+              <p className="mt-2 font-medium text-slate-700">How the amount was decided</p>
+              <ol className="mt-1 list-decimal space-y-0.5 pl-5">
+                {describeGuaranteeDecision(l.decisionTrace, l.flags).map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+              <p className="mt-2 font-medium text-slate-700">Conditions</p>
               <ul className="mt-1 list-disc pl-5">
                 {l.conditions.map((c) => (
                   <li key={c}>{c}</li>
                 ))}
               </ul>
-              <pre className="mt-2 overflow-auto rounded bg-slate-50 p-2 text-[11px]">{JSON.stringify(l.decisionTrace, null, 2)}</pre>
             </details>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {l.pdfDocumentId ? (

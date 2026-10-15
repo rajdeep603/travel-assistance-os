@@ -3,18 +3,7 @@ import { CalendarCheck2, CheckCircle2, CircleAlert, FolderKanban, Loader2, Wrenc
 import { Card, SectionTitle } from "@/components/ui";
 import { formatSlotDate } from "@/lib/format";
 import type { Booking, ProviderOption, ToolActivity } from "@/lib/voice/client/use-grok-voice";
-
-const TOOL_LABELS: Record<string, string> = {
-  search_providers: "Searching the provider network",
-  book_appointment: "Booking the appointment",
-  create_case: "Opening an assistance case",
-  add_case_note: "Adding a note to the case",
-  get_case_status: "Looking up the case",
-  get_claim_status: "Looking up the claim",
-  search_knowledge: "Checking the knowledge base",
-  transfer_to_human: "Handing over to a person",
-  end_call: "Ending the call",
-};
+import { toolActivityLabel } from "@/lib/voice/tool-labels";
 
 /** What the agent is doing behind the scenes — the "visible AI". */
 export function ActivityPanel({ tools }: { tools: ToolActivity[] }) {
@@ -35,7 +24,7 @@ export function ActivityPanel({ tools }: { tools: ToolActivity[] }) {
                 <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-500" aria-hidden />
               )}
               <span>
-                {TOOL_LABELS[t.name] ?? t.name}
+                {toolActivityLabel(t.name)}
                 {t.status === "error" && t.summary ? <span className="block text-xs text-amber-700">{t.summary}</span> : null}
               </span>
             </li>

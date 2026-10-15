@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Globe, Phone, PhoneIncoming, PhoneOutgoing, Radio, User, Wrench } from "lucide-react";
 import { Card, EmptyState, SectionTitle } from "@/components/ui";
 import { maskPhone } from "@/lib/format";
+import { toolChipLabel } from "@/lib/voice/tool-labels";
 
 interface ActiveCall {
   callId: string;
@@ -185,7 +186,7 @@ export function LiveBoard({ monitorUrl, onCallEnded }: { monitorUrl: string | nu
                         t.status === "error" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-600"
                       }`}
                     >
-                      <Wrench size={10} aria-hidden /> {t.name.replace(/_/g, " ")}
+                      <Wrench size={10} aria-hidden /> {toolChipLabel(t.name)}
                       {t.status === "running" ? "…" : ""}
                     </span>
                   ))}

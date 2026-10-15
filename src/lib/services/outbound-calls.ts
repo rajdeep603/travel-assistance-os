@@ -43,7 +43,7 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
   const to = normalizeNumber(input.to);
   if (!/^\+\d{8,15}$/.test(to)) throw badRequest("Enter the number in international format, e.g. +905321234567.");
   if (!isAllowedNumber(to)) {
-    throw forbidden(`${maskPhone(to)} isn't on the outbound allowlist (OUTBOUND_ALLOWED_NUMBERS).`);
+    throw forbidden(`${maskPhone(to)} isn't on the list of numbers AI agents may call.`);
   }
   const telephony = getTelephony();
   if (!telephony.configured || !env.publicBaseUrl) {

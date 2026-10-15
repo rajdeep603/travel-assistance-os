@@ -29,7 +29,7 @@ test("request → AI case → book a provider for that case", async ({ page }) =
   await page.getByRole("button", { name: /Search providers/i }).click();
   await page.getByRole("button", { name: /^\d{2}:\d{2}$/ }).first().click();
   await page.getByRole("button", { name: /Confirm booking/i }).click();
-  await expect(page.getByText(new RegExp(`Appointment APT-\\d{4}-\\d+ confirmed.*linked to ${caseRef}`))).toBeVisible();
+  await expect(page.getByText(new RegExp(`Appointment APT-\\d{4}-\\d+ confirmed.*Linked to ${caseRef}`))).toBeVisible();
 });
 
 test("a faxed cost estimate becomes a Letter of Guarantee on the case", async ({ page }) => {
@@ -55,5 +55,5 @@ test("the Turkish epikriz is read and translated", async ({ page }) => {
 test("voice page explains when voice isn't configured", async ({ page }) => {
   await page.goto("/voice");
   await page.getByRole("button", { name: /^Start$/ }).click();
-  await expect(page.getByText(/Voice needs an xAI API key/i)).toBeVisible();
+  await expect(page.getByText(/Voice isn.t available on this server/i)).toBeVisible();
 });

@@ -9,15 +9,18 @@ export function Card({
   children,
   className = "",
   style,
+  interactive = false,
 }: {
   children: ReactNode;
   className?: string;
   style?: React.CSSProperties;
+  /** Lift on hover — only for cards that are clickable as a whole. */
+  interactive?: boolean;
 }) {
   return (
     <div
       style={style}
-      className={`rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-shadow hover:shadow-md ${className}`}
+      className={`rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ${interactive ? "transition-shadow hover:shadow-md" : ""} ${className}`}
     >
       {children}
     </div>
@@ -365,7 +368,7 @@ export function AISourceBadge({ source }: { source?: string | null }) {
   const live = source === "claude";
   return (
     <span
-      title={live ? "Produced by the live Claude model" : "Produced by the offline rules engine (no live model used)"}
+      title={live ? "Produced by the AI model" : "Produced by the built-in rules engine"}
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
         live
           ? "border-violet-200 bg-violet-50 text-violet-700"
@@ -373,7 +376,7 @@ export function AISourceBadge({ source }: { source?: string | null }) {
       }`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-violet-500" : "bg-slate-400"}`} aria-hidden />
-      {live ? "Claude" : "Offline rules"}
+      AI
     </span>
   );
 }
