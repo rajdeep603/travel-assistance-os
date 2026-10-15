@@ -14,7 +14,7 @@ import {
   StatusBadge,
   readApiError,
 } from "@/components/ui";
-import { AIPipeline } from "@/components/ai-progress";
+import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { useQueryParam } from "@/lib/client/use-query-param";
 import { formatMoney } from "@/lib/format";
@@ -55,6 +55,7 @@ export default function ClaimsPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pipeline = usePipeline(uploading, CLAIM_STAGES.length, { failed: !!error });
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   // Opened from a case (?caseId=): the claim is filed on that case.
@@ -204,9 +205,9 @@ export default function ClaimsPage() {
             Use sample claim pack
           </Button>
         </div>
-        {uploading ? (
+        {pipeline.visible ? (
           <div className="mt-4 border-t border-slate-100 pt-4">
-            <AIPipeline busy stages={CLAIM_STAGES} />
+            <AIPipeline stages={CLAIM_STAGES} active={pipeline.active} />
           </div>
         ) : null}
         {files.length > 0 ? (

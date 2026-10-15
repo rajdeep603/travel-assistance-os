@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Radio } from "lucide-react";
 
 /**
  * Keeps a server-rendered page current during a demo: re-renders it when a
@@ -49,8 +48,12 @@ export function LiveRefresh({ intervalMs = 30_000 }: { intervalMs?: number }) {
   }, [router, intervalMs]);
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700" aria-live="off">
-      <Radio size={13} aria-hidden /> Live{updatedAt ? ` · updated ${updatedAt}` : ""}
+    <span className="inline-flex items-center gap-2 text-xs font-medium text-emerald-700" aria-live="off">
+      <span className="relative flex h-2 w-2" aria-hidden>
+        <span className="animate-live-ping absolute inset-0 rounded-full bg-emerald-500" />
+        <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
+      </span>
+      Live{updatedAt ? ` · updated ${updatedAt}` : ""}
     </span>
   );
 }

@@ -20,7 +20,7 @@ export function Card({
   return (
     <div
       style={style}
-      className={`rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ${interactive ? "transition-shadow hover:shadow-md" : ""} ${className}`}
+      className={`rounded-2xl border border-line/80 bg-surface p-5 shadow-sm ${interactive ? "transition-shadow duration-200 hover:shadow-md" : ""} ${className}`}
     >
       {children}
     </div>
@@ -36,7 +36,7 @@ export function SectionTitle({
 }) {
   return (
     <h3
-      className={`text-xs font-semibold uppercase tracking-wider text-slate-500 ${className}`}
+      className={`text-sm font-semibold text-ink ${className}`}
     >
       {children}
     </h3>
@@ -55,8 +55,8 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        {subtitle ? <p className="mt-1 max-w-3xl text-sm text-muted">{subtitle}</p> : null}
       </div>
       {children}
     </div>
@@ -143,9 +143,9 @@ type ButtonVariant = "primary" | "secondary" | "danger" | "success";
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
   primary:
-    "bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow disabled:bg-blue-300 disabled:shadow-none border-transparent",
+    "bg-brand text-white shadow-sm hover:bg-brand-deep hover:shadow disabled:bg-brand/40 disabled:shadow-none border-transparent",
   secondary:
-    "bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400 border-slate-300 disabled:text-slate-400 disabled:hover:border-slate-300",
+    "bg-surface text-slate-700 hover:bg-slate-50 hover:border-slate-400 border-slate-300 disabled:text-slate-400 disabled:hover:border-slate-300",
   danger:
     "bg-white text-red-600 hover:bg-red-50 border-red-300 disabled:text-red-300",
   success:
@@ -178,7 +178,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled || busy}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 enabled:active:scale-[0.98] disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand enabled:active:scale-[0.98] disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
     >
       {busy ? <Loader2 size={15} className="animate-spin" /> : null}
       {children}
@@ -227,8 +227,8 @@ export function SkeletonRows({
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <div className="flex items-center gap-2 text-sm text-slate-500" role="status" aria-live="polite">
-      <Loader2 size={16} className="animate-spin text-blue-600" aria-hidden />
+    <div className="flex items-center gap-2 text-sm text-muted" role="status" aria-live="polite">
+      <Loader2 size={16} className="animate-spin text-brand" aria-hidden />
       {label ?? "Loading…"}
     </div>
   );
@@ -267,10 +267,10 @@ export function KeyValue({
 }) {
   return (
     <div className="py-1.5">
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      <dt className="text-xs font-medium text-muted">
         {label}
       </dt>
-      <dd className="mt-0.5 text-sm text-slate-800">
+      <dd className="mt-0.5 text-sm text-ink">
         {value ?? <span className="text-slate-400">—</span>}
       </dd>
     </div>
@@ -292,10 +292,10 @@ export function ConfidenceBar({ value }: { value: number }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <span className="text-xs font-medium text-muted">
           Extraction confidence
         </span>
-        <span className="text-sm font-semibold text-slate-800">{pct}%</span>
+        <span className="text-sm font-semibold tabular-nums text-ink">{pct}%</span>
       </div>
       <div
         className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100"
@@ -325,12 +325,12 @@ export interface TimelineItem {
 /** Vertical event timeline with dots — case journeys and claim history. */
 export function Timeline({ items }: { items: TimelineItem[] }) {
   return (
-    <ol className="relative ml-1.5 space-y-4 border-l-2 border-slate-100 pl-5">
+    <ol className="relative ml-1.5 space-y-4 border-l-2 border-line/70 pl-5">
       {items.map((item, i) => (
         <li key={i} className="relative">
           <span
-            className={`absolute -left-[27px] top-1 h-3 w-3 rounded-full border-2 border-white ${
-              item.dotClass ?? "bg-blue-500"
+            className={`absolute -left-[27px] top-1 h-3 w-3 rounded-full border-2 border-surface ${
+              item.dotClass ?? "bg-brand"
             }`}
             aria-hidden
           />
@@ -371,11 +371,11 @@ export function AISourceBadge({ source }: { source?: string | null }) {
       title={live ? "Produced by the AI model" : "Produced by the built-in rules engine"}
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
         live
-          ? "border-violet-200 bg-violet-50 text-violet-700"
+          ? "border-ai/25 bg-ai/[0.06] text-ai"
           : "border-slate-200 bg-slate-50 text-slate-600"
       }`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-violet-500" : "bg-slate-400"}`} aria-hidden />
+      <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-ai" : "bg-slate-400"}`} aria-hidden />
       AI
     </span>
   );

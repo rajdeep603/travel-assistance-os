@@ -14,7 +14,7 @@ import {
   StatusBadge,
   readApiError,
 } from "@/components/ui";
-import { AIPipeline } from "@/components/ai-progress";
+import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { formatEnum } from "@/lib/format";
 import { useQueryParam } from "@/lib/client/use-query-param";
@@ -172,7 +172,12 @@ export default function DocumentsPage() {
     }
   }
 
-  const e = current?.extraction ?? null;
+  const pipeline = usePipeline(!!processing, PIPELINE_STAGES.length, { failed: !!error });
+  // Keep the last label on screen while the finished pipeline settles.
+  const pipelineLabel = useRef(processing);
+  if (processing) pipelineLabel.current = processing;
+  // Results appear once the pipeline has finished, not underneath it.
+  const e = pipeline.visible ? null : (current?.extraction ?? null);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -291,10 +296,10 @@ export default function DocumentsPage() {
                 {current ? <StatusBadge value={current.status} /> : null}
               </span>
             </div>
-            {processing ? (
+            {pipeline.visible ? (
               <div className="mt-4">
-                <p className="mb-3 text-sm text-slate-500">{processing}</p>
-                <AIPipeline busy stages={PIPELINE_STAGES} />
+                <p className="mb-3 text-sm text-muted">{pipelineLabel.current}</p>
+                <AIPipeline stages={PIPELINE_STAGES} active={pipeline.active} />
               </div>
             ) : current?.status === "FAILED" ? (
               <div className="mt-4">

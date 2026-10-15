@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { BookOpenText, FileText, SendHorizonal, Sparkles } from "lucide-react";
 import {
@@ -10,13 +10,14 @@ import {
   ErrorBanner,
   PageHeader,
 } from "@/components/ui";
+import { useWordReveal } from "@/lib/client/use-word-reveal";
 
 /** Animated "assistant is thinking" indicator. */
 function TypingIndicator() {
   return (
     <div className="flex justify-start" role="status" aria-label="The assistant is thinking">
       <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-3">
-        <Sparkles size={14} className="text-blue-500" aria-hidden />
+        <Sparkles size={14} className="text-ai" aria-hidden />
         <span className="flex gap-1">
           {[0, 1, 2].map((i) => (
             <span
@@ -36,6 +37,36 @@ interface Turn {
   text: string;
   sources?: { title: string; source: string }[];
   aiSource?: string;
+  /** Arrived in this visit: written out word by word once. */
+  fresh?: boolean;
+}
+
+/** An assistant answer: written out word by word, then its sources. */
+function AnswerBubble({ turn, onGrow }: { turn: Turn; onGrow: () => void }) {
+  const { shown, done } = useWordReveal(turn.text, !!turn.fresh);
+  useEffect(onGrow, [shown, onGrow]);
+  return (
+    <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-2.5">
+      <div className="prose-chat text-sm leading-relaxed text-ink">
+        <Markdown>{shown}</Markdown>
+      </div>
+      {done && turn.sources?.length ? (
+        <div className="animate-fade-in mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-200 pt-2">
+          <AISourceBadge source={turn.aiSource} />
+          <span className="text-[11px] font-medium text-slate-500">Sources</span>
+          {turn.sources.map((s) => (
+            <span
+              key={s.title}
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-surface px-2 py-0.5 text-[11px] text-slate-500"
+            >
+              <FileText size={10} aria-hidden />
+              {s.title}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 const SUGGESTED = [
@@ -55,10 +86,11 @@ export default function AssistantPage() {
 
   // Pin the chat to the latest message (scoped to the box — scrollIntoView
   // would also scroll the page).
-  useEffect(() => {
+  const pinToLatest = useCallback(() => {
     const box = chatBoxRef.current;
     if (box) box.scrollTop = box.scrollHeight;
-  }, [turns, busy]);
+  }, []);
+  useEffect(pinToLatest, [turns, busy, pinToLatest]);
 
   async function ask(question: string) {
     const q = question.trim();
@@ -81,7 +113,7 @@ export default function AssistantPage() {
       const body = await res.json();
       setTurns((t) => [
         ...t,
-        { role: "assistant", text: body.answer, sources: body.sources, aiSource: body.aiSource },
+        { role: "assistant", text: body.answer, sources: body.sources, aiSource: body.aiSource, fresh: true },
       ]);
     } catch {
       setError("The assistant is unreachable — please check your connection.");
@@ -123,34 +155,13 @@ export default function AssistantPage() {
             turns.map((t, i) =>
               t.role === "user" ? (
                 <div key={i} className="animate-fade-up flex justify-end">
-                  <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-blue-600 px-4 py-2.5 text-sm text-white shadow-sm">
+                  <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-brand px-4 py-2.5 text-sm text-white shadow-sm">
                     {t.text}
                   </div>
                 </div>
               ) : (
                 <div key={i} className="animate-fade-up flex justify-start">
-                  <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-2.5">
-                    <div className="prose-chat text-sm leading-relaxed text-slate-800">
-                      <Markdown>{t.text}</Markdown>
-                    </div>
-                    {t.sources?.length ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-200 pt-2">
-                        <AISourceBadge source={t.aiSource} />
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                          Sources
-                        </span>
-                        {t.sources.map((s) => (
-                          <span
-                            key={s.title}
-                            className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500"
-                          >
-                            <FileText size={10} aria-hidden />
-                            {s.title}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
+                  <AnswerBubble turn={t} onGrow={pinToLatest} />
                 </div>
               )
             )

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { motion } from "motion/react";
 import {
   Calculator,
   FileText,
@@ -46,14 +47,21 @@ export function SideNav() {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${
-              active
-                ? "bg-blue-600 text-white"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-2 ${
+              active ? "text-white" : "text-stage-muted hover:bg-stage-raised hover:text-white"
             }`}
           >
-            <Icon size={17} strokeWidth={2} aria-hidden />
-            {label}
+            {/* The highlight slides from the previous page's item to this one. */}
+            {active ? (
+              <motion.span
+                layoutId="nav-active"
+                className="absolute inset-0 rounded-lg bg-brand shadow-sm shadow-brand/30"
+                transition={{ type: "spring", stiffness: 520, damping: 40 }}
+                aria-hidden
+              />
+            ) : null}
+            <Icon size={17} strokeWidth={2} className="relative" aria-hidden />
+            <span className="relative">{label}</span>
           </Link>
         );
       })}
@@ -85,7 +93,7 @@ export function MobileNav() {
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={open ? "Close navigation menu" : "Open navigation menu"}
-        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
       >
         {open ? <X size={20} /> : <Menu size={20} />}
       </button>
@@ -106,7 +114,7 @@ export function MobileNav() {
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                     active
-                      ? "bg-blue-600 text-white"
+                      ? "bg-brand text-white"
                       : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >

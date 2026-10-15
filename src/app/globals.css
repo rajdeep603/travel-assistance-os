@@ -2,8 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Colour roles (space-separated RGB so Tailwind can add opacity). Swapping
+ * the company palette means changing these values and nothing else; the
+ * voice orb reads them too.
+ */
 :root {
   color-scheme: light;
+  --c-ink: 15 23 42;
+  --c-muted: 100 116 139;
+  --c-canvas: 241 245 249;
+  --c-surface: 255 255 255;
+  --c-line: 226 232 240;
+  --c-brand: 37 99 235;
+  --c-brand-2: 14 165 233;
+  --c-brand-deep: 29 78 216;
+  --c-ai: 124 58 237;
+  --c-live: 20 184 166;
+  --c-warn: 245 158 11;
+  /* The dark voice stage (sidebar, voice agent, live calls, sign-in). */
+  --c-stage: 9 21 43;
+  --c-stage-raised: 17 34 64;
+  --c-stage-line: 38 58 92;
+  --c-stage-ink: 241 245 249;
+  --c-stage-muted: 148 163 184;
 }
 
 /* Presentation mode: scale the whole rem-based UI up for projectors. */
@@ -12,15 +34,17 @@ html[data-present="on"] {
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
-  background-image:
-    radial-gradient(60rem 30rem at 85% -10%, rgba(37, 99, 235, 0.06), transparent),
-    radial-gradient(50rem 26rem at -10% 110%, rgba(14, 165, 233, 0.05), transparent);
-  background-attachment: fixed;
+  @apply bg-canvas text-ink antialiased;
 }
 
 ::selection {
-  @apply bg-blue-100;
+  @apply bg-brand/15;
+}
+
+/* One focus ring everywhere a component doesn't draw its own. */
+:focus-visible {
+  outline: 2px solid rgb(var(--c-brand) / 0.7);
+  outline-offset: 2px;
 }
 
 /* Markdown styling inside chat bubbles (no typography plugin needed). */
@@ -44,7 +68,7 @@ body {
 }
 
 .prose-chat strong {
-  @apply font-semibold text-slate-900;
+  @apply font-semibold text-ink;
 }
 
 .prose-chat code {
@@ -172,38 +196,6 @@ body {
   animation: slide-down 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Expanding ring around the voice-agent microphone. */
-@keyframes mic-ring {
-  0% {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(1.9);
-    opacity: 0;
-  }
-}
-
-.animate-mic-ring {
-  animation: mic-ring 1.6s ease-out infinite;
-}
-
-/* Equalizer bars while the agent listens or speaks. */
-@keyframes sound-bar {
-  0%,
-  100% {
-    transform: scaleY(0.3);
-  }
-  50% {
-    transform: scaleY(1);
-  }
-}
-
-.animate-sound-bar {
-  animation: sound-bar 1s ease-in-out infinite;
-  transform-origin: center;
-}
-
 /* Typing indicator dots in chat. */
 @keyframes typing-dot {
   0%,
@@ -222,33 +214,88 @@ body {
   animation: typing-dot 1.2s ease-in-out infinite;
 }
 
-/* Pulsing origin marker on the provider map. */
-@keyframes map-pulse {
-  0% {
-    opacity: 0.5;
-    r: 6px;
+/* Blinking caret at the end of text that is still arriving. */
+@keyframes caret-blink {
+  0%,
+  45% {
+    opacity: 1;
   }
+  55%,
   100% {
     opacity: 0;
-    r: 16px;
   }
+}
+
+.animate-caret {
+  animation: caret-blink 1s steps(1, end) infinite;
+}
+
+/* A soft ring that marks something as live (calls, refresh status). */
+@keyframes live-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.animate-live-ping {
+  animation: live-ping 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* A check mark that draws itself (set stroke-dasharray to the path length). */
+@keyframes draw-stroke {
+  from {
+    stroke-dashoffset: var(--dash, 24);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-draw {
+  stroke-dasharray: var(--dash, 24);
+  animation: draw-stroke 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up,
-  .animate-mic-ring,
-  .animate-sound-bar,
   .animate-typing-dot,
   .animate-bar-grow,
   .animate-pop-in,
   .animate-modal-in,
   .animate-fade-in,
-  .animate-slide-down {
+  .animate-slide-down,
+  .animate-live-ping,
+  .animate-pulse,
+  .animate-draw {
     animation: none;
+  }
+
+  .animate-caret {
+    animation: none;
+    opacity: 1;
+  }
+
+  /* Spinners still say "working", just slower. */
+  .animate-spin {
+    animation-duration: 2.4s;
   }
 
   .animate-shimmer {
     animation: none;
     background: #f1f5f9;
+  }
+
+  /* Hover lifts, presses and slides happen instantly instead of moving. */
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

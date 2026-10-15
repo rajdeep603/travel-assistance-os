@@ -3,7 +3,8 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Lock } from "lucide-react";
-import { Button, Card, ErrorBanner, readApiError } from "@/components/ui";
+import { Button, ErrorBanner, readApiError } from "@/components/ui";
+import { VoiceOrb } from "@/components/voice/voice-orb";
 
 function LoginForm() {
   const params = useSearchParams();
@@ -50,7 +51,7 @@ function LoginForm() {
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
         />
       </div>
       <div>
@@ -64,7 +65,7 @@ function LoginForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
         />
       </div>
       {error ? (
@@ -81,16 +82,29 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="mx-auto max-w-sm">
-      <Card className="p-7">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-slate-900">Sign in</h1>
-          <p className="mt-1 text-sm text-slate-500">Operator workspace</p>
-        </div>
+    <div className="mx-auto grid max-w-4xl overflow-hidden rounded-3xl bg-surface shadow-xl shadow-slate-900/5 ring-1 ring-line md:grid-cols-[1.1fr_1fr]">
+      {/* The agents at rest: the same orb the voice agent uses on a call. */}
+      <div className="relative flex flex-col items-center justify-center bg-stage px-8 py-10 text-center text-stage-ink md:py-14">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ background: "radial-gradient(closest-side, rgb(var(--c-brand) / 0.2), transparent)" }}
+        />
+        <VoiceOrb state="idle" size={200} className="relative" />
+        <p className="relative mt-2 max-w-xs text-xl font-semibold leading-snug tracking-tight">
+          Assistance calls answered, doctors booked, cases filed.
+        </p>
+        <p className="relative mt-2 max-w-xs text-sm text-stage-muted">
+          Sign in to watch the AI agents work and step in whenever a person should.
+        </p>
+      </div>
+      <div className="px-7 py-9 md:px-10 md:py-14">
+        <h1 className="text-xl font-semibold tracking-tight text-ink">Sign in</h1>
+        <p className="mb-6 mt-1 text-sm text-muted">Operator workspace</p>
         <Suspense>
           <LoginForm />
         </Suspense>
-      </Card>
+      </div>
     </div>
   );
 }

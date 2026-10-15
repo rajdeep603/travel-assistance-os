@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, Clock, Copy, Euro, FileCheck2, Moon, RotateCcw } from "lucide-react";
 import { Button, Card, PageHeader, SectionTitle } from "@/components/ui";
+import { CountUp } from "@/components/count-up";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { formatMoney } from "@/lib/format";
 import {
@@ -278,14 +279,16 @@ export default function BusinessCasePage() {
     {
       icon: Clock,
       accent: "bg-blue-50 text-blue-600",
-      value: formatCount(result.hoursFreed),
+      value: result.hoursFreed,
+      format: (n: number) => formatCount(n),
       label: "Agent hours freed a month",
       context: `the work of ${formatCount(result.fte, 1)} full-time staff`,
     },
     {
       icon: Euro,
       accent: "bg-emerald-50 text-emerald-600",
-      value: eurShort(result.annualSaving),
+      value: result.annualSaving,
+      format: eurShort,
       label: "Cost saved a year",
       context:
         result.savingPerCase > 0
@@ -295,14 +298,16 @@ export default function BusinessCasePage() {
     {
       icon: Moon,
       accent: "bg-indigo-50 text-indigo-600",
-      value: formatCount(result.afterHoursCalls),
+      value: result.afterHoursCalls,
+      format: (n: number) => formatCount(n),
       label: "After-hours calls answered instantly",
       context: "a month — no queue, no voicemail",
     },
     {
       icon: FileCheck2,
       accent: "bg-violet-50 text-violet-600",
-      value: formatDuration(result.letterMinutesAutomated),
+      value: result.letterMinutesAutomated,
+      format: formatDuration,
       label: "Letter of Guarantee turnaround",
       context: `instead of ${formatDuration(result.letterMinutesToday)} today`,
     },
@@ -355,12 +360,14 @@ export default function BusinessCasePage() {
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {tiles.map(({ icon: Icon, accent, value, label, context }) => (
+        {tiles.map(({ icon: Icon, accent, value, format, label, context }) => (
           <Card key={label} className="py-4">
             <div className={`mb-2.5 inline-flex rounded-lg p-2 ${accent}`}>
               <Icon size={18} aria-hidden />
             </div>
-            <p className="text-3xl font-semibold tracking-tight text-slate-900 2xl:text-4xl">{value}</p>
+            <p className="text-3xl font-semibold tracking-tight tabular-nums text-ink 2xl:text-4xl">
+              <CountUp value={value} format={format} durationMs={500} />
+            </p>
             <p className="mt-1 text-sm font-semibold text-slate-700">{label}</p>
             <p className="mt-0.5 text-sm leading-snug text-slate-500">{context}</p>
           </Card>

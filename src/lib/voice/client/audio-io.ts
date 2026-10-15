@@ -68,6 +68,11 @@ export class VoiceAudio {
   private playing = new Set<AudioBufferSourceNode>();
   private playhead = 0;
   private closed = false;
+  /** Agent playback runs through here so the visuals can read its level. */
+  private output: GainNode;
+  private analyser: AnalyserNode;
+  private samples: Float32Array<ArrayBuffer>;
+  private micRms = 0;
 
   onChunk: (base64: string) => void = () => {};
   onLevel: (rms: number) => void = () => {};
@@ -77,6 +82,12 @@ export class VoiceAudio {
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     this.ctx = new Ctor();
     void this.ctx.resume();
+    this.output = this.ctx.createGain();
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 256;
+    this.samples = new Float32Array(this.analyser.fftSize);
+    this.output.connect(this.ctx.destination);
+    this.output.connect(this.analyser);
   }
 
   async startMic(): Promise<void> {
@@ -105,6 +116,7 @@ export class VoiceAudio {
       processorOptions: { targetRate: VOICE_SAMPLE_RATE },
     });
     this.node.port.onmessage = (e: MessageEvent<{ pcm: ArrayBuffer; level: number }>) => {
+      this.micRms = e.data.level;
       this.onLevel(e.data.level);
       this.onChunk(toBase64(e.data.pcm));
     };
@@ -128,7 +140,7 @@ export class VoiceAudio {
     for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 0x8000;
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
-    src.connect(this.ctx.destination);
+    src.connect(this.output);
     const startAt = Math.max(this.ctx.currentTime + 0.03, this.playhead);
     src.start(startAt);
     this.playhead = startAt + buffer.duration;
@@ -156,6 +168,20 @@ export class VoiceAudio {
 
   isSpeaking(): boolean {
     return this.remaining() > 0.02;
+  }
+
+  /** Latest microphone RMS (0 while muted). */
+  inputLevel(): number {
+    return this.closed ? 0 : this.micRms;
+  }
+
+  /** RMS of the agent audio playing right now. */
+  outputLevel(): number {
+    if (this.closed || this.playing.size === 0) return 0;
+    this.analyser.getFloatTimeDomainData(this.samples);
+    let sum = 0;
+    for (let i = 0; i < this.samples.length; i++) sum += this.samples[i] * this.samples[i];
+    return Math.sqrt(sum / this.samples.length);
   }
 
   async close(): Promise<void> {

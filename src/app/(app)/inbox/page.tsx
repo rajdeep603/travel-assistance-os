@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Mail, Printer, Sparkles } from "lucide-react";
 import { MessageDetailPanel } from "@/components/inbox/message-detail";
-import { AIPipeline } from "@/components/ai-progress";
+import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { Button, Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 
@@ -35,6 +35,7 @@ export default function InboxPage() {
   const [sample, setSample] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pipeline = usePipeline(busy, STAGES.length, { failed: !!error });
 
   const load = useCallback(async () => {
     try {
@@ -124,9 +125,9 @@ export default function InboxPage() {
         <p className="mt-2 text-xs text-slate-500">
           Runs the same pipeline as real e-mails and faxes.
         </p>
-        {busy ? (
+        {pipeline.visible ? (
           <div className="mt-3 border-t border-slate-100 pt-3">
-            <AIPipeline busy stages={STAGES} />
+            <AIPipeline stages={STAGES} active={pipeline.active} />
           </div>
         ) : null}
       </Card>

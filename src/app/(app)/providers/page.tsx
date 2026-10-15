@@ -12,7 +12,7 @@ import {
   SectionTitle,
   readApiError,
 } from "@/components/ui";
-import { AIPipeline } from "@/components/ai-progress";
+import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { ProviderMap } from "@/components/provider-map";
 import { useQueryParam } from "@/lib/client/use-query-param";
@@ -65,6 +65,13 @@ const MAX_SCORE = 110;
 /** Tomorrow in Istanbul, the operational timezone of the demo. */
 const tomorrow = () => zonedToday(1);
 
+const SEARCH_STAGES = [
+  "Filtering the provider network",
+  "Checking live availability",
+  "Scoring distance, language and rating",
+  "Ranking the best matches",
+];
+
 export default function ProvidersPage() {
   const [form, setForm] = useState({
     city: "Istanbul",
@@ -79,6 +86,8 @@ export default function ProvidersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only a fresh search shows the pipeline; a refresh after booking keeps the results.
+  const pipeline = usePipeline(searching && results == null, SEARCH_STAGES.length, { stepMs: 400, failed: !!error });
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [booking, setBooking] = useState<{
     result: ProviderResult;
@@ -314,18 +323,9 @@ export default function ProvidersPage() {
         </div>
       </Card>
 
-      {searching && results == null ? (
+      {pipeline.visible ? (
         <Card>
-          <AIPipeline
-            busy={searching}
-            stages={[
-              "Filtering the provider network",
-              "Checking live availability",
-              "Scoring distance, language and rating",
-              "Ranking the best matches",
-            ]}
-            stepMs={400}
-          />
+          <AIPipeline stages={SEARCH_STAGES} active={pipeline.active} />
         </Card>
       ) : results == null ? (
         <Card>

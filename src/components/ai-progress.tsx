@@ -1,70 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Trail } from "@/components/trail";
 
-/**
- * Staged AI-pipeline progress. While `busy` is true it walks through the
- * stage list (holding on the last one until the request finishes), so the
- * audience sees *what* the AI is doing instead of a bare spinner. The stages
- * mirror the real pipeline steps; the timing is presentational.
- */
-export function AIPipeline({
-  stages,
-  busy,
-  stepMs = 650,
-}: {
-  stages: string[];
-  busy: boolean;
-  stepMs?: number;
-}) {
-  const [active, setActive] = useState(0);
+export { usePipeline } from "@/lib/client/use-pipeline";
 
-  useEffect(() => {
-    if (!busy) return;
-    setActive(0);
-    const timer = setInterval(() => {
-      setActive((a) => Math.min(a + 1, stages.length - 1));
-    }, stepMs);
-    return () => clearInterval(timer);
-  }, [busy, stages.length, stepMs]);
+// Staged AI-pipeline progress, so the audience sees *what* the AI is doing
+// instead of a bare spinner. Drive it with usePipeline(busy, stages.length):
+// the stages mirror the real pipeline steps; the walking pace is
+// presentational and the finish follows the real response.
 
-  if (!busy) return null;
-
+export function AIPipeline({ stages, active, tone = "light" }: { stages: string[]; active: number; tone?: "light" | "stage" }) {
   return (
-    <ol className="space-y-2.5" aria-live="polite" aria-label="AI pipeline progress">
-      {stages.map((stage, i) => {
-        const done = i < active;
-        const current = i === active;
-        return (
-          <li
-            key={stage}
-            className={`flex items-center gap-2.5 text-sm transition-colors ${
-              done
-                ? "text-emerald-600"
-                : current
-                  ? "font-medium text-slate-800"
-                  : "text-slate-300"
-            }`}
-          >
-            {done ? (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100">
-                <Check size={12} strokeWidth={3} aria-hidden />
-              </span>
-            ) : current ? (
-              <span className="flex h-5 w-5 items-center justify-center">
-                <Loader2 size={16} className="animate-spin text-blue-600" aria-hidden />
-              </span>
-            ) : (
-              <span className="flex h-5 w-5 items-center justify-center">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-200" aria-hidden />
-              </span>
-            )}
-            {stage}
-            {current ? <span className="sr-only">(in progress)</span> : null}
-          </li>
-        );
-      })}
-    </ol>
+    <Trail
+      label="AI pipeline progress"
+      tone={tone}
+      stops={stages.map((stage, i) => ({
+        id: stage,
+        label: stage,
+        status: i < active ? "done" : i === active ? "running" : "pending",
+      }))}
+    />
   );
 }

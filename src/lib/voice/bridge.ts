@@ -392,6 +392,8 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     leg.clearPlayback();
     emit({ type: "user_speaking" });
   });
+  // The caller has finished: the model is working out its answer.
+  session.on("speech_stopped", () => emit({ type: "agent_thinking" }));
   session.on("agent_transcript_delta", (text) => emit({ type: "transcript_delta", role: "agent", text }));
   session.on("agent_transcript_done", (text) => record("agent", text));
   session.on("user_transcript", recordCaller);

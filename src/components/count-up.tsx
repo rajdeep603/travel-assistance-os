@@ -6,7 +6,16 @@ import { useEffect, useRef, useState } from "react";
  * Counts a stat-tile number up from zero on mount — a small demo moment.
  * Skipped (renders the final value) when the viewer prefers reduced motion.
  */
-export function CountUp({ value, durationMs = 800 }: { value: number; durationMs?: number }) {
+export function CountUp({
+  value,
+  durationMs = 800,
+  format,
+}: {
+  value: number;
+  durationMs?: number;
+  /** Formats the number on every frame, e.g. as currency. */
+  format?: (n: number) => string;
+}) {
   const [display, setDisplay] = useState(value === 0 ? 0 : null as number | null);
   const frame = useRef<number>();
   // Where the next animation starts: zero on mount, the previous value after a live refresh.
@@ -35,5 +44,6 @@ export function CountUp({ value, durationMs = 800 }: { value: number; durationMs
   }, [value, durationMs]);
 
   // Before hydration (and on the server) show the real value — no flash of 0.
-  return <>{display ?? value}</>;
+  const shown = display ?? value;
+  return <>{format ? format(shown) : shown}</>;
 }

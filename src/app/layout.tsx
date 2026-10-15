@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { PRESENT_STORAGE_KEY } from "@/lib/present-mode";
+import { MotionProvider } from "@/components/motion-provider";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -30,11 +31,11 @@ export default function RootLayout({
       <body className={`${geistSans.variable} font-sans`}>
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:text-white"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-sm focus:text-white"
         >
           Skip to content
         </a>
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );

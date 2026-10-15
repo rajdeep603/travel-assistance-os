@@ -1,5 +1,8 @@
 /** The platform logo mark — matches src/app/icon.svg. */
 export function BrandMark({ size = 28 }: { size?: number }) {
+  // One id per size: the sidebar's mark is display:none on phones, and a
+  // gradient defined inside a hidden SVG can't paint the header's copy.
+  const gradientId = `brand-g-${size}`;
   return (
     <svg
       width={size}
@@ -9,12 +12,12 @@ export function BrandMark({ size = 28 }: { size?: number }) {
       className="shrink-0"
     >
       <defs>
-        <linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#2563eb" />
           <stop offset="1" stopColor="#0ea5e9" />
         </linearGradient>
       </defs>
-      <rect width="64" height="64" rx="14" fill="url(#brand-g)" />
+      <rect width="64" height="64" rx="14" fill={`url(#${gradientId})`} />
       <path
         d="M32 10l16 6v12c0 11-6.8 19.6-16 24-9.2-4.4-16-13-16-24V16z"
         fill="#ffffff"

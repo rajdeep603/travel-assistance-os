@@ -16,7 +16,7 @@ import {
   StatusBadge,
   readApiError,
 } from "@/components/ui";
-import { AIPipeline } from "@/components/ai-progress";
+import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { formatEnum } from "@/lib/format";
 
 const ANALYSIS_STAGES = [
@@ -136,6 +136,7 @@ export default function CasesPage() {
   const [creating, setCreating] = useState(false);
   const [createdRef, setCreatedRef] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pipeline = usePipeline(analyzing, ANALYSIS_STAGES.length, { failed: !!error });
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [listLoading, setListLoading] = useState(true);
 
@@ -254,9 +255,9 @@ export default function CasesPage() {
         </Card>
 
         <div className="space-y-5">
-          {analyzing ? (
+          {pipeline.visible ? (
             <Card>
-              <AIPipeline busy stages={ANALYSIS_STAGES} />
+              <AIPipeline stages={ANALYSIS_STAGES} active={pipeline.active} />
             </Card>
           ) : analysis ? (
             <>

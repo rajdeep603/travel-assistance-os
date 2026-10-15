@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useReducedMotion } from "motion/react";
 
 // ---------------------------------------------------------------------------
 // Offline network map: plots the search origin and the ranked providers on an
@@ -37,6 +38,7 @@ export function ProviderMap({
   onSelect: (id: string) => void;
 }) {
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const reduceMotion = useReducedMotion();
 
   const layout = useMemo(() => {
     const pts = [
@@ -155,7 +157,7 @@ export function ProviderMap({
       {originPt ? (
         <g>
           <circle cx={originPt.x} cy={originPt.y} r="14" fill="#2563eb" opacity="0.12">
-            <animate attributeName="r" values="10;20;10" dur="2.4s" repeatCount="indefinite" />
+            {reduceMotion ? null : <animate attributeName="r" values="10;20;10" dur="2.4s" repeatCount="indefinite" />}
           </circle>
           <circle cx={originPt.x} cy={originPt.y} r="6" fill="#2563eb" stroke="#fff" strokeWidth="2" />
           <text

@@ -1,42 +1,8 @@
 import Link from "next/link";
-import { CalendarCheck2, CheckCircle2, CircleAlert, FolderKanban, Loader2, Wrench } from "lucide-react";
+import { CalendarCheck2, FolderKanban } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui";
 import { formatSlotDate } from "@/lib/format";
-import type { Booking, ProviderOption, ToolActivity } from "@/lib/voice/client/use-grok-voice";
-import { toolActivityLabel } from "@/lib/voice/tool-labels";
-
-/** What the agent is doing behind the scenes — the "visible AI". */
-export function ActivityPanel({ tools }: { tools: ToolActivity[] }) {
-  return (
-    <Card>
-      <SectionTitle>Agent activity</SectionTitle>
-      {tools.length === 0 ? (
-        <p className="mt-2 text-xs text-slate-500">Tool calls the agent makes — searches, bookings, case updates — appear here.</p>
-      ) : (
-        <ul className="mt-2 space-y-1.5">
-          {tools.map((t, i) => (
-            <li key={`${t.name}-${i}`} className="flex items-start gap-2 text-sm text-slate-700">
-              {t.status === "running" ? (
-                <Loader2 size={15} className="mt-0.5 shrink-0 animate-spin text-blue-500 motion-reduce:animate-none" aria-hidden />
-              ) : t.status === "error" ? (
-                <CircleAlert size={15} className="mt-0.5 shrink-0 text-amber-500" aria-hidden />
-              ) : (
-                <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-500" aria-hidden />
-              )}
-              <span>
-                {toolActivityLabel(t.name)}
-                {t.status === "error" && t.summary ? <span className="block text-xs text-amber-700">{t.summary}</span> : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
-        <Wrench size={11} aria-hidden /> Real tools against the platform&apos;s live database.
-      </p>
-    </Card>
-  );
-}
+import type { Booking, ProviderOption } from "@/lib/voice/client/use-grok-voice";
 
 export function ProvidersPanel({
   providers,
@@ -61,7 +27,7 @@ export function ProvidersPanel({
               type="button"
               disabled={disabled}
               onClick={() => onPick(`I'd like option ${o.option}, ${o.doctor}.`)}
-              className="animate-fade-up w-full rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-60"
+              className="animate-fade-up w-full rounded-lg border border-slate-200 p-3 text-left transition-colors hover:border-brand/60 disabled:opacity-60"
               style={{ animationDelay: `${i * 80}ms` }}
             >
               <p className="text-sm font-semibold text-slate-800">
@@ -71,7 +37,7 @@ export function ProvidersPanel({
                 {o.specialty} · {o.facility}, {o.district}
                 {o.distance_km != null ? ` (${o.distance_km} km)` : ""}
               </p>
-              <p className="mt-1 text-xs font-semibold text-blue-600">{o.slots.join(" · ")}</p>
+              <p className="mt-1 text-xs font-semibold text-brand">{o.slots.join(" · ")}</p>
             </button>
           ))}
           <p className="text-[11px] text-slate-500">Say “option one” — or click an option.</p>
@@ -95,7 +61,12 @@ export function BookingPanel({ booking, caseRef }: { booking: Booking | null; ca
             <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
               <CalendarCheck2 size={16} className="text-emerald-500" aria-hidden />
               {booking.appointment.ref}
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Confirmed</span>
+              <span className="animate-pop-in inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" aria-hidden>
+                  <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-draw" style={{ ["--dash" as string]: 12, animationDelay: "0.2s" }} />
+                </svg>
+                Confirmed
+              </span>
             </p>
             <p className="mt-1.5 text-sm text-slate-700">
               {booking.appointment.doctor} · {booking.appointment.specialty}

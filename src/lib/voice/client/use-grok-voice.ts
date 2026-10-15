@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { MicError, VoiceAudio, type MicProblem } from "./audio-io";
+import { nextUserSpeaking } from "./levels";
 
 // ---------------------------------------------------------------------------
 // React state machine for a browser voice session through the voice gateway:
@@ -48,6 +49,8 @@ export interface Booking {
 }
 
 export interface ToolActivity {
+  /** Stable across running → done, so the UI can animate one step. */
+  id: number;
   name: string;
   status: "running" | "done" | "error";
   summary?: string;
@@ -63,9 +66,12 @@ export interface VoiceState {
   muted: boolean;
   agentSpeaking: boolean;
   userSpeaking: boolean;
-  level: number;
+  /** The caller has finished and the agent is working out its answer. */
+  thinking: boolean;
   transcript: TranscriptLine[];
   partial: { user: string; agent: string };
+  /** The id the agent's in-progress line will keep once it is final. */
+  partialAgentId: number | null;
   tools: ToolActivity[];
   providers: { date: string; location: string; options: ProviderOption[] } | null;
   booking: Booking | null;
@@ -83,9 +89,10 @@ const initial: VoiceState = {
   muted: false,
   agentSpeaking: false,
   userSpeaking: false,
-  level: 0,
+  thinking: false,
   transcript: [],
   partial: { user: "", agent: "" },
+  partialAgentId: null,
   tools: [],
   providers: null,
   booking: null,
@@ -123,12 +130,21 @@ type Action =
   | { type: "event"; event: GatewayEvent }
   | { type: "muted"; muted: boolean }
   | { type: "speaking"; agent: boolean }
-  | { type: "level"; level: number }
+  | { type: "user_speaking"; speaking: boolean }
+  | { type: "thinking"; on: boolean }
   | { type: "ended"; reason: string };
 
-let lineId = 0;
+/** Agent audio or text has started arriving, so it is no longer thinking. */
+const answered = (state: VoiceState): VoiceState => (state.thinking ? { ...state, thinking: false } : state);
 
-function reducer(state: VoiceState, action: Action): VoiceState {
+let lineId = 0;
+let toolId = 0;
+
+/** Exported for tests. */
+export const initialVoiceState = initial;
+
+/** Exported for tests. */
+export function voiceReducer(state: VoiceState, action: Action): VoiceState {
   switch (action.type) {
     case "start":
       return { ...initial, phase: "starting" };
@@ -139,19 +155,30 @@ function reducer(state: VoiceState, action: Action): VoiceState {
     case "muted":
       return { ...state, muted: action.muted };
     case "speaking":
-      return state.agentSpeaking === action.agent ? state : { ...state, agentSpeaking: action.agent };
-    case "level":
-      return { ...state, level: action.level, userSpeaking: action.level > 0.04 ? true : state.userSpeaking && action.level > 0.015 };
+      if (state.agentSpeaking === action.agent) return state;
+      return { ...state, agentSpeaking: action.agent, thinking: action.agent ? false : state.thinking };
+    case "user_speaking":
+      return state.userSpeaking === action.speaking ? state : { ...state, userSpeaking: action.speaking };
+    case "thinking":
+      return state.thinking === action.on || state.phase !== "live" ? state : { ...state, thinking: action.on };
     case "ended":
-      return state.phase === "error" ? state : { ...state, phase: "ended", endReason: action.reason, agentSpeaking: false };
+      return state.phase === "error"
+        ? state
+        : { ...state, phase: "ended", endReason: action.reason, agentSpeaking: false, thinking: false };
     case "event": {
       const e = action.event;
       switch (e.type) {
         case "ready":
           return { ...state, phase: "live", callRef: e.callRef ?? null, agentLabel: e.agent ?? null };
+        case "agent_thinking":
+          return state.phase === "live" && !state.agentSpeaking ? { ...state, thinking: true } : state;
+        case "user_speaking":
+          return answered(state);
         case "transcript_delta": {
           const role = e.role ?? "agent";
-          return { ...state, partial: { ...state.partial, [role]: state.partial[role] + (e.text ?? "") } };
+          const next = { ...state, partial: { ...state.partial, [role]: state.partial[role] + (e.text ?? "") } };
+          if (role !== "agent") return next;
+          return answered({ ...next, partialAgentId: state.partialAgentId ?? ++lineId });
         }
         case "transcript": {
           const role = e.role ?? "agent";
@@ -159,13 +186,23 @@ function reducer(state: VoiceState, action: Action): VoiceState {
           const transcript =
             idx >= 0
               ? state.transcript.map((t, i) => (i === idx ? { ...t, text: e.text ?? "" } : t))
-              : [...state.transcript, { id: ++lineId, role, text: e.text ?? "", line: e.line }];
-          return { ...state, transcript, partial: { ...state.partial, [role]: "" } };
+              : [
+                  ...state.transcript,
+                  // An agent line keeps the id its in-progress caption had.
+                  { id: (role === "agent" ? state.partialAgentId : null) ?? ++lineId, role, text: e.text ?? "", line: e.line },
+                ];
+          const next = { ...state, transcript, partial: { ...state.partial, [role]: "" } };
+          return role === "agent" ? answered({ ...next, partialAgentId: null }) : next;
         }
         case "tool": {
           const tools = [...state.tools];
           const idx = tools.findLastIndex((t) => t.name === e.name && t.status === "running");
-          const entry: ToolActivity = { name: e.name ?? "tool", status: e.status ?? "done", summary: e.summary };
+          const entry: ToolActivity = {
+            id: idx >= 0 && e.status !== "running" ? tools[idx].id : ++toolId,
+            name: e.name ?? "tool",
+            status: e.status ?? "done",
+            summary: e.summary,
+          };
           if (idx >= 0 && e.status !== "running") tools[idx] = entry;
           else tools.push(entry);
           return { ...state, tools: tools.slice(-8) };
@@ -181,7 +218,7 @@ function reducer(state: VoiceState, action: Action): VoiceState {
         case "error":
           return { ...state, phase: "error", error: { message: e.message ?? "Something went wrong." } };
         case "ended":
-          return { ...state, phase: "ended", endReason: e.reason ?? null, agentSpeaking: false };
+          return { ...state, phase: "ended", endReason: e.reason ?? null, agentSpeaking: false, thinking: false };
         default:
           return state;
       }
@@ -190,7 +227,7 @@ function reducer(state: VoiceState, action: Action): VoiceState {
 }
 
 export function useGrokVoice() {
-  const [state, dispatch] = useReducer(reducer, initial);
+  const [state, dispatch] = useReducer(voiceReducer, initial);
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<VoiceAudio | null>(null);
   const tickRef = useRef<number | null>(null);
@@ -267,7 +304,16 @@ export function useGrokVoice() {
       audio.onChunk = (b64) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "audio", data: b64 }));
       };
-      audio.onLevel = (level) => dispatch({ type: "level", level });
+      // Levels go straight to the visuals (see getLevels); React only hears
+      // when the caller starts or stops talking, not 25 times a second.
+      let speaking = false;
+      audio.onLevel = (rms) => {
+        const next = nextUserSpeaking(speaking, rms);
+        if (next !== speaking) {
+          speaking = next;
+          dispatch({ type: "user_speaking", speaking: next });
+        }
+      };
 
       ws.onmessage = (msg) => {
         let event: GatewayEvent;
@@ -323,13 +369,29 @@ export function useGrokVoice() {
 
   const sendText = useCallback((text: string) => {
     const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN && text.trim()) ws.send(JSON.stringify({ type: "text", text: text.trim() }));
+    if (ws?.readyState === WebSocket.OPEN && text.trim()) {
+      ws.send(JSON.stringify({ type: "text", text: text.trim() }));
+      dispatch({ type: "thinking", on: true });
+    }
   }, []);
+
+  // Never leave the agent "thinking" if no answer event arrives.
+  useEffect(() => {
+    if (!state.thinking) return;
+    const timer = window.setTimeout(() => dispatch({ type: "thinking", on: false }), 8000);
+    return () => window.clearTimeout(timer);
+  }, [state.thinking]);
+
+  /** Raw RMS for the visuals, read every animation frame (no re-render). */
+  const getLevels = useCallback(
+    () => ({ mic: audioRef.current?.inputLevel() ?? 0, agent: audioRef.current?.outputLevel() ?? 0 }),
+    []
+  );
 
   const setMuted = useCallback((muted: boolean) => {
     audioRef.current?.setMuted(muted);
     dispatch({ type: "muted", muted });
   }, []);
 
-  return { state, start, stop, sendText, setMuted };
+  return { state, start, stop, sendText, setMuted, getLevels };
 }
