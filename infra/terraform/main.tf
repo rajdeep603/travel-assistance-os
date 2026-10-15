@@ -67,7 +67,8 @@ resource "aws_security_group" "app" {
   dynamic "ingress" {
     for_each = var.enable_https_port ? [1] : []
     content {
-      description = "HTTPS (Let's Encrypt via the tls compose profile)"
+      # AWS rejects apostrophes in rule descriptions.
+      description = "HTTPS (Lets Encrypt certificate, tls compose profile)"
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
