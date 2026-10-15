@@ -169,7 +169,7 @@ export const EMAIL_SAMPLES: EmailSample[] = [
     to: "claims@inbound.demo-assistance.example",
     subject: "Unacceptable — claim still not paid",
     body:
-      "This is the third time I am writing. My dental claim is still not paid. If I don't hear back this week I will contact my lawyer and file a formal complaint.\n\nMarco Bianchi, policy POL-TR-100948",
+      "This is the third time I am writing. My dental claim CLM-10237 is still not paid. If I don't hear back this week I will contact my lawyer and file a formal complaint.\n\nMarco Bianchi, policy POL-TR-100948",
     attachments: [],
   },
 ];
