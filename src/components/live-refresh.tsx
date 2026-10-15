@@ -26,9 +26,11 @@ export function LiveRefresh({ intervalMs = 30_000 }: { intervalMs?: number }) {
     const timer = window.setInterval(refresh, intervalMs);
     fetch("/api/calls/config")
       .then((r) => (r.ok ? r.json() : null))
-      .then((config: { monitorUrl?: string } | null) => {
-        if (stopped || !config?.monitorUrl) return;
+      .then((config: { monitorUrl?: string; voiceConfigured?: boolean; telephonyConfigured?: boolean } | null) => {
+        // Calls exist only where voice or telephony is set up; elsewhere there's no gateway to listen to.
+        if (stopped || !config?.monitorUrl || !(config.voiceConfigured || config.telephonyConfigured)) return;
         socket = new WebSocket(config.monitorUrl);
+        socket.onerror = () => undefined; // the 30-second refresh still runs
         socket.onmessage = (m) => {
           try {
             const event = JSON.parse(m.data as string) as { type?: string };
