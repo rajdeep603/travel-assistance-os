@@ -105,7 +105,7 @@ The original modules, unchanged:
 | Browser says the microphone is blocked | Click the lock icon → allow the microphone; or type — same flow |
 | Voice page says voice isn't configured | `XAI_API_KEY` missing in `.env`; `docker compose up -d` after adding it |
 | Hotline doesn't answer | Twilio number's voice webhook must be `https://<domain>/api/twilio/voice/inbound`; check `docker compose logs voice-gateway` |
-| "isn't on the outbound allowlist" | Add the number to `OUTBOUND_ALLOWED_NUMBERS` |
+| "isn't on the list of numbers AI agents may call" | Add the number to `OUTBOUND_ALLOWED_NUMBERS` |
 | Transfer says nobody can take the call | Set `ON_CALL_DOCTOR_NUMBER` / `CASE_MANAGER_NUMBER` |
-| No provider found | Weekend/evening in the demo data — pick the next weekday |
-| Data looks messy after experiments | `npm run db:seed` restores the canonical demo records |
+| No provider found | Providers take bookings daily until 22:00 (international clinics until 23:30); pick an earlier time or tomorrow |
+| Data looks messy after experiments | On the server: `docker compose exec app node seed.cjs` restores the canonical demo records (locally: `npm run db:seed`) |
