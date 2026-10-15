@@ -9,18 +9,23 @@ import { useEffect, useRef, useState } from "react";
 export function CountUp({ value, durationMs = 800 }: { value: number; durationMs?: number }) {
   const [display, setDisplay] = useState(value === 0 ? 0 : null as number | null);
   const frame = useRef<number>();
+  // Where the next animation starts: zero on mount, the previous value after a live refresh.
+  const from = useRef(0);
 
   useEffect(() => {
-    if (value === 0) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const start = from.current;
+    if (value === start || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      from.current = value;
       setDisplay(value);
       return;
     }
-    const start = performance.now();
+    const t0 = performance.now();
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / durationMs);
+      const t = Math.min(1, (now - t0) / durationMs);
       const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-      setDisplay(Math.round(eased * value));
+      const current = Math.round(start + eased * (value - start));
+      from.current = current;
+      setDisplay(current);
       if (t < 1) frame.current = requestAnimationFrame(tick);
     };
     frame.current = requestAnimationFrame(tick);

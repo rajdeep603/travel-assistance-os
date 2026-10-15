@@ -1,22 +1,30 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  Bot,
   CalendarCheck,
+  Calculator,
   FileCheck2,
   FileText,
   FolderKanban,
   Headset,
   Inbox,
+  Languages,
+  MailCheck,
   MessageSquareText,
   Mic,
-  PhoneCall,
   ReceiptText,
+  ScanText,
   Stethoscope,
+  Timer,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { Card, STATUS_DOTS, SectionTitle } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
+import { LiveRefresh } from "@/components/live-refresh";
+import { BRAND, POWERED_BY } from "@/lib/brand";
 import { formatEnum } from "@/lib/format";
+import { formatShortDuration, getOutcomes, type Outcomes } from "@/lib/services/outcomes";
 
 export const dynamic = "force-dynamic";
 
@@ -121,9 +129,7 @@ async function getStats() {
       upcomingAppointments,
       documentsProcessed,
       confidenceAgg,
-      callsByStatus,
-      inboundByStatus,
-      lettersIssued,
+      outcomes,
     ] = await Promise.all([
       prisma.case.groupBy({ by: ["status"], _count: { _all: true } }),
       prisma.claim.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -133,12 +139,8 @@ async function getStats() {
       }),
       prisma.document.count({ where: { status: "PROCESSED" } }),
       prisma.documentExtraction.aggregate({ _avg: { confidence: true } }),
-      prisma.call.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.inboundMessage.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.guaranteeLetter.count({ where: { status: { in: ["SENT", "ACKNOWLEDGED"] } } }),
+      getOutcomes(30),
     ]);
-    const callCounts = Object.fromEntries(callsByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
-    const inboundCounts = Object.fromEntries(inboundByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
 
     const caseCounts = Object.fromEntries(
       casesByStatus.map((g) => [g.status, g._count._all])
@@ -168,11 +170,7 @@ async function getStats() {
       upcomingAppointments,
       documentsProcessed,
       avgConfidence: confidenceAgg._avg.confidence,
-      callsHandled: (callCounts.COMPLETED ?? 0) + (callCounts.TRANSFERRED ?? 0) + (callCounts.VOICEMAIL ?? 0),
-      callsTransferred: callCounts.TRANSFERRED ?? 0,
-      inboundTotal: Object.values(inboundCounts).reduce((a, b) => a + b, 0),
-      inboundAutomated: (inboundCounts.REPLIED ?? 0) + (inboundCounts.MATCHED ?? 0),
-      lettersIssued,
+      outcomes,
     };
   } catch {
     return null;
@@ -219,6 +217,80 @@ function StatusBars({
   );
 }
 
+const percent = (share: number | null) => (share == null ? null : Math.round(share * 100));
+
+/** Six outcome figures, each with the evidence behind it. */
+function OutcomeGrid({ outcomes: o }: { outcomes: Outcomes }) {
+  const aiShare = percent(o.calls.aiShare);
+  const inboxShare = percent(o.inbox.automatedShare);
+  const confidence = o.documents.avgConfidence == null ? null : Math.round((o.documents.avgConfidence <= 1 ? o.documents.avgConfidence * 100 : o.documents.avgConfidence));
+  const cards: { icon: typeof Bot; accent: string; value: React.ReactNode; label: string; context: string }[] = [
+    {
+      icon: Bot,
+      accent: "bg-sky-50 text-sky-600",
+      value: aiShare == null ? "—" : <><CountUp value={aiShare} />%</>,
+      label: "of calls handled end-to-end by AI",
+      context: o.calls.ended ? `${o.calls.byAi} of ${o.calls.ended} calls · ${o.calls.transferred} handed to a person` : "No calls yet",
+    },
+    {
+      icon: Timer,
+      accent: "bg-emerald-50 text-emerald-600",
+      value: o.calls.answerSeconds == null ? "Instant" : formatShortDuration(o.calls.answerSeconds),
+      label: "to answer a call, day or night",
+      context: "Every call is picked up by AI; no queue",
+    },
+    {
+      icon: MailCheck,
+      accent: "bg-indigo-50 text-indigo-600",
+      value: inboxShare == null ? "—" : <><CountUp value={inboxShare} />%</>,
+      label: "of e-mails & faxes handled automatically",
+      context:
+        o.inbox.replyMinutes != null
+          ? `Median reply in ${formatShortDuration(o.inbox.replyMinutes * 60)} · ${o.inbox.received} received`
+          : `${o.inbox.automated} of ${o.inbox.received} received`,
+    },
+    {
+      icon: FileCheck2,
+      accent: "bg-violet-50 text-violet-600",
+      value: o.letters.turnaroundMinutes == null ? "—" : formatShortDuration(o.letters.turnaroundMinutes * 60),
+      label: "from cost estimate to Letter of Guarantee",
+      context: `${o.letters.sent} ${o.letters.sent === 1 ? "letter" : "letters"} sent to hospitals`,
+    },
+    {
+      icon: ScanText,
+      accent: "bg-amber-50 text-amber-600",
+      value: <CountUp value={o.documents.read} />,
+      label: "medical documents read by AI",
+      context: confidence == null ? "Reports, invoices, discharge summaries, faxes" : `Average extraction confidence ${confidence}%`,
+    },
+    {
+      icon: Languages,
+      accent: "bg-rose-50 text-rose-600",
+      value: <CountUp value={o.languages.length} />,
+      label: "languages served",
+      context: o.languages.slice(0, 5).join(", ") + (o.languages.length > 5 ? "…" : ""),
+    },
+  ];
+  return (
+    <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {cards.map(({ icon: Icon, accent, value, label, context }, i) => (
+        <Card key={label} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
+          <div className="flex items-start gap-4">
+            <div className={`inline-flex shrink-0 rounded-xl p-2.5 ${accent}`}>
+              <Icon size={22} aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <p className="text-4xl font-semibold tracking-tight text-slate-900">{value}</p>
+              <p className="mt-1 text-sm font-medium text-slate-700">{label}</p>
+              <p className="mt-1 text-xs text-slate-500">{context}</p>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   const stats = await getStats();
 
@@ -245,27 +317,6 @@ export default async function DashboardPage() {
           label: "Upcoming appointments",
           context: "booked by AI + web",
         },
-        {
-          icon: PhoneCall,
-          accent: "bg-sky-50 text-sky-600",
-          value: stats.callsHandled,
-          label: "AI calls handled",
-          context: `${stats.callsTransferred} handed to a person`,
-        },
-        {
-          icon: Inbox,
-          accent: "bg-indigo-50 text-indigo-600",
-          value: stats.inboundAutomated,
-          label: "E-mails & faxes automated",
-          context: `of ${stats.inboundTotal} received · ${stats.documentsProcessed} documents read`,
-        },
-        {
-          icon: FileCheck2,
-          accent: "bg-violet-50 text-violet-600",
-          value: stats.lettersIssued,
-          label: "Letters of Guarantee",
-          context: "issued to hospitals",
-        },
       ]
     : [];
 
@@ -273,16 +324,22 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-7xl">
       {/* Hero: the pitch and the end-to-end journey, above the fold. */}
       <div className="animate-fade-up">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-          Travel Assistance{" "}
-          <span className="bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
-            AI Platform
-          </span>
-        </h1>
-        <p className="mt-2 max-w-2xl text-base text-slate-500">
-          One journey from the first call to the settled claim: AI prepares every
-          step, people stay in charge of care decisions.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
+              {BRAND.name}
+              <span className="ml-3 bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text align-middle text-lg font-medium text-transparent md:text-xl">
+                {BRAND.tagline}
+              </span>
+            </h1>
+            <p className="mt-2 max-w-2xl text-base text-slate-500">
+              One journey from the first call to the settled claim: AI prepares every
+              step, people stay in charge of care decisions.
+            </p>
+            <p className="mt-1 text-xs font-medium uppercase tracking-wider text-slate-400">{POWERED_BY}</p>
+          </div>
+          <LiveRefresh />
+        </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-y-2">
           {STORY.map(({ step, href }, i) => {
@@ -312,26 +369,47 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Live platform numbers, straight from the demo database. */}
+      {/* What the AI did, from the records; then today's workload. */}
       {stats ? (
-        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-          {kpis.map(({ icon: Icon, accent, value, label, context }, i) => (
-            <Card
-              key={label}
-              className="animate-fade-up py-4"
-              style={{ animationDelay: `${i * 60}ms` }}
+        <>
+          <SectionTitle className="mt-8">What the AI did · last {stats.outcomes.days} days</SectionTitle>
+          <OutcomeGrid outcomes={stats.outcomes} />
+          <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {kpis.map(({ icon: Icon, accent, value, label, context }, i) => (
+              <Card key={label} className="animate-fade-up py-4" style={{ animationDelay: `${i * 60}ms` }}>
+                <div className="flex items-center gap-3">
+                  <div className={`inline-flex rounded-lg p-2 ${accent}`}>
+                    <Icon size={18} aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-semibold tracking-tight text-slate-900">
+                      <CountUp value={value} />
+                    </p>
+                    <p className="text-sm font-medium text-slate-600">{label}</p>
+                  </div>
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">{context}</p>
+              </Card>
+            ))}
+            <Link
+              href="/business-case"
+              className="group block rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
             >
-              <div className={`mb-2.5 inline-flex rounded-lg p-2 ${accent}`}>
-                <Icon size={18} aria-hidden />
-              </div>
-              <p className="text-3xl font-semibold tracking-tight text-slate-900">
-                <CountUp value={value} />
-              </p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-600">{label}</p>
-              <p className="mt-0.5 text-[11px] leading-snug text-slate-400">{context}</p>
-            </Card>
-          ))}
-        </div>
+              <Card interactive className="h-full border-blue-200 bg-gradient-to-br from-blue-600 to-sky-500 py-4 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex rounded-lg bg-white/15 p-2">
+                    <Calculator size={18} aria-hidden />
+                  </div>
+                  <p className="text-base font-semibold">Your business case</p>
+                </div>
+                <p className="mt-1.5 text-sm text-blue-50">
+                  Hours and cost {BRAND.name} saves in your operation
+                  <ArrowRight size={14} className="ml-1 inline transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </p>
+              </Card>
+            </Link>
+          </div>
+        </>
       ) : (
         <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
           Live figures are temporarily unavailable. They come back as soon as the

@@ -2,13 +2,15 @@ import { expect, test } from "@playwright/test";
 
 // The demo's main journeys in a real browser, against the seeded database.
 
-test("dashboard lists every module and the live KPIs", async ({ page }) => {
+test("dashboard shows the outcomes and every module", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Travel Assistance AI Platform/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /CareTrail/i })).toBeVisible();
   for (const name of ["Medical Document AI", "AI Case Manager", "AI Call Center", "E-mail & Fax Automation"]) {
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
   }
-  await expect(page.getByText("Letters of Guarantee").first()).toBeVisible();
+  for (const outcome of ["of calls handled end-to-end by AI", "from cost estimate to Letter of Guarantee", "languages served"]) {
+    await expect(page.getByText(outcome)).toBeVisible();
+  }
 });
 
 test("request → AI case → book a provider for that case", async ({ page }) => {
