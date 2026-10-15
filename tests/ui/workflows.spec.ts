@@ -37,7 +37,8 @@ test("a faxed cost estimate becomes a Letter of Guarantee on the case", async ({
   await page.getByLabel("Sample message").selectOption("fax:fax-cost-estimate");
   await page.getByRole("button", { name: /Receive it/i }).click();
   await expect(page.getByText("OCR").first()).toBeVisible();
-  await expect(page.getByText(/Letter of Guarantee LOG-\d+/).first()).toBeVisible();
+  // Seeded letters are LOG-09xx; the one drafted from this fax comes from the live sequence.
+  await expect(page.getByText(/Letter of Guarantee LOG-[1-9]\d*/).first()).toBeVisible();
   await page.getByRole("link", { name: "CASE-1024" }).first().click();
   await expect(page.getByText("Letters of Guarantee", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: /Letter PDF/i }).first()).toBeVisible();
