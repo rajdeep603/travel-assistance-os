@@ -55,9 +55,11 @@ RUN mkdir -p /opt/prisma /opt/extra \
  && npm cache clean --force >/dev/null 2>&1
 ENV NODE_PATH=/opt/extra/node_modules
 # pdfkit (Letters of Guarantee) reads font data from disk and output tracing
-# only copies part of it; remove the partial copy so the complete install in
-# /opt/extra (via NODE_PATH) is the one that loads.
-RUN rm -rf /app/node_modules/pdfkit
+# only copies part of it. Next loads it with an ES-module import(), which
+# ignores NODE_PATH, so replace the partial copy with a symlink to the
+# complete install in /opt/extra (its own dependencies resolve from there).
+RUN rm -rf /app/node_modules/pdfkit \
+ && ln -s /opt/extra/node_modules/pdfkit /app/node_modules/pdfkit
 COPY --chown=nextjs:nodejs prisma ./prisma
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh && mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
