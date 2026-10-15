@@ -34,6 +34,8 @@ export interface TelephonyService {
   validateSignature(signature: string | null, url: string, params: Record<string, string>): boolean;
   placeCall(input: PlaceCallInput): Promise<{ sid: string }>;
   transfer(input: TransferInput): Promise<void>;
+  /** Replaces whatever a live call is doing with new TwiML. */
+  redirect(callSid: string, twiml: string): Promise<void>;
   hangup(callSid: string): Promise<void>;
   sendSms(to: string, body: string): Promise<{ sid: string }>;
 }
@@ -50,6 +52,11 @@ export function transferTwiml(input: Omit<TransferInput, "callSid">, callerId: s
     `<Number url="${escapeXml(input.whisperUrl)}">${escapeXml(input.number)}</Number>` +
     `</Dial></Response>`
   );
+}
+
+/** TwiML that says a last message and ends the call. */
+export function sayAndHangupTwiml(message: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">${escapeXml(message)}</Say><Hangup/></Response>`;
 }
 
 class TwilioTelephony implements TelephonyService {
@@ -90,7 +97,11 @@ class TwilioTelephony implements TelephonyService {
   }
 
   async transfer(input: TransferInput) {
-    await this.client.calls(input.callSid).update({ twiml: transferTwiml(input, this.fromNumber) });
+    await this.redirect(input.callSid, transferTwiml(input, this.fromNumber));
+  }
+
+  async redirect(callSid: string, twiml: string) {
+    await this.client.calls(callSid).update({ twiml });
   }
 
   async hangup(callSid: string) {
@@ -120,6 +131,9 @@ export class MockTelephony implements TelephonyService {
   }
   async transfer(input: TransferInput) {
     this.log.push({ action: "transfer", detail: input });
+  }
+  async redirect(callSid: string, twiml: string) {
+    this.log.push({ action: "redirect", detail: { callSid, twiml } });
   }
   async hangup(callSid: string) {
     this.log.push({ action: "hangup", detail: callSid });

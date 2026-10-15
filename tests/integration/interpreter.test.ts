@@ -18,6 +18,7 @@ const fakeTelephony: TelephonyService = {
   validateSignature: () => true,
   placeCall: async () => ({ sid: `CA_interp_${Date.now()}` }),
   transfer: async () => undefined,
+  redirect: async () => undefined,
   hangup: async (sid) => void hangups.push(sid),
   sendSms: async () => ({ sid: "SM" }),
 };

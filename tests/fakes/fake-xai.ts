@@ -19,6 +19,8 @@ export interface FakeConnection {
   callFunctions(calls: { name: string; args: Record<string, unknown> }[]): void;
   /** Server side of one spoken assistant turn. */
   say(text: string): void;
+  /** Drops the connection, as the real service might mid-call. */
+  close(): void;
 }
 
 export async function startFakeXai(): Promise<{
@@ -96,6 +98,9 @@ export async function startFakeXai(): Promise<{
         send({ type: "response.output_audio.delta", delta: Buffer.from(`audio:${text}`).toString("base64") });
         send({ type: "response.output_audio_transcript.done", transcript: text });
         send({ type: "response.done" });
+      },
+      close() {
+        ws.close();
       },
     };
 
