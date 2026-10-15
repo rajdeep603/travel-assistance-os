@@ -1,11 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, authEnabled, verifySession } from "@/lib/auth/session";
+import {
+  SESSION_COOKIE,
+  authEnabled,
+  renewSession,
+  sessionCookieOptions,
+  verifySession,
+} from "@/lib/auth/session";
 
 // ---------------------------------------------------------------------------
 // Operator gate: every page and API needs a signed-in operator, except the
 // endpoints that authenticate some other way (Twilio signatures, secret
 // inbound webhook paths) and the health check. Disabled when OPERATOR_USERS /
 // SESSION_SECRET are unset, so local development and CI stay frictionless.
+// Sessions slide: an operator who keeps working gets a fresh cookie (see
+// renewSession in @/lib/auth/session).
 // ---------------------------------------------------------------------------
 
 const PUBLIC_PREFIXES = [
@@ -27,11 +35,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = await verifySession(
-    req.cookies.get(SESSION_COOKIE)?.value,
-    process.env.SESSION_SECRET!
-  );
-  if (session) return NextResponse.next();
+  const secret = process.env.SESSION_SECRET!;
+  const session = await verifySession(req.cookies.get(SESSION_COOKIE)?.value, secret);
+  if (session) {
+    const res = NextResponse.next();
+    const renewed = await renewSession(session, secret);
+    if (renewed) res.cookies.set(SESSION_COOKIE, renewed.token, sessionCookieOptions(req, renewed.maxAge));
+    return res;
+  }
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json(

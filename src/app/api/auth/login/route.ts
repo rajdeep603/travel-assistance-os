@@ -5,8 +5,8 @@ import { ApiError, badRequest, unauthorized } from "@/lib/errors";
 import { checkCredentials } from "@/lib/auth/passwords";
 import {
   SESSION_COOKIE,
-  SESSION_TTL_SECONDS,
   authEnabled,
+  sessionCookieOptions,
   signSession,
 } from "@/lib/auth/session";
 
@@ -46,12 +46,6 @@ export const POST = withErrorHandling(async (req: Request) => {
   if (!user) throw unauthorized("Incorrect name or password.");
 
   const res = NextResponse.json({ user });
-  res.cookies.set(SESSION_COOKIE, await signSession(user, process.env.SESSION_SECRET!), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: new URL(req.url).protocol === "https:" || req.headers.get("x-forwarded-proto") === "https",
-    path: "/",
-    maxAge: SESSION_TTL_SECONDS,
-  });
+  res.cookies.set(SESSION_COOKIE, await signSession(user, process.env.SESSION_SECRET!), sessionCookieOptions(req));
   return res;
 });
