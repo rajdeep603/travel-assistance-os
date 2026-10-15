@@ -17,10 +17,11 @@ test("request → AI case → book a provider for that case", async ({ page }) =
   await page.getByRole("button", { name: /Analyse with AI/i }).click();
   await expect(page.getByText(/Case summary/i)).toBeVisible();
   await page.getByRole("button", { name: /Create Case/i }).click();
-  const caseLink = page.getByRole("link", { name: /^CASE-\d+$/ }).first();
-  await expect(caseLink).toBeVisible();
-  const caseRef = (await caseLink.textContent())!.trim();
-  await caseLink.click();
+  // The new case's banner, not the recent-cases list (which re-renders after creation).
+  const created = page.getByText(/Case\s+CASE-\d+\s+created/);
+  await expect(created).toBeVisible();
+  const caseRef = (await created.textContent())!.match(/CASE-\d+/)![0];
+  await page.getByRole("link", { name: /open the case/i }).click();
 
   await expect(page.getByRole("heading", { name: new RegExp(caseRef) })).toBeVisible();
   await page.getByRole("link", { name: /Book a provider/i }).click();
