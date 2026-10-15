@@ -268,7 +268,8 @@ export function headline(result: BusinessCaseResult): string {
   if (result.hoursFreed < 1) {
     return `Enter your monthly volumes to see what ${BRAND.name} would free up in your operation.`;
   }
-  const hours = formatCount(roughly(result.hoursFreed));
+  // Same figure as the hours card beside the headline; the yearly amount is rounded.
+  const hours = formatCount(Math.round(result.hoursFreed));
   const fte = formatCount(result.fte, 1);
   const annual = formatMoney(roughly(result.annualSaving), CURRENCY);
   return `With these numbers, ${BRAND.name} would free about ${hours} agent hours a month — roughly ${fte} full-time staff, worth about ${annual} a year.`;

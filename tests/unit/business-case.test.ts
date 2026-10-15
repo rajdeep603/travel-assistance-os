@@ -209,7 +209,7 @@ describe("wording", () => {
   it("states the headline in round figures", () => {
     const r = calculateBusinessCase(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS);
     expect(headline(r)).toBe(
-      "With these numbers, CareTrail would free about 1,280 agent hours a month — roughly 9.1 full-time staff, worth about €459,000 a year."
+      "With these numbers, CareTrail would free about 1,275 agent hours a month — roughly 9.1 full-time staff, worth about €459,000 a year."
     );
   });
 

@@ -223,7 +223,6 @@ const percent = (share: number | null) => (share == null ? null : Math.round(sha
 function OutcomeGrid({ outcomes: o }: { outcomes: Outcomes }) {
   const aiShare = percent(o.calls.aiShare);
   const inboxShare = percent(o.inbox.automatedShare);
-  const confidence = o.documents.avgConfidence == null ? null : Math.round((o.documents.avgConfidence <= 1 ? o.documents.avgConfidence * 100 : o.documents.avgConfidence));
   const cards: { icon: typeof Bot; accent: string; value: React.ReactNode; label: string; context: string }[] = [
     {
       icon: Bot,
@@ -261,7 +260,7 @@ function OutcomeGrid({ outcomes: o }: { outcomes: Outcomes }) {
       accent: "bg-amber-50 text-amber-600",
       value: <CountUp value={o.documents.read} />,
       label: "medical documents read by AI",
-      context: confidence == null ? "Reports, invoices, discharge summaries, faxes" : `Average extraction confidence ${confidence}%`,
+      context: "Reports, invoices, discharge summaries and handwritten faxes",
     },
     {
       icon: Languages,
