@@ -195,6 +195,8 @@ describe("voice gateway (browser session)", () => {
     const model = await fake.nextConnection();
     await model.waitFor((e) => e.type === "session.update");
     model.send({ type: "session.updated" });
+    // The opening cue goes out once the bridge is listening for tool calls.
+    await model.waitFor((e) => e.type === "conversation.item.create" && JSON.stringify(e).includes("The call has connected"));
 
     const date = weekdayAhead(12);
     model.callFunction("search_providers", { location: "Taksim", specialty: "General Medicine", date });
