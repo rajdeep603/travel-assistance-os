@@ -12,7 +12,6 @@ export const GET = withErrorHandling(async (req: Request) => {
     hotlineNumber: env.twilioPhoneNumber || null,
     telephonyConfigured: getTelephony().configured,
     voiceConfigured: Boolean(env.xaiApiKey),
-    voiceModel: env.xaiVoiceModel,
     monitorUrl: `${gatewayBase(req)}/ws/monitor`,
     transferTargets: {
       doctor: Boolean(env.onCallDoctorNumber),

@@ -11,7 +11,6 @@ interface CallsConfig {
   hotlineNumber: string | null;
   telephonyConfigured: boolean;
   voiceConfigured: boolean;
-  voiceModel: string;
   monitorUrl: string;
   transferTargets: { doctor: boolean; caseManager: boolean };
   agents: { id: string; label: string; description: string; direction: string; channels: string[] }[];
@@ -73,11 +72,6 @@ export default function CallsPage() {
         title="Call Center"
         subtitle="AI voice agents answer every call and place outbound calls — live transcripts, tool activity and outcomes, with humans one transfer away."
       >
-        {config ? (
-          <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
-            {config.voiceModel} · Twilio
-          </span>
-        ) : null}
       </PageHeader>
       {error ? (
         <div className="mb-4">
