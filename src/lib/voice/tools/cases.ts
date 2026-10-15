@@ -40,6 +40,7 @@ export const createCaseTool = defineTool({
         },
         select: { id: true, ref: true },
       });
+      await ctx.setOutcome({ caseRef: kase.ref, urgency: args.urgency, issue: args.issue, location: args.location });
       ctx.emit({ type: "case", case: { id: kase.id, ref: kase.ref }, updated: true });
       return { case_ref: kase.ref, updated_existing: true };
     }
@@ -67,7 +68,7 @@ export const createCaseTool = defineTool({
       return { kase, patient };
     });
     await ctx.setCase(kase.id, patient.id);
-    await ctx.setOutcome({ caseRef: kase.ref, urgency: args.urgency });
+    await ctx.setOutcome({ caseRef: kase.ref, urgency: args.urgency, issue: args.issue, location: args.location });
     ctx.emit({ type: "case", case: { id: kase.id, ref: kase.ref }, priority: args.urgency });
     return { case_ref: kase.ref };
   },

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { runAI } from "@/lib/services/ai";
 import { ISTANBUL_DISTRICTS } from "@/lib/services/nlu";
-import type { ChatMessage } from "@/lib/services/types";
+import type { ChatMessage, ConversationSummaryContext } from "@/lib/services/types";
 import { utcToZoned, weekdayIndex } from "@/lib/time";
 import type { AgentContext, AgentProfile } from "./agents/types";
 import type { VoiceLeg } from "./legs/types";
@@ -219,6 +219,26 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     },
   });
 
+  /** What the summary should know beyond the transcript; the case may be new since the call started. */
+  async function summaryContext(finalOutcome: Record<string, unknown>): Promise<ConversationSummaryContext> {
+    const kase = ctx.caseId
+      ? await prisma.case.findUnique({ where: { id: ctx.caseId }, include: { patient: true } }).catch(() => null)
+      : null;
+    return {
+      outcome: finalOutcome,
+      status,
+      agentId: profile.id,
+      agentLabel: profile.label,
+      channel,
+      direction: profile.direction,
+      audience: profile.audience ?? null,
+      language: profile.languageHint ?? null,
+      caseRef: kase?.ref ?? null,
+      patientName: kase ? `${kase.patient.firstName} ${kase.patient.lastName}` : null,
+      location: kase?.location ?? null,
+    };
+  }
+
   async function end(reason: string): Promise<void> {
     if (ended) return;
     ended = true;
@@ -232,8 +252,9 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     const durationSec = Math.round((Date.now() - startedAt) / 1000);
     let summary: string | null = null;
     if (messages.length > 0) {
+      const context = await summaryContext({ ...outcome, endReason: reason });
       summary = await Promise.race([
-        runAI("summarizeConversation", (ai) => ai.summarizeConversation(messages)).then((r) => r.value),
+        runAI("summarizeConversation", (ai) => ai.summarizeConversation(messages, context)).then((r) => r.value),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
       ]).catch(() => null);
     }

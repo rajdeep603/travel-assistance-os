@@ -200,7 +200,12 @@ async function bookSlot(args: z.infer<typeof bookingSchema>, ctx: ToolContext): 
     });
 
     await ctx.setCase(result.caseId, result.patient.id);
-    await ctx.setOutcome({ appointmentRef: result.appointment.ref, caseRef: result.caseRef });
+    await ctx.setOutcome({
+      appointmentRef: result.appointment.ref,
+      caseRef: result.caseRef,
+      // What was booked, so the call summary can say it in words.
+      appointment: { date: args.date, time: args.time, specialty: provider.specialty, doctor: provider.name, reason: args.reason },
+    });
     ctx.emit({
       type: "booked",
       appointment: {
