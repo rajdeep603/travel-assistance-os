@@ -89,8 +89,8 @@ with patient and case creation.
 **Telephony is guarded.** Twilio webhooks are verified against
 `X-Twilio-Signature` (rebuilt from `PUBLIC_BASE_URL` behind nginx); media
 streams carry a signed ticket as a `<Parameter>` and must match the CallSid.
-Outbound calls only dial `OUTBOUND_ALLOWED_NUMBERS`, respect calling hours
-for travellers, are capped by `MAX_CONCURRENT_CALLS`, use answering-machine
+Outbound calls only dial `OUTBOUND_ALLOWED_NUMBERS`, are capped by
+`MAX_CONCURRENT_CALLS`, use answering-machine
 detection (the live agent switches to a voicemail), and are retried once.
 Warm transfers announce, dial, and whisper the AI summary to whoever picks
 up; an unanswered transfer escalates the case. Real callers' transcripts and

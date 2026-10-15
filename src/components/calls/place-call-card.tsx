@@ -9,8 +9,6 @@ import { maskPhone } from "@/lib/format";
 interface Options {
   telephonyConfigured: boolean;
   allowedNumbers: string[];
-  callingHours: [string, string];
-  withinCallingHours: boolean;
   agents: {
     id: string;
     label: string;
@@ -117,11 +115,6 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
               {agent.suggestedNumber && !agent.suggestedAllowed ? (
                 <p className="text-xs text-slate-500">
                   The {agent.audience === "provider" ? "hospital's" : "patient's"} number ({maskPhone(agent.suggestedNumber)}) isn&apos;t allowlisted for this demo.
-                </p>
-              ) : null}
-              {agent.audience === "traveller" && !options.withinCallingHours ? (
-                <p className="text-xs text-amber-700">
-                  Travellers are only called {options.callingHours[0]}–{options.callingHours[1]} Istanbul time.
                 </p>
               ) : null}
               {error ? <ErrorBanner message={error} /> : null}

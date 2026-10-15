@@ -50,7 +50,6 @@ git-ignored) and never put secrets in source code or Docker images.
 | `ON_CALL_DOCTOR_NUMBER` | no | empty | Emergencies are warm-transferred here (with a spoken AI summary). |
 | `CASE_MANAGER_NUMBER` | no | empty | "I want to talk to a person" is transferred here. |
 | `OUTBOUND_ALLOWED_NUMBERS` | for outbound | empty | Comma-separated E.164 numbers AI calls may dial. **Nothing else can be called** (toll-fraud and demo-safety guard). |
-| `OUTBOUND_CALL_HOURS` | no | `08:00-21:00` | Istanbul hours in which travellers may be called (hospitals any time). |
 | `OUTBOUND_RETRY_MINUTES` | no | `30` | Unanswered/busy outbound calls are retried once after this. |
 | `MAX_CONCURRENT_CALLS` | no | `5` | Cap on simultaneous AI phone calls (cost guard); extra inbound callers hear a busy message. |
 | `CALL_DATA_RETENTION_DAYS` | no | `30` | Phone transcripts are erased and caller numbers masked after this. |

@@ -40,7 +40,7 @@ export interface AgentProfile {
   /** Cue that makes the agent speak first. */
   openingCue: string;
   instructions(ctx: AgentContext): string;
-  /** Outbound only: who is called. Traveller calls respect calling hours. */
+  /** Outbound only: who is called. */
   audience?: "traveller" | "provider";
   /** Outbound only: needs a case to call about. */
   requiresCase?: boolean;

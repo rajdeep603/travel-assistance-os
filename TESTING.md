@@ -84,7 +84,7 @@ stand-in for clicking through the voice pages without an xAI key
   signed ticket, retry idempotency, forged signatures rejected; a phone
   emergency: critical case, **warm transfer to the on-call doctor**, the
   whisper summary, call recorded as transferred.
-- **outbound-calls** — allowlist, calling hours, call placement with AMD,
+- **outbound-calls** — allowlist, travellers called at any hour, call placement with AMD,
   outbound TwiML, a Turkish hospital-coordination session recording a
   structured update, **voicemail on answering-machine detection**, one
   retry for unanswered calls, the signed claimant upload link.

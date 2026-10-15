@@ -49,7 +49,6 @@ function signed(pathWithQuery: string, params: Record<string, string>) {
 }
 
 const noon = zonedToUtc(zonedToday(0), "12:00");
-const lateNight = zonedToUtc(zonedToday(0), "23:30");
 
 let fake: Awaited<ReturnType<typeof startFakeXai>>;
 let gateway: ReturnType<typeof createGateway>;
@@ -84,18 +83,19 @@ afterAll(async () => {
 describe("placing outbound calls", () => {
   it("only dials allowlisted numbers", async () => {
     await expect(
-      placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: "+905559999999", placedBy: "elif", now: noon })
+      placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: "+905559999999", placedBy: "elif" })
     ).rejects.toMatchObject({ status: 403 });
   });
 
-  it("respects calling hours for travellers, but not for hospitals", async () => {
-    await expect(
-      placeOutboundCall({ profileId: "outbound-appointment-reminder", caseId, to: TRAVELLER, placedBy: "elif", now: lateNight })
-    ).rejects.toMatchObject({ status: 409, code: "OUTSIDE_CALLING_HOURS" });
+  it("calls travellers at any hour", async () => {
+    const call = await placeOutboundCall({ profileId: "outbound-appointment-reminder", caseId, to: TRAVELLER, placedBy: "elif" });
+    expect(call.status).toBe("RINGING");
+    // Free the line for the tests below (concurrency cap).
+    await prisma.call.update({ where: { id: call.id }, data: { status: "COMPLETED", endedAt: new Date() } });
   });
 
   it("places the call with answering-machine detection and a case brief", async () => {
-    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif", now: noon });
+    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif" });
     expect(call.status).toBe("RINGING");
     expect(call.twilioCallSid).toMatch(/^CA_out_/);
     const last = placed.at(-1)!;
@@ -110,7 +110,7 @@ describe("placing outbound calls", () => {
   });
 
   it("answers Twilio with a media stream for the call", async () => {
-    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif", now: noon });
+    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif" });
     const { POST } = await import("@/app/api/twilio/voice/outbound/route");
     const xml = await (await POST(signed(`/api/twilio/voice/outbound?callId=${call.id}`, { CallSid: call.twilioCallSid! }))).text();
     expect(xml).toContain('<Stream url="wss://demo.example.com/ws/twilio">');
@@ -120,7 +120,7 @@ describe("placing outbound calls", () => {
 
 describe("outbound session: hospital coordination in Turkish", () => {
   it("speaks first, records a structured hospital update, and switches to voicemail on a machine", async () => {
-    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif", now: noon });
+    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif" });
     const ticket = await signToken({ kind: "twilio-media", callId: call.id, profile: call.agentProfile }, gatewaySecret(), 60);
     const twilio = new WebSocket(`${gatewayUrl}/ws/twilio`);
     twilio.on("message", (raw) => {
@@ -175,7 +175,7 @@ describe("retries", () => {
   it("retries an unanswered call once, and only once", async () => {
     // Earlier tests left calls "ringing"; free the lines (the cap is 5).
     await prisma.call.updateMany({ where: { createdAt: { gte: testStart }, status: "RINGING" }, data: { status: "COMPLETED" } });
-    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif", now: noon });
+    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif" });
     const longAgo = new Date(noon.getTime() - 45 * 60_000);
     await prisma.call.update({ where: { id: call.id }, data: { status: "NO_ANSWER", endedAt: longAgo } });
     const before = placed.length;

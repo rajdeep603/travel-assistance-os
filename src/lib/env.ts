@@ -64,11 +64,6 @@ export const env = {
       .map((n) => n.replace(/[^\d+]/g, ""))
       .filter((n) => /^\+\d{8,15}$/.test(n));
   },
-  /** Istanbul hours in which travellers may be called, "HH:MM-HH:MM". */
-  get outboundCallHours(): [string, string] {
-    const m = (process.env.OUTBOUND_CALL_HOURS ?? "").match(/^(\d{2}:\d{2})-(\d{2}:\d{2})$/);
-    return m ? [m[1], m[2]] : ["08:00", "21:00"];
-  },
   /** Minutes before an unanswered outbound call is retried (once). */
   get outboundRetryMinutes(): number {
     const n = Number(process.env.OUTBOUND_RETRY_MINUTES);

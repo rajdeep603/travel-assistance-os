@@ -1,7 +1,7 @@
 import { json, withErrorHandling } from "@/lib/api";
 import { env } from "@/lib/env";
 import { getTelephony } from "@/lib/services/telephony";
-import { isAllowedNumber, normalizeNumber, withinCallingHours } from "@/lib/services/outbound-calls";
+import { isAllowedNumber, normalizeNumber } from "@/lib/services/outbound-calls";
 import { listAgents } from "@/lib/voice/agents/registry";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +28,6 @@ export const GET = withErrorHandling(async (req: Request) => {
   return json({
     telephonyConfigured: getTelephony().configured && Boolean(env.publicBaseUrl),
     allowedNumbers: env.outboundAllowedNumbers,
-    callingHours: env.outboundCallHours,
-    withinCallingHours: withinCallingHours(),
     agents,
   });
 });

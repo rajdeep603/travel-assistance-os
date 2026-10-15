@@ -4,14 +4,13 @@ import { env } from "@/lib/env";
 import { ApiError, badRequest, forbidden, notFound } from "@/lib/errors";
 import { maskPhone } from "@/lib/format";
 import { withRef } from "@/lib/refs";
-import { utcToZoned } from "@/lib/time";
 import { getAgent } from "@/lib/voice/agents/registry";
 import { getTelephony } from "./telephony";
 
 // ---------------------------------------------------------------------------
 // OutboundCallService: places AI calls through the telephony provider with
 // the guards a real deployment needs — an allowlist of dialable numbers
-// (toll fraud, demo safety), calling hours for travellers, a concurrency cap,
+// (toll fraud, demo safety), a concurrency cap,
 // answering-machine detection, and one automatic retry when nobody answers.
 // ---------------------------------------------------------------------------
 
@@ -23,19 +22,12 @@ export function isAllowedNumber(n: string): boolean {
   return env.outboundAllowedNumbers.includes(normalizeNumber(n));
 }
 
-export function withinCallingHours(now = new Date()): boolean {
-  const [from, to] = env.outboundCallHours;
-  const t = utcToZoned(now).time;
-  return t >= from && t < to;
-}
-
 export interface PlaceCallInput {
   profileId: string;
   caseId?: string | null;
   to: string;
   placedBy: string | null;
   retryOf?: string;
-  now?: Date;
   /** Pairs this call with another leg (interpreter bridge). */
   bridgeId?: string;
   /** Extra structured data stored on the call (e.g. interpreter languages). */
@@ -52,10 +44,6 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
   if (!/^\+\d{8,15}$/.test(to)) throw badRequest("Enter the number in international format, e.g. +905321234567.");
   if (!isAllowedNumber(to)) {
     throw forbidden(`${maskPhone(to)} isn't on the outbound allowlist (OUTBOUND_ALLOWED_NUMBERS).`);
-  }
-  if (profile.audience === "traveller" && !withinCallingHours(input.now)) {
-    const [from, until] = env.outboundCallHours;
-    throw new ApiError(`Travellers are only called between ${from} and ${until} Istanbul time.`, 409, "OUTSIDE_CALLING_HOURS");
   }
   const telephony = getTelephony();
   if (!telephony.configured || !env.publicBaseUrl) {
@@ -150,14 +138,13 @@ export async function retryUnansweredCalls(now = new Date()): Promise<number> {
         to: call.toNumber,
         placedBy: call.placedBy,
         retryOf: call.id,
-        now,
       });
       await prisma.call.update({ where: { id: call.id }, data: { outcome: { ...outcome, retriedAs: retry.ref } as Prisma.InputJsonValue } });
       placed++;
     } catch (err) {
-      // Transient (outside calling hours, all lines busy): try again on the
-      // next sweep. Anything else: give up rather than retry forever.
-      const transient = err instanceof ApiError && (err.code === "OUTSIDE_CALLING_HOURS" || err.code === "LINES_BUSY");
+      // Transient (all lines busy): try again on the next sweep. Anything
+      // else: give up rather than retry forever.
+      const transient = err instanceof ApiError && err.code === "LINES_BUSY";
       if (!transient) {
         await prisma.call.update({
           where: { id: call.id },
