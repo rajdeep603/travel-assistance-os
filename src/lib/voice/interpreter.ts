@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { runAI } from "@/lib/services/ai";
-import type { ChatMessage } from "@/lib/services/types";
+import type { ChatMessage, ConversationSummaryContext } from "@/lib/services/types";
 import type { CallControls } from "./bridge";
 import type { VoiceLeg } from "./legs/types";
 import { INTERPRETER_LANGUAGES, interpreterPrompt } from "./interpreter-prompt";
@@ -235,8 +235,24 @@ async function finish(bridge: PendingBridge, reason: string): Promise<void> {
   const durationSec = state ? Math.round((Date.now() - state.startedAt) / 1000) : 0;
   let summary: string | null = null;
   if (transcript.length) {
+    const kase = bridge.caseId
+      ? await prisma.case.findUnique({ where: { id: bridge.caseId }, include: { patient: true } }).catch(() => null)
+      : null;
+    const languages = `${INTERPRETER_LANGUAGES[bridge.managerLanguage] ?? "English"} ⇄ ${INTERPRETER_LANGUAGES[bridge.hospitalLanguage] ?? "Turkish"}`;
+    const context: ConversationSummaryContext = {
+      status: "COMPLETED",
+      agentId: "interpreter",
+      agentLabel: `Live interpreter (${languages})`,
+      channel: "PHONE",
+      direction: "outbound",
+      audience: "provider",
+      language: languages,
+      caseRef: kase?.ref ?? null,
+      patientName: kase ? `${kase.patient.firstName} ${kase.patient.lastName}` : null,
+      location: kase?.location ?? null,
+    };
     summary = await Promise.race([
-      runAI("summarizeConversation", (ai) => ai.summarizeConversation(transcript)).then((r) => r.value),
+      runAI("summarizeConversation", (ai) => ai.summarizeConversation(transcript, context)).then((r) => r.value),
       new Promise<null>((r) => setTimeout(() => r(null), 20_000)),
     ]).catch(() => null);
   }

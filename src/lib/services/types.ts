@@ -87,6 +87,30 @@ export interface ChatMessage {
   at: string;
 }
 
+/**
+ * What the platform already knows about a call when it is summarised, so the
+ * summary can lead with what was done rather than retell the transcript.
+ */
+export interface ConversationSummaryContext {
+  /** Structured results the voice tools recorded (Call.outcome). */
+  outcome?: Record<string, unknown> | null;
+  /** Final call status: COMPLETED, TRANSFERRED, VOICEMAIL, FAILED, … */
+  status?: string | null;
+  /** Agent profile, e.g. "inbound-hotline" / "24/7 assistance hotline". */
+  agentId?: string | null;
+  agentLabel?: string | null;
+  channel?: "PHONE" | "BROWSER" | null;
+  direction?: "inbound" | "outbound" | null;
+  /** Outbound calls: who was called. */
+  audience?: "traveller" | "provider" | null;
+  /** Language of the call (code or name), e.g. "tr" or "English ⇄ Turkish". */
+  language?: string | null;
+  caseRef?: string | null;
+  patientName?: string | null;
+  /** Where the traveller is, from the case. */
+  location?: string | null;
+}
+
 // --- The provider-agnostic AI interface ------------------------------------
 
 export interface AIService {
@@ -96,7 +120,7 @@ export interface AIService {
   classifyDocument(text: string, filename?: string): Promise<DocumentKind>;
   answerWithContext(question: string, context: ContextChunk[]): Promise<string>;
   summarizeClaim(input: ClaimSummaryInput): Promise<string>;
-  summarizeConversation(messages: ChatMessage[]): Promise<string>;
+  summarizeConversation(messages: ChatMessage[], context?: ConversationSummaryContext): Promise<string>;
   /** OCR: reads a scanned / faxed / handwritten document that has no text layer. */
   readDocument(file: DocumentFile): Promise<{ text: string; language: string | null }>;
   /** Translates text into the target language (by name, e.g. "English"). */

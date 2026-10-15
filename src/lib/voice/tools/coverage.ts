@@ -26,7 +26,13 @@ export const checkCoverageTool = defineTool({
         say: "Ask the caller to repeat the policy number and date of birth. After two failed attempts, offer a case manager call-back instead.",
       };
     }
-    await ctx.setOutcome({ coverageChecked: { policy: result.policyNumber, benefit: result.benefit?.code ?? null } });
+    await ctx.setOutcome({
+      coverageChecked: {
+        policy: result.policyNumber,
+        benefit: result.benefit?.code ?? null,
+        covered: result.benefit?.covered ?? null,
+      },
+    });
     ctx.emit({
       type: "coverage",
       plan: result.plan,

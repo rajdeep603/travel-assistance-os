@@ -30,6 +30,7 @@ const fakeTelephony: TelephonyService = {
     return { sid: `CA_out_${Date.now()}_${placed.length}` };
   },
   transfer: async () => undefined,
+  redirect: async () => undefined,
   hangup: async () => undefined,
   sendSms: async (to, body) => {
     sms.push({ to, body });

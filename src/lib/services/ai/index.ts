@@ -7,6 +7,7 @@ import type {
   ChatMessage,
   ClaimSummaryInput,
   ContextChunk,
+  ConversationSummaryContext,
   DocumentFile,
   MedicalExtractionResult,
 } from "../types";
@@ -79,8 +80,8 @@ class ResilientAIService implements AIService {
   summarizeClaim(input: ClaimSummaryInput): Promise<string> {
     return this.run("summarizeClaim", (s) => s.summarizeClaim(input));
   }
-  summarizeConversation(messages: ChatMessage[]): Promise<string> {
-    return this.run("summarizeConversation", (s) => s.summarizeConversation(messages));
+  summarizeConversation(messages: ChatMessage[], context?: ConversationSummaryContext): Promise<string> {
+    return this.run("summarizeConversation", (s) => s.summarizeConversation(messages, context));
   }
   readDocument(file: DocumentFile): Promise<{ text: string; language: string | null }> {
     return this.run("readDocument", (s) => s.readDocument(file));

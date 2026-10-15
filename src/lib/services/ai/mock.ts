@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   ClaimSummaryInput,
   ContextChunk,
+  ConversationSummaryContext,
   DocumentFile,
   MedicalExtraction,
   MedicalExtractionResult,
@@ -20,6 +21,7 @@ import {
   matchSymptoms,
   maxUrgency,
 } from "../nlu";
+import { summarizeCall } from "./call-summary";
 
 // ---------------------------------------------------------------------------
 // Deterministic demo AI provider. Implements the full AIService contract with
@@ -252,12 +254,9 @@ export class MockAIService implements AIService {
     return lines.filter(Boolean).join(" ");
   }
 
-  async summarizeConversation(messages: ChatMessage[]): Promise<string> {
-    const userTexts = messages.filter((m) => m.role === "user").map((m) => m.text);
-    return `Voice-assisted intake completed over ${messages.length} turns. The traveller stated: ${userTexts
-      .slice(0, 4)
-      .map((t) => `“${t}”`)
-      .join("; ")}${userTexts.length > 4 ? " …" : ""}`;
+  /** Outcome first, transcript second; see ./call-summary. */
+  async summarizeConversation(messages: ChatMessage[], context?: ConversationSummaryContext): Promise<string> {
+    return summarizeCall(messages, context);
   }
 
   /**

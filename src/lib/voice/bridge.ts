@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { runAI } from "@/lib/services/ai";
 import { ISTANBUL_DISTRICTS } from "@/lib/services/nlu";
-import type { ChatMessage } from "@/lib/services/types";
+import type { ChatMessage, ConversationSummaryContext } from "@/lib/services/types";
 import { utcToZoned, weekdayIndex } from "@/lib/time";
 import type { AgentContext, AgentProfile } from "./agents/types";
 import type { VoiceLeg } from "./legs/types";
@@ -31,6 +31,8 @@ export const liveSessions = new Map<string, LiveSessionHandle>();
 /** Phone-only actions, provided by the telephony layer. */
 export interface CallControls {
   transfer(target: "doctor" | "case_manager", summary: string): Promise<{ ok: boolean; message: string }>;
+  /** The AI can't carry on: apologise on the line, then a case manager if one can be dialled, else hang up. */
+  fallback(): Promise<{ transferredTo: "case_manager" | null }>;
   hangup(): Promise<void>;
 }
 
@@ -92,6 +94,9 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   let outcome: Record<string, unknown> = (call.outcome as Record<string, unknown> | null) ?? {};
   let status: "COMPLETED" | "TRANSFERRED" | "FAILED" | "VOICEMAIL" = "COMPLETED";
   let transferredTo: string | null = null;
+  /** Why the voice model failed the call, when it did; outlives a racing hang-up. */
+  let failure: string | null = null;
+  let handover: Promise<void> | null = null;
   let ended = false;
   let flushTimer: NodeJS.Timeout | null = null;
   const timers: NodeJS.Timeout[] = [];
@@ -219,9 +224,63 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     },
   });
 
+  /** What the summary should know beyond the transcript; the case may be new since the call started. */
+  async function summaryContext(finalOutcome: Record<string, unknown>): Promise<ConversationSummaryContext> {
+    const kase = ctx.caseId
+      ? await prisma.case.findUnique({ where: { id: ctx.caseId }, include: { patient: true } }).catch(() => null)
+      : null;
+    return {
+      outcome: finalOutcome,
+      status,
+      agentId: profile.id,
+      agentLabel: profile.label,
+      channel,
+      direction: profile.direction,
+      audience: profile.audience ?? null,
+      language: profile.languageHint ?? null,
+      caseRef: kase?.ref ?? null,
+      patientName: kase ? `${kase.patient.firstName} ${kase.patient.lastName}` : null,
+      location: kase?.location ?? null,
+    };
+  }
+
+  /**
+   * Phone callers can't see an error event: when the voice model can't be
+   * reached or drops mid-call, the live call is redirected to people instead
+   * of going silent. Runs once; end() waits for it, because Twilio closes the
+   * media stream as soon as the call moves on.
+   */
+  function handOver(reason: string): Promise<void> {
+    handover ??= (async () => {
+      failure = reason;
+      status = "FAILED";
+      if (!params.controls) return;
+      const result = await params.controls.fallback().catch((err) => {
+        console.error(`[voice] ${call.ref} fallback redirect failed:`, err instanceof Error ? err.message : err);
+        return null;
+      });
+      if (result?.transferredTo) {
+        status = "TRANSFERRED";
+        transferredTo = result.transferredTo;
+        // Read by the whisper when the case manager picks up.
+        await ctx.setOutcome({
+          handoff: {
+            target: result.transferredTo,
+            reason: "AI assistant unavailable",
+            summary: "The AI assistant could not take this call, so the caller has not been triaged yet.",
+          },
+        });
+      }
+    })();
+    return handover;
+  }
+
   async function end(reason: string): Promise<void> {
     if (ended) return;
     ended = true;
+    // Closing the leg before a redirect lands would hang up on the caller.
+    if (handover) await handover;
+    reason = failure ?? reason;
     liveSessions.delete(call.id);
     for (const t of timers) clearTimeout(t);
     session.close();
@@ -232,8 +291,9 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     const durationSec = Math.round((Date.now() - startedAt) / 1000);
     let summary: string | null = null;
     if (messages.length > 0) {
+      const context = await summaryContext({ ...outcome, endReason: reason });
       summary = await Promise.race([
-        runAI("summarizeConversation", (ai) => ai.summarizeConversation(messages)).then((r) => r.value),
+        runAI("summarizeConversation", (ai) => ai.summarizeConversation(messages, context)).then((r) => r.value),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 20_000)),
       ]).catch(() => null);
     }
@@ -276,7 +336,8 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   } catch (err) {
     console.error(`[voice] ${call.ref} could not reach the voice model:`, err instanceof Error ? err.message : err);
     status = "FAILED";
-    leg.sendEvent({ type: "error", message: "The voice service is unavailable right now. Please try again shortly." });
+    if (channel === "PHONE" && params.controls) await handOver("voice model unavailable");
+    else leg.sendEvent({ type: "error", message: "The voice service is unavailable right now. Please try again shortly." });
     await end("voice model unavailable");
     return;
   }
@@ -342,7 +403,16 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     session.sendFunctionResult(callId, result);
   });
   session.on("error", (err) => console.warn(`[voice] ${call.ref} model error:`, err.message));
-  session.on("closed", () => void end("voice model disconnected"));
+  session.on("closed", () => {
+    // Unexpected while the caller is still on the line (end() closes it too);
+    // a transfer or voicemail in progress already decides what happens next.
+    if (!ended && channel === "PHONE" && params.controls && status === "COMPLETED") {
+      console.warn(`[voice] ${call.ref} lost the voice model mid-call; handing the caller over`);
+      void handOver("voice model disconnected").then(() => end("voice model disconnected"));
+      return;
+    }
+    void end("voice model disconnected");
+  });
 
   // --- Session limits and the opening line -------------------------------------
   const max = profile.maxSeconds * 1000;
