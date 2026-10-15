@@ -1,13 +1,12 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Lock } from "lucide-react";
 import { BrandMark } from "@/components/brand";
 import { Button, Card, ErrorBanner, readApiError } from "@/components/ui";
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -29,9 +28,10 @@ function LoginForm() {
         return;
       }
       const next = params.get("next");
-      // Only same-site relative paths, never an open redirect.
-      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
-      router.refresh();
+      // Only same-site relative paths, never an open redirect. A full page
+      // load, not router.replace: the client router cache still holds the
+      // sign-in redirects it prefetched for every link before the session.
+      window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {

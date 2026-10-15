@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 
 /** Signed-in operator name with a sign-out control (header). Hidden when sign-in is off. */
 export function OperatorMenu() {
-  const router = useRouter();
   const pathname = usePathname();
   const [operator, setOperator] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,9 +30,8 @@ export function OperatorMenu() {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } finally {
-      setOperator(null);
-      router.replace("/login");
-      router.refresh();
+      // A full page load drops the client router cache of signed-in pages.
+      window.location.assign("/login");
     }
   }
 
