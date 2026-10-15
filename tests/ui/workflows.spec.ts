@@ -58,3 +58,14 @@ test("voice page explains when voice isn't configured", async ({ page }) => {
   await page.getByRole("button", { name: /^Start$/ }).click();
   await expect(page.getByText(/Voice isn.t available on this server/i)).toBeVisible();
 });
+
+test("the business case recalculates from the visitor's own numbers", async ({ page }) => {
+  await page.goto("/business-case");
+  const headline = page.getByText(/^With these numbers, .+ would free about [\d,]+ agent hours a month/);
+  await expect(headline).toBeVisible();
+  const before = (await headline.textContent())!;
+  await page.getByRole("spinbutton", { name: "Inbound calls per month" }).fill("20000");
+  await expect(headline).not.toHaveText(before);
+  await page.getByRole("button", { name: "Large insurer" }).click();
+  await expect(page.getByRole("button", { name: "Large insurer" })).toHaveAttribute("aria-pressed", "true");
+});

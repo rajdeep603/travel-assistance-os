@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  Calculator,
   FileText,
   FolderKanban,
   Home,
@@ -19,6 +20,7 @@ import {
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Home },
+  { href: "/business-case", label: "Business Case", icon: Calculator },
   { href: "/documents", label: "Medical Document AI", icon: FileText },
   { href: "/cases", label: "AI Case Manager", icon: FolderKanban },
   { href: "/claims", label: "Claims Automation", icon: ReceiptText },
