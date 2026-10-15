@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sniffType } from "@/lib/uploads";
+import { acceptedUploadType, sniffType } from "@/lib/uploads";
 import { isUniqueViolation } from "@/lib/refs";
 import { Prisma } from "@prisma/client";
 
@@ -11,6 +11,16 @@ describe("upload type sniffing", () => {
   it("accepts UTF-8 text and rejects binary", () => {
     expect(sniffType(Buffer.from("Hasta: Aylin Yılmaz\nTanı: gastrit"))).toBe("text/plain");
     expect(sniffType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0a]))).toBeNull();
+  });
+
+  it("accepts text only from files that say they are text", () => {
+    const text = Buffer.from("Patient: Aylin Yilmaz");
+    expect(acceptedUploadType(text, "notes.txt", "")).toBe("text/plain");
+    expect(acceptedUploadType(text, "notes", "text/plain")).toBe("text/plain");
+    expect(acceptedUploadType(Buffer.from("alert(1)"), "evil.js", "text/javascript")).toBeNull();
+    expect(acceptedUploadType(Buffer.from("<svg onload=x>"), "x.svg", "image/svg+xml")).toBeNull();
+    expect(acceptedUploadType(text, "report.pdf", "application/pdf")).toBeNull();
+    expect(acceptedUploadType(Buffer.from("%PDF-1.7\n"), "scan", "application/octet-stream")).toBe("application/pdf");
   });
 });
 

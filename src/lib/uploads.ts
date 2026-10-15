@@ -27,6 +27,21 @@ export function sniffType(buffer: Buffer): "application/pdf" | "text/plain" | nu
   }
 }
 
+/**
+ * The accepted type of an upload, or null. PDFs are recognised by their bytes;
+ * text only when the file also says it is text — scripts, web pages and SVGs
+ * are text too.
+ */
+export function acceptedUploadType(
+  buffer: Buffer,
+  name: string,
+  declaredType: string
+): "application/pdf" | "text/plain" | null {
+  const sniffed = sniffType(buffer);
+  if (sniffed === "text/plain" && declaredType !== "text/plain" && !/\.txt$/i.test(name)) return null;
+  return sniffed && ALLOWED_UPLOAD_TYPES.has(sniffed) ? sniffed : null;
+}
+
 /** Validates an upload and returns its bytes plus the content-derived type. */
 export async function readUpload(
   file: File
@@ -38,8 +53,8 @@ export async function readUpload(
     );
   }
   const buffer = Buffer.from(await file.arrayBuffer());
-  const mimeType = sniffType(buffer);
-  if (!mimeType || !ALLOWED_UPLOAD_TYPES.has(mimeType)) {
+  const mimeType = acceptedUploadType(buffer, file.name, file.type);
+  if (!mimeType) {
     throw badRequest(`"${file.name}": only PDF and plain-text documents are accepted.`);
   }
   return { buffer, mimeType };

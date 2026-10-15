@@ -3,8 +3,17 @@ import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 // End-to-end tests: exercise the running application over HTTP, covering the
-// four spec workflows. Set E2E_BASE_URL to point at another deployment.
+// four spec workflows. Set E2E_BASE_URL to point at another deployment, and
+// E2E_OPERATOR / E2E_PASSWORD when it has operator sign-in enabled.
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+let session = "";
+
+/** fetch with the operator session cookie, when signed in. */
+function fetch(url: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  if (session) headers.set("Cookie", session);
+  return globalThis.fetch(url, { ...init, headers });
+}
 
 async function postJSON(pathname: string, body?: unknown) {
   const res = await fetch(`${BASE}${pathname}`, {
@@ -21,6 +30,17 @@ beforeAll(async () => {
     throw new Error(
       `The application is not reachable at ${BASE}. Start it (npm run dev / docker compose up) before running e2e tests.`
     );
+  }
+  const name = process.env.E2E_OPERATOR;
+  const password = process.env.E2E_PASSWORD;
+  if (name && password) {
+    const login = await fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, password }),
+    });
+    if (login.status !== 200) throw new Error(`Sign-in as ${name} failed (${login.status}).`);
+    session = login.headers.get("set-cookie")?.split(";")[0] ?? "";
   }
 });
 
