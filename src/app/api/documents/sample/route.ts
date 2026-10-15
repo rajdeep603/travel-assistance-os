@@ -12,6 +12,7 @@ const bodySchema = z.object({
   file: z
     .string()
     .regex(/^[a-z0-9-]+\.pdf$/i, "Invalid sample document name."),
+  caseId: z.string().optional(),
 });
 
 /** List bundled sample documents. */
@@ -43,6 +44,11 @@ export const POST = withErrorHandling(async (req: Request) => {
     throw notFound("Sample document");
   }
 
+  const kase = body.caseId
+    ? await prisma.case.findUnique({ where: { id: body.caseId }, select: { id: true, patientId: true } })
+    : null;
+  if (body.caseId && !kase) throw notFound("Case");
+
   const doc = await prisma.document.create({
     data: {
       filename: body.file,
@@ -50,6 +56,8 @@ export const POST = withErrorHandling(async (req: Request) => {
       sizeBytes: buffer.length,
       status: "UPLOADED",
       storagePath: `demo-documents/${body.file}`,
+      caseId: kase?.id ?? null,
+      patientId: kase?.patientId ?? null,
     },
   });
 

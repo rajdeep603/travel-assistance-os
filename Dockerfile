@@ -19,7 +19,13 @@ RUN npx prisma generate \
  # Bundle the seed script so the runtime image can seed without dev deps.
  && npx esbuild prisma/seed.ts --bundle --platform=node --format=cjs \
       --outfile=.next/standalone/seed.cjs \
-      --external:@prisma/client --external:pdf-parse
+      --external:@prisma/client --external:pdf-parse \
+ # The voice gateway (WebSocket server) ships in the same image; compose runs
+ # it as its own service with `node voice-gateway.cjs`.
+ && npx esbuild voice-gateway/main.ts --bundle --platform=node --format=cjs --target=node22 \
+      --outfile=.next/standalone/voice-gateway.cjs \
+      --external:@prisma/client --external:pdf-parse \
+      --external:bufferutil --external:utf-8-validate
 
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -37,16 +43,21 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/pdf-parse ./node_modules/pdf-parse
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/pdfjs-dist ./node_modules/pdfjs-dist
 
+
 # Prisma CLI (self-contained install) for `migrate deploy` at container start,
-# plus @napi-rs/canvas: pdf.js's optional DOM polyfill provider, which Next's
-# output tracing misses because pdf-parse loads it dynamically.
+# plus @napi-rs/canvas (pdf.js's optional DOM polyfill provider, which Next's
+# output tracing misses because pdf-parse loads it dynamically) and pdfkit.
 RUN mkdir -p /opt/prisma /opt/extra \
  && cd /opt/prisma && npm init -y >/dev/null 2>&1 \
  && npm install prisma@6.19.3 --omit=dev --no-audit --no-fund >/dev/null \
  && cd /opt/extra && npm init -y >/dev/null 2>&1 \
- && npm install @napi-rs/canvas --omit=dev --no-audit --no-fund >/dev/null \
+ && npm install @napi-rs/canvas pdfkit@0.20.2 --omit=dev --no-audit --no-fund >/dev/null \
  && npm cache clean --force >/dev/null 2>&1
 ENV NODE_PATH=/opt/extra/node_modules
+# pdfkit (Letters of Guarantee) reads font data from disk and output tracing
+# only copies part of it; remove the partial copy so the complete install in
+# /opt/extra (via NODE_PATH) is the one that loads.
+RUN rm -rf /app/node_modules/pdfkit
 COPY --chown=nextjs:nodejs prisma ./prisma
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh && mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads

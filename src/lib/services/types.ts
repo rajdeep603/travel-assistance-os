@@ -22,11 +22,15 @@ export interface MedicalExtraction {
   policyReference: string | null;
 }
 
+/** Which provider produced an AI result: the live model or the offline rules. */
+export type AISource = "claude" | "offline";
+
 export interface MedicalExtractionResult {
   extraction: MedicalExtraction;
   summary: string;
   missingInfo: string[];
   confidence: number;
+  source?: AISource;
 }
 
 export interface CaseIntakeAnalysis {
@@ -47,6 +51,7 @@ export interface CaseIntakeAnalysis {
   existingCaseRef: string | null;
   summary: string;
   suggestedActions: string[];
+  source?: AISource;
 }
 
 export interface ContextChunk {
@@ -59,48 +64,8 @@ export interface ContextChunk {
 export interface AssistantAnswer {
   answer: string;
   sources: { title: string; source: string }[];
-}
-
-// --- Voice agent -----------------------------------------------------------
-
-export type VoiceStep =
-  | "GREETING"
-  | "COLLECTING"
-  | "SEARCHING"
-  | "PRESENTING"
-  | "CONFIRMING"
-  | "BOOKED"
-  | "HANDOFF";
-
-export interface VoicePatientInfo {
-  name: string | null;
-  location: string | null;
-  problem: string | null;
-  specialty: string | null;
-  preferredDate: string | null; // YYYY-MM-DD
-  preferredTime: string | null; // e.g. "afternoon" or "14:00"
-  language: string | null;
-  contact: string | null;
-}
-
-export interface VoiceDialogState {
-  step: VoiceStep;
-  /** The slot the agent's last question asked for (helps interpret bare answers). */
-  expecting: keyof VoicePatientInfo | null;
-  info: VoicePatientInfo;
-  presentedProviderIds: string[];
-  selectedProviderId: string | null;
-  selectedSlot: { date: string; time: string } | null;
-  appointmentRef: string | null;
-  caseRef: string | null;
-}
-
-export interface VoiceNLUResult {
-  /** Fields newly extracted from this utterance (only the ones found). */
-  info: Partial<VoicePatientInfo>;
-  /** 1-based option selection when the user picks a presented provider. */
-  selectedOption: number | null;
-  confirmation: "yes" | "no" | null;
+  /** Set when a model wrote the answer (structured DB lookups leave it unset). */
+  aiSource?: AISource;
 }
 
 export interface ClaimSummaryInput {
@@ -130,12 +95,18 @@ export interface AIService {
   analyzeAssistanceRequest(text: string): Promise<CaseIntakeAnalysis>;
   classifyDocument(text: string, filename?: string): Promise<DocumentKind>;
   answerWithContext(question: string, context: ContextChunk[]): Promise<string>;
-  interpretVoiceUtterance(
-    utterance: string,
-    state: VoiceDialogState
-  ): Promise<VoiceNLUResult>;
   summarizeClaim(input: ClaimSummaryInput): Promise<string>;
   summarizeConversation(messages: ChatMessage[]): Promise<string>;
+  /** OCR: reads a scanned / faxed / handwritten document that has no text layer. */
+  readDocument(file: DocumentFile): Promise<{ text: string; language: string | null }>;
+  /** Translates text into the target language (by name, e.g. "English"). */
+  translateText(text: string, targetLanguage: string): Promise<string>;
+}
+
+export interface DocumentFile {
+  buffer: Buffer;
+  mimeType: string;
+  filename: string;
 }
 
 // --- Notifications (mocked for the demo) -----------------------------------

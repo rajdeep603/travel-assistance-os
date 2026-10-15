@@ -1,10 +1,22 @@
-# Production stack: nginx → app → postgres. Data lives on named volumes.
+# Production stack: nginx → app → postgres, plus nightly backups and (with
+# the "tls" profile) Let's Encrypt certificates. Data lives on named volumes.
 # Configure credentials in .env (see .env.example). Never commit .env.
+#
+#   docker compose up -d                       # HTTP only (local / first boot)
+#   COMPOSE_PROFILES=tls docker compose up -d  # HTTPS for $DOMAIN
 name: taap
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-taap}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -19,12 +31,33 @@ services:
 
   app:
     build: .
+    # Tagged per release by scripts/deploy.sh so a rollback is a re-tag, not a rebuild.
+    image: taap-app:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-taap}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-taap}?schema=public
       AI_API_KEY: ${AI_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-claude-haiku-4-5}
+      AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      OPERATOR_USERS: ${OPERATOR_USERS:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      GATEWAY_SECRET: ${GATEWAY_SECRET:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      XAI_VOICE_MODEL: ${XAI_VOICE_MODEL:-grok-voice-3.0}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      ON_CALL_DOCTOR_NUMBER: ${ON_CALL_DOCTOR_NUMBER:-}
+      CASE_MANAGER_NUMBER: ${CASE_MANAGER_NUMBER:-}
+      OUTBOUND_ALLOWED_NUMBERS: ${OUTBOUND_ALLOWED_NUMBERS:-}
+      OUTBOUND_CALL_HOURS: ${OUTBOUND_CALL_HOURS:-08:00-21:00}
+      OUTBOUND_RETRY_MINUTES: ${OUTBOUND_RETRY_MINUTES:-30}
+      MAX_CONCURRENT_CALLS: ${MAX_CONCURRENT_CALLS:-5}
+      CALL_DATA_RETENTION_DAYS: ${CALL_DATA_RETENTION_DAYS:-30}
+      HOTLINE_AGENT: ${HOTLINE_AGENT:-inbound-hotline}
+      VOICE_GATEWAY_INTERNAL_URL: http://voice-gateway:8080
       UPLOAD_DIR: /app/uploads
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
       AUTO_SEED: ${AUTO_SEED:-true}
@@ -40,17 +73,104 @@ services:
       retries: 10
       start_period: 30s
 
+  # Live voice: browser audio and Twilio media streams ⇄ Grok Voice. Same
+  # image as the app; nginx routes /ws/ here.
+  voice-gateway:
+    image: taap-app:${IMAGE_TAG:-latest}
+    pull_policy: never # built locally by the app service
+    restart: unless-stopped
+    logging: *logging
+    entrypoint: ["node", "voice-gateway.cjs"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-taap}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-taap}?schema=public
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      XAI_VOICE_MODEL: ${XAI_VOICE_MODEL:-grok-voice-3.0}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost}
+      OPERATOR_USERS: ${OPERATOR_USERS:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      GATEWAY_SECRET: ${GATEWAY_SECRET:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      ON_CALL_DOCTOR_NUMBER: ${ON_CALL_DOCTOR_NUMBER:-}
+      CASE_MANAGER_NUMBER: ${CASE_MANAGER_NUMBER:-}
+      OUTBOUND_ALLOWED_NUMBERS: ${OUTBOUND_ALLOWED_NUMBERS:-}
+      OUTBOUND_CALL_HOURS: ${OUTBOUND_CALL_HOURS:-08:00-21:00}
+      OUTBOUND_RETRY_MINUTES: ${OUTBOUND_RETRY_MINUTES:-30}
+      MAX_CONCURRENT_CALLS: ${MAX_CONCURRENT_CALLS:-5}
+      CALL_DATA_RETENTION_DAYS: ${CALL_DATA_RETENTION_DAYS:-30}
+      HOTLINE_AGENT: ${HOTLINE_AGENT:-inbound-hotline}
+      VOICE_GATEWAY_PORT: "8080"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Let live calls finish before the container is replaced.
+    stop_grace_period: 30s
+
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
+    logging: *logging
+    environment:
+      DOMAIN: ${DOMAIN:-}
     ports:
       - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx:/etc/nginx/taap:ro
+      - ./nginx/select-config.sh:/docker-entrypoint.d/40-taap-select-config.sh:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
     depends_on:
       app:
+        condition: service_healthy
+
+  certbot:
+    image: certbot/certbot:v3.1.0
+    profiles: ["tls"]
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      DOMAIN: ${DOMAIN:-}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-}
+    entrypoint: ["/bin/sh", "/certbot-loop.sh"]
+    volumes:
+      - ./scripts/certbot-loop.sh:/certbot-loop.sh:ro
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    depends_on:
+      - nginx
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-taap}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-taap}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    entrypoint: ["/bin/sh", "/backup-loop.sh"]
+    volumes:
+      - ./scripts/backup-loop.sh:/backup-loop.sh:ro
+      - taap_backups:/backups
+    depends_on:
+      db:
         condition: service_healthy
 
 volumes:
   taap_pgdata:
   taap_uploads:
+  taap_backups:
+  letsencrypt:
+  certbot_www:

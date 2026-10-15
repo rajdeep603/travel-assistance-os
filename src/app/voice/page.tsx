@@ -1,552 +1,82 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ArrowRight,
-  Bot,
-  CalendarCheck2,
-  FolderKanban,
-  Info,
-  Mic,
-  MicOff,
-  PhoneCall,
-  ShieldAlert,
-  SendHorizonal,
-  User,
-  Volume2,
-} from "lucide-react";
-import {
-  Button,
-  Card,
-  EmptyState,
-  ErrorBanner,
-  KeyValue,
-  PageHeader,
-  SectionTitle,
-  StatusBadge,
-} from "@/components/ui";
-import { formatDateTime, formatEnum, formatSlotDate } from "@/lib/format";
+import { ArrowRight, Info, Mic, MicOff, PhoneCall, PhoneOff, ShieldAlert } from "lucide-react";
+import { Button, Card, ErrorBanner, PageHeader } from "@/components/ui";
+import { CaseContextBanner, useCaseContext } from "@/components/case-context";
+import { CallVisual, type CallVisualState } from "@/components/voice/call-visual";
+import { ActivityPanel, BookingPanel, ProvidersPanel } from "@/components/voice/session-panels";
+import { TranscriptPanel } from "@/components/voice/transcript-panel";
+import { useQueryParam } from "@/lib/client/use-query-param";
+import { useGrokVoice, type VoiceState } from "@/lib/voice/client/use-grok-voice";
 
-type VoiceStatus = "idle" | "listening" | "processing" | "speaking";
-type MicPermission = "unknown" | "granted" | "denied";
-
-// Minimal Web Speech API typings (not part of the standard TS lib).
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onresult: ((ev: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((ev: { error: string }) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  abort: () => void;
-}
-interface SpeechRecognitionEventLike {
-  resultIndex: number;
-  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
-}
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-interface SpeechWindow {
-  SpeechRecognition?: SpeechRecognitionCtor;
-  webkitSpeechRecognition?: SpeechRecognitionCtor;
+function visualState(s: VoiceState): CallVisualState {
+  if (s.phase === "starting") return "connecting";
+  if (s.phase !== "live") return "idle";
+  if (s.agentSpeaking) return "speaking";
+  if (s.muted || s.textOnly) return "muted";
+  return s.userSpeaking ? "hearing" : "listening";
 }
 
-interface TranscriptEntry {
-  role: "user" | "agent";
-  text: string;
+function statusLine(s: VoiceState): { title: string; detail: string } {
+  switch (s.phase) {
+    case "starting":
+      return { title: "Connecting…", detail: "Starting the microphone and the voice agent" };
+    case "live":
+      return {
+        title: s.agentSpeaking ? "Speaking…" : s.muted ? "Muted" : s.textOnly ? "Text mode" : s.userSpeaking ? "Hearing you…" : "Listening…",
+        detail: `${s.callRef} · ${s.agentLabel ?? "Voice agent"} · just talk — you can interrupt any time`,
+      };
+    case "ended":
+      return {
+        title: "Session ended",
+        detail: s.booking || s.handoff ? "Handed to a human case manager with the full summary." : (s.endReason ?? ""),
+      };
+    case "error":
+      return { title: "Not connected", detail: s.error?.message ?? "" };
+    default:
+      return { title: "Ready", detail: "Press Start to talk to the AI medical assistance agent" };
+  }
 }
-
-interface Option {
-  providerId: string;
-  name: string;
-  facility: string;
-  specialty: string;
-  district: string;
-  distanceKm: number | null;
-  languages: string[];
-  phone: string;
-  slot: { date: string; time: string } | null;
-}
-
-interface VoiceState {
-  step: string;
-  info: {
-    name: string | null;
-    location: string | null;
-    problem: string | null;
-    specialty: string | null;
-    preferredDate: string | null;
-    preferredTime: string | null;
-    language: string | null;
-    contact: string | null;
-  };
-}
-
-interface AppointmentInfo {
-  ref: string;
-  status: string;
-  scheduledAt: string;
-  providerName: string;
-}
-
-interface CaseInfo {
-  ref: string;
-  status: string;
-  title: string;
-}
-
-const STATUS_LABELS: Record<VoiceStatus, string> = {
-  idle: "Idle",
-  listening: "Listening…",
-  processing: "Processing…",
-  speaking: "Speaking…",
-};
-
-const STATUS_RING: Record<VoiceStatus, string> = {
-  idle: "bg-slate-200 text-slate-400",
-  listening: "bg-emerald-500 text-white",
-  processing: "bg-amber-400 text-white",
-  speaking: "bg-blue-600 text-white",
-};
-
-/**
- * The room-visible call indicator: expanding rings while the agent listens,
- * an equalizer while it speaks — so the audience can see the agent working.
- */
-function CallVisual({ status }: { status: VoiceStatus }) {
-  return (
-    <div className="relative flex h-20 w-20 items-center justify-center" aria-hidden>
-      {status === "listening" ? (
-        <>
-          <span className="animate-mic-ring absolute inset-0 rounded-full bg-emerald-400" />
-          <span
-            className="animate-mic-ring absolute inset-0 rounded-full bg-emerald-400"
-            style={{ animationDelay: "0.55s" }}
-          />
-        </>
-      ) : null}
-      {status === "processing" ? (
-        <span className="absolute inset-0 animate-pulse rounded-full bg-amber-200" />
-      ) : null}
-      <span
-        className={`relative z-10 flex h-16 w-16 items-center justify-center rounded-full shadow-md transition-colors ${STATUS_RING[status]}`}
-      >
-        {status === "speaking" ? (
-          <span className="flex h-6 items-center gap-[3px]">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <span
-                key={i}
-                className="animate-sound-bar h-full w-[3px] rounded-full bg-white"
-                style={{ animationDelay: `${i * 0.12}s` }}
-              />
-            ))}
-          </span>
-        ) : (
-          <Mic size={26} />
-        )}
-      </span>
-    </div>
-  );
-}
-
-const MIC_DENIED_HELP =
-  "Microphone access is blocked, so the call continues in text mode. To enable voice: click the mic/lock icon in the browser's address bar, allow the microphone for this site, then press “Voice on”.";
-
-/** Friendly messages for Web Speech API error codes. */
-const RECOGNITION_HINTS: Record<string, string> = {
-  "no-speech": "I didn’t hear anything — tap “Speak” and try again.",
-  "audio-capture": "No working microphone was found on this device — you can type instead.",
-  network:
-    "The browser’s speech service is unreachable (it needs internet). You can type instead.",
-  aborted: "",
-};
 
 export default function VoicePage() {
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [status, setStatus] = useState<VoiceStatus>("idle");
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-  const [interim, setInterim] = useState<string>("");
-  const [state, setState] = useState<VoiceState | null>(null);
-  const [options, setOptions] = useState<Option[]>([]);
-  const [appointment, setAppointment] = useState<AppointmentInfo | null>(null);
-  const [caseInfo, setCaseInfo] = useState<CaseInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
-  const [textInput, setTextInput] = useState("");
-  const [voiceSupported, setVoiceSupported] = useState(true);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [micPermission, setMicPermission] = useState<MicPermission>("unknown");
-  // Why the microphone cannot work at all, independent of permission:
-  // "insecure" = page not on HTTPS/localhost (browsers hard-disable the mic
-  // there, no prompt is ever shown), "unsupported" = no speech recognition.
-  const [micBarrier, setMicBarrier] = useState<"none" | "insecure" | "unsupported">("none");
-  const [ttsAvailable, setTtsAvailable] = useState(true);
-  const [done, setDone] = useState(false);
-
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const voiceEnabledRef = useRef(voiceEnabled);
-  const micBarrierRef = useRef(micBarrier);
-  const micPermissionRef = useRef(micPermission);
-  const doneRef = useRef(done);
-  const conversationRef = useRef<string | null>(null);
-  const transcriptBoxRef = useRef<HTMLDivElement>(null);
-  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  voiceEnabledRef.current = voiceEnabled;
-  micBarrierRef.current = micBarrier;
-  micPermissionRef.current = micPermission;
-  doneRef.current = done;
-  conversationRef.current = conversationId;
-
-  // Feature detection + observe the browser's microphone permission state so
-  // the UI reflects a grant/revoke made from browser settings immediately.
-  useEffect(() => {
-    const w = window as unknown as SpeechWindow;
-    const hasRecognition = Boolean(w.SpeechRecognition || w.webkitSpeechRecognition);
-    const secure = window.isSecureContext !== false;
-    const hasTts = typeof window.speechSynthesis !== "undefined";
-
-    setVoiceSupported(hasRecognition);
-    setTtsAvailable(hasTts);
-    if (!secure) setMicBarrier("insecure");
-    else if (!hasRecognition) setMicBarrier("unsupported");
-    // Spoken replies work even where the mic cannot (plain HTTP, Safari) —
-    // only turn audio off entirely when the browser cannot speak either.
-    if (!hasTts && (!secure || !hasRecognition)) setVoiceEnabled(false);
-
-    let permStatus: PermissionStatus | null = null;
-    if (secure && hasRecognition) {
-      navigator.permissions
-        ?.query({ name: "microphone" as PermissionName })
-        .then((p) => {
-          const apply = () => {
-            if (p.state === "granted") setMicPermission("granted");
-            else if (p.state === "denied") setMicPermission("denied");
-            else setMicPermission("unknown");
-          };
-          apply();
-          p.onchange = apply;
-          permStatus = p;
-        })
-        .catch(() => {
-          // Permissions API unavailable — we'll learn the state on first use.
-        });
-    }
-    return () => {
-      if (permStatus) permStatus.onchange = null;
-      try {
-        recognitionRef.current?.abort?.();
-        window.speechSynthesis?.cancel();
-      } catch {
-        // cleanup only
-      }
-      if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-    };
-  }, []);
-
-  // Keep the transcript pinned to the latest message (scoped to the box —
-  // scrollIntoView would also scroll the page).
-  useEffect(() => {
-    const box = transcriptBoxRef.current;
-    if (box) box.scrollTop = box.scrollHeight;
-  }, [transcript, interim, status]);
-
-  const showHint = useCallback((text: string) => {
-    setHint(text);
-    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
-    hintTimerRef.current = setTimeout(() => setHint(null), 6000);
-  }, []);
-
-  /**
-   * Explicitly asks for microphone access (shows the browser prompt at a
-   * moment the user expects it) and records the outcome.
-   */
-  const ensureMicPermission = useCallback(async (): Promise<boolean> => {
-    if (micBarrierRef.current !== "none") return false;
-    if (micPermissionRef.current === "granted") return true;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setMicPermission("denied");
-      return false;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((t) => t.stop());
-      setMicPermission("granted");
-      return true;
-    } catch {
-      setMicPermission("denied");
-      setVoiceEnabled(false);
-      return false;
-    }
-  }, []);
-
-  const startListening = useCallback(() => {
-    if (
-      !voiceEnabledRef.current ||
-      doneRef.current ||
-      micBarrierRef.current !== "none" ||
-      micPermissionRef.current === "denied"
-    ) {
-      setStatus("idle");
-      return;
-    }
-    const w = window as unknown as SpeechWindow;
-    const SR = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-    if (!SR) {
-      setStatus("idle");
-      return;
-    }
-    try {
-      const rec = new SR();
-      recognitionRef.current = rec;
-      rec.lang = "en-US";
-      rec.interimResults = true;
-      rec.maxAlternatives = 1;
-      rec.onresult = (ev) => {
-        let interimText = "";
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          const result = ev.results[i];
-          if (result.isFinal) {
-            setInterim("");
-            void sendUtterance(result[0].transcript);
-            return;
-          }
-          interimText += result[0].transcript;
-        }
-        setInterim(interimText);
-      };
-      rec.onerror = (ev) => {
-        setStatus("idle");
-        setInterim("");
-        if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-          setMicPermission("denied");
-          setVoiceEnabled(false);
-        } else {
-          const message = RECOGNITION_HINTS[ev.error];
-          if (message) showHint(message);
-        }
-      };
-      rec.onend = () => {
-        setInterim("");
-        setStatus((s) => (s === "listening" ? "idle" : s));
-      };
-      setStatus("listening");
-      rec.start();
-    } catch {
-      setStatus("idle");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHint]);
-
-  /** "Speak" button: make sure we have the mic before opening recognition. */
-  const speakPressed = useCallback(async () => {
-    if (!(await ensureMicPermission())) return;
-    startListening();
-  }, [ensureMicPermission, startListening]);
-
-  const speak = useCallback((text: string, onDone: () => void) => {
-    if (!voiceEnabledRef.current || !window.speechSynthesis) {
-      onDone();
-      return;
-    }
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.02;
-      utterance.onend = onDone;
-      utterance.onerror = () => onDone();
-      setStatus("speaking");
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      onDone();
-    }
-  }, []);
-
-  interface TurnPayload {
-    reply: string;
-    state: VoiceState | null;
-    options?: Option[];
-    appointment?: AppointmentInfo | null;
-    case?: CaseInfo | null;
-    done?: boolean;
-  }
-
-  const applyTurn = useCallback(
-    (turn: TurnPayload) => {
-      setState(turn.state ?? null);
-      setOptions(turn.options ?? []);
-      if (turn.appointment) setAppointment(turn.appointment);
-      if (turn.case) setCaseInfo(turn.case);
-      if (turn.done) setDone(true);
-      setTranscript((t) => [...t, { role: "agent", text: turn.reply }]);
-      speak(turn.reply, () => {
-        if (turn.done || turn.state?.step === "HANDOFF") setStatus("idle");
-        else startListening();
-      });
-    },
-    [speak, startListening]
-  );
-
-  async function startCall() {
-    // Stop anything left over from a previous call.
-    try {
-      recognitionRef.current?.abort?.();
-      window.speechSynthesis?.cancel();
-    } catch {
-      // ignore
-    }
-    setError(null);
-    setHint(null);
-    setInterim("");
-    setTranscript([]);
-    setAppointment(null);
-    setCaseInfo(null);
-    setOptions([]);
-    setDone(false);
-
-    // Ask for the microphone up front, in direct response to the click —
-    // the moment users expect a permission prompt.
-    if (voiceEnabledRef.current && micBarrierRef.current === "none") {
-      await ensureMicPermission();
-    }
-
-    setStatus("processing");
-    try {
-      const res = await fetch("/api/voice/start", { method: "POST" });
-      if (!res.ok) {
-        setStatus("idle");
-        setError("The voice agent could not be started — please try again.");
-        return;
-      }
-      const turn = await res.json();
-      setConversationId(turn.conversationId);
-      conversationRef.current = turn.conversationId;
-      applyTurn(turn);
-    } catch {
-      setStatus("idle");
-      setError("The voice agent is unreachable — please check your connection.");
-    }
-  }
-
-  async function toggleVoice() {
-    if (voiceEnabled) {
-      try {
-        recognitionRef.current?.abort?.();
-        window.speechSynthesis?.cancel();
-      } catch {
-        // ignore
-      }
-      setInterim("");
-      setStatus("idle");
-      setVoiceEnabled(false);
-      return;
-    }
-    if (micBarrierRef.current !== "none") {
-      // No mic is possible here — the toggle just re-enables spoken replies.
-      setVoiceEnabled(true);
-      return;
-    }
-    // Turning voice on re-checks the permission (it may have been re-allowed
-    // in browser settings since it was denied).
-    setMicPermission((p) => (p === "denied" ? "unknown" : p));
-    micPermissionRef.current = micPermissionRef.current === "denied" ? "unknown" : micPermissionRef.current;
-    const ok = await ensureMicPermission();
-    setVoiceEnabled(ok);
-  }
-
-  async function sendUtterance(text: string) {
-    const utterance = text.trim();
-    const convId = conversationRef.current;
-    if (!utterance || !convId) return;
-    try {
-      recognitionRef.current?.abort?.();
-    } catch {
-      // ignore
-    }
-    setInterim("");
-    setTranscript((t) => [...t, { role: "user", text: utterance }]);
-    setStatus("processing");
-    setError(null);
-    try {
-      const res = await fetch("/api/voice/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: convId, utterance }),
-      });
-      if (!res.ok) {
-        setStatus("idle");
-        const body = await res.json().catch(() => null);
-        setError(body?.error?.message ?? "The agent could not process that — try again.");
-        return;
-      }
-      applyTurn(await res.json());
-    } catch {
-      setStatus("idle");
-      setError("The agent is unreachable — please check your connection.");
-    }
-  }
-
-  const info = state?.info;
-  const selectedInfoRows = info
-    ? ([
-        ["Patient name", info.name],
-        ["Location", info.location],
-        ["Medical problem", info.problem],
-        ["Specialty", info.specialty],
-        ["Preferred date", info.preferredDate ? formatSlotDate(info.preferredDate) : null],
-        ["Preferred time", info.preferredTime ? formatEnum(info.preferredTime) : null],
-        ["Language", info.language],
-        ["Contact", info.contact],
-      ] as const)
-    : [];
-
-  const micBlocked = micBarrier === "none" && micPermission === "denied";
+  const { state, start, stop, sendText, setMuted } = useGrokVoice();
+  const caseId = useQueryParam("caseId");
+  const agent = useQueryParam("agent");
+  const linkedCase = useCaseContext(caseId);
+  const live = state.phase === "live";
+  const busy = state.phase === "starting";
+  const { title, detail } = statusLine(state);
+  const notConfigured = state.error?.code === "VOICE_NOT_CONFIGURED";
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-7xl">
       <PageHeader
         title="AI Voice Medical Assistance Agent"
-        subtitle="A browser-based voice agent that finds a doctor and books a real appointment — then hands the case to a human case manager."
-      />
-      {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
-      {micBarrier === "insecure" ? (
-        <div
-          className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-          role="status"
-        >
+        subtitle="A real voice agent that understands the request, searches providers, confirms, books and files the case — then hands off to a human."
+      >
+        <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+          Grok Voice 3.0 · speech-to-speech
+        </span>
+      </PageHeader>
+
+      {linkedCase ? <CaseContextBanner kase={linkedCase} action="This voice session works" /> : null}
+
+      {notConfigured ? (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
           <ShieldAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
           <span>
-            Voice input needs a secure connection: browsers only allow the
-            microphone on <span className="font-semibold">HTTPS or localhost</span>,
-            and this page is served over plain HTTP — no permission prompt can
-            change that. The call runs in text mode here
-            {ttsAvailable ? " (the agent still speaks its replies aloud)" : ""}.
-            For the full two-way voice demo, open the app over HTTPS or on
-            localhost.
+            Voice needs an xAI API key on the server (<code>XAI_API_KEY</code>). Every other module keeps working offline.
           </span>
         </div>
-      ) : null}
-      {micBarrier === "unsupported" ? (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <Info size={16} className="mt-0.5 shrink-0" aria-hidden />
-          <span>
-            This browser does not support speech recognition, so the call runs
-            in text mode{ttsAvailable ? " (the agent still speaks its replies aloud)" : ""}.
-            For the full voice demo use Chrome or Edge.
-          </span>
+      ) : state.phase === "error" && state.error ? (
+        <div className="mb-4">
+          <ErrorBanner message={state.error.message} />
         </div>
-      ) : null}
-      {micBlocked ? (
+      ) : state.textOnly && state.error ? (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
-          <MicOff size={16} className="mt-0.5 shrink-0" />
-          {MIC_DENIED_HELP}
-        </div>
-      ) : null}
-      {hint ? (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" role="status">
-          <Info size={16} className="mt-0.5 shrink-0" />
-          {hint}
+          <MicOff size={16} className="mt-0.5 shrink-0" aria-hidden />
+          <span>{state.error.message} The session continues — the agent speaks and you can type.</span>
         </div>
       ) : null}
 
@@ -555,131 +85,59 @@ export default function VoicePage() {
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <CallVisual status={status} />
+                <CallVisual state={visualState(state)} />
                 <div>
                   <p className="text-xl font-semibold tracking-tight text-slate-900" aria-live="polite">
-                    {STATUS_LABELS[status]}
+                    {title}
                   </p>
-                  <p className="mt-0.5 text-sm text-slate-500">
-                    {conversationId
-                      ? done
-                        ? "Workflow complete — case handed to a human case manager."
-                        : "Call in progress"
-                      : "No active call"}
-                  </p>
+                  <p className="mt-0.5 text-sm text-slate-500">{detail}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {ttsAvailable || micBarrier === "none" ? (
-                  <Button variant="secondary" onClick={toggleVoice}>
-                    {voiceEnabled ? <Volume2 size={15} /> : <MicOff size={15} />}
-                    {voiceEnabled ? "Voice on" : "Voice off"}
+                {live && !state.textOnly ? (
+                  <Button variant="secondary" onClick={() => setMuted(!state.muted)} aria-pressed={state.muted}>
+                    {state.muted ? <MicOff size={15} aria-hidden /> : <Mic size={15} aria-hidden />}
+                    {state.muted ? "Unmute" : "Mute"}
                   </Button>
                 ) : null}
-                <Button onClick={startCall} disabled={status === "processing"}>
-                  <PhoneCall size={15} />
-                  {conversationId ? "Restart call" : "Start call"}
-                </Button>
+                {live || busy ? (
+                  <Button variant="danger" onClick={stop}>
+                    <PhoneOff size={15} aria-hidden /> End
+                  </Button>
+                ) : (
+                  <Button onClick={() => void start({ caseId: linkedCase?.id, profile: agent ?? undefined })} busy={busy}>
+                    <PhoneCall size={15} aria-hidden />
+                    {state.phase === "idle" ? "Start" : "Start again"}
+                  </Button>
+                )}
               </div>
             </div>
+            {state.phase === "idle" ? (
+              <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
+                Demonstration line: all records are fictional — please don&apos;t share real medical details. Your browser
+                will ask for microphone access; without it you can type.
+              </p>
+            ) : null}
           </Card>
 
-          <Card className="flex h-[430px] flex-col">
-            <SectionTitle>Live transcript</SectionTitle>
-            <div ref={transcriptBoxRef} className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
-              {transcript.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <EmptyState
-                    title="Start the call to begin"
-                    hint='Try: "I’m travelling in Istanbul and I need to see a doctor tomorrow."'
-                  />
-                </div>
-              ) : (
-                transcript.map((t, i) => (
-                  <div
-                    key={i}
-                    className={`animate-fade-up flex ${t.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`flex max-w-[85%] items-start gap-2 rounded-2xl px-4 py-2.5 text-sm ${
-                        t.role === "user"
-                          ? "rounded-br-sm bg-blue-600 text-white"
-                          : "rounded-bl-sm bg-slate-100 text-slate-800"
-                      }`}
-                    >
-                      {t.role === "agent" ? (
-                        <Bot size={15} className="mt-0.5 shrink-0 text-blue-500" aria-hidden />
-                      ) : (
-                        <User size={15} className="mt-0.5 shrink-0 text-blue-200" aria-hidden />
-                      )}
-                      <span className="leading-relaxed">{t.text}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-              {interim ? (
-                <div className="flex justify-end">
-                  <div className="max-w-[85%] rounded-2xl rounded-br-sm border border-dashed border-blue-300 bg-blue-50 px-4 py-2.5 text-sm italic text-blue-600">
-                    {interim}…
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <form
-              className="mt-3 flex gap-2 border-t border-slate-100 pt-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (textInput.trim()) {
-                  void sendUtterance(textInput);
-                  setTextInput("");
-                }
-              }}
-            >
-              {micBarrier === "none" && voiceSupported && voiceEnabled ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => void speakPressed()}
-                  disabled={!conversationId || status !== "idle" || done}
-                >
-                  <Mic size={15} />
-                  Speak
-                </Button>
-              ) : null}
-              <input
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder={
-                  conversationId ? "…or type your answer" : "Start the call first"
-                }
-                aria-label="Type your answer"
-                disabled={!conversationId || done}
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50"
-              />
-              <Button
-                type="submit"
-                aria-label="Send message"
-                disabled={!conversationId || textInput.trim().length === 0 || done}
-              >
-                <SendHorizonal size={15} />
-              </Button>
-            </form>
-          </Card>
+          <TranscriptPanel lines={state.transcript} partial={state.partial} live={live} onSend={sendText} />
 
-          {done ? (
+          {state.booking || state.handoff ? (
             <div className="flex flex-wrap items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
-              <span className="text-sm font-semibold text-emerald-700">AI Completed</span>
+              <span className="text-sm font-semibold text-emerald-700">AI completed</span>
               <ArrowRight size={16} className="text-emerald-500" aria-hidden />
               <span className="text-sm font-semibold text-emerald-700">
-                Human Case Manager
+                {state.handoff?.target === "doctor" ? "On-call doctor" : "Human case manager"}
               </span>
-              <span className="text-xs text-emerald-600">
-                — the case manager sees the full summary
-                {caseInfo ? (
+              <span className="text-xs text-emerald-700">
+                — they see the transcript and summary
+                {state.caseRef ? (
                   <>
                     {" "}
                     in{" "}
-                    <Link href={`/cases/${caseInfo.ref}`} className="font-semibold underline">
-                      {caseInfo.ref}
+                    <Link href={`/cases/${state.caseRef.id}`} className="font-semibold underline">
+                      {state.caseRef.ref}
                     </Link>
                   </>
                 ) : null}
@@ -690,107 +148,9 @@ export default function VoicePage() {
         </div>
 
         <div className="space-y-5">
-          <Card>
-            <SectionTitle>Patient information</SectionTitle>
-            {info && selectedInfoRows.some(([, v]) => v) ? (
-              <dl className="mt-1">
-                {selectedInfoRows
-                  .filter(([, v]) => v)
-                  .map(([label, value]) => (
-                    <KeyValue key={label} label={label} value={value} />
-                  ))}
-              </dl>
-            ) : (
-              <p className="mt-2 text-xs text-slate-500">
-                Collected details appear here as the agent asks its questions.
-              </p>
-            )}
-          </Card>
-
-          <Card>
-            <SectionTitle>Provider</SectionTitle>
-            {options.length > 0 ? (
-              <div className="mt-2 space-y-2">
-                {options.map((o, i) => (
-                  <button
-                    key={o.providerId}
-                    type="button"
-                    onClick={() => sendUtterance(`Option ${i + 1}`)}
-                    disabled={done || status === "processing"}
-                    className="animate-fade-up w-full rounded-lg border border-slate-200 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-60"
-                    style={{ animationDelay: `${i * 80}ms` }}
-                  >
-                    <p className="text-sm font-semibold text-slate-800">
-                      {i + 1}. {o.name}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {o.specialty} · {o.facility}, {o.district}
-                      {o.distanceKm != null ? ` (${o.distanceKm} km)` : ""}
-                    </p>
-                    {o.slot ? (
-                      <p className="mt-1 text-xs font-semibold text-blue-600">
-                        {formatSlotDate(o.slot.date)} at {o.slot.time}
-                      </p>
-                    ) : null}
-                  </button>
-                ))}
-                <p className="text-[11px] text-slate-500">
-                  Say “option one” — or click an option.
-                </p>
-              </div>
-            ) : appointment ? (
-              <p className="mt-2 text-sm text-slate-700">{appointment.providerName}</p>
-            ) : (
-              <p className="mt-2 text-xs text-slate-500">
-                Matching providers appear here after the agent searches.
-              </p>
-            )}
-          </Card>
-
-          <Card>
-            <SectionTitle>Appointment</SectionTitle>
-            {appointment ? (
-              <div className="mt-2">
-                <div className="flex items-center gap-2">
-                  <CalendarCheck2 size={16} className="text-emerald-500" aria-hidden />
-                  <span className="text-sm font-semibold text-slate-800">
-                    {appointment.ref}
-                  </span>
-                  <StatusBadge value={appointment.status} />
-                </div>
-                <p className="mt-1.5 text-xs text-slate-500">
-                  {appointment.providerName} · {formatDateTime(appointment.scheduledAt)}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-2 text-xs text-slate-500">
-                The confirmed appointment appears here after booking.
-              </p>
-            )}
-          </Card>
-
-          <Card>
-            <SectionTitle>Case</SectionTitle>
-            {caseInfo ? (
-              <div className="mt-2">
-                <div className="flex items-center gap-2">
-                  <FolderKanban size={16} className="text-blue-500" aria-hidden />
-                  <Link
-                    href={`/cases/${caseInfo.ref}`}
-                    className="text-sm font-semibold text-blue-600 hover:underline"
-                  >
-                    {caseInfo.ref}
-                  </Link>
-                  <StatusBadge value={caseInfo.status} />
-                </div>
-                <p className="mt-1.5 text-xs text-slate-500">{caseInfo.title}</p>
-              </div>
-            ) : (
-              <p className="mt-2 text-xs text-slate-500">
-                The assistance case appears here once created.
-              </p>
-            )}
-          </Card>
+          <ActivityPanel tools={state.tools} />
+          <ProvidersPanel providers={state.providers} onPick={sendText} disabled={!live} />
+          <BookingPanel booking={state.booking} caseRef={state.caseRef} />
         </div>
       </div>
     </div>

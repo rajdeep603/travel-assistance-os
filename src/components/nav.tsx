@@ -9,6 +9,8 @@ import {
   Home,
   Menu,
   MessageSquareText,
+  Headset,
+  Inbox,
   Mic,
   ReceiptText,
   Stethoscope,
@@ -23,6 +25,8 @@ const NAV_ITEMS = [
   { href: "/providers", label: "Provider Search", icon: Stethoscope },
   { href: "/assistant", label: "Internal AI Assistant", icon: MessageSquareText },
   { href: "/voice", label: "Voice Agent", icon: Mic },
+  { href: "/calls", label: "Call Center", icon: Headset },
+  { href: "/inbox", label: "Inbox (e-mail & fax)", icon: Inbox },
 ];
 
 function isActive(pathname: string, href: string): boolean {

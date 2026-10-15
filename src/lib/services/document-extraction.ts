@@ -1,12 +1,22 @@
 import type { Document, DocumentExtraction } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { getAIService } from "./ai";
+import { ApiError } from "@/lib/errors";
+import { detectLanguage } from "@/lib/intake/language";
+import { processingErrorMessage } from "@/lib/uploads";
+import { getAIService, runAI } from "./ai";
 import { extractTextFromFile } from "./pdf";
+
+/** pdf.js emits page markers even for image-only pages; a real text layer has words. */
+export function hasReadableText(text: string): boolean {
+  const letters = text.replace(/--\s*\d+\s+of\s+\d+\s*--/g, "").replace(/[^\p{L}]/gu, "");
+  return letters.length >= 20;
+}
 
 /**
  * DocumentExtractionService: runs the full pipeline for one document —
- * text extraction → AI classification → AI structured extraction →
- * validation → persisted extraction record.
+ * text layer (or OCR for scans and faxes) → language detection → AI
+ * classification + structured extraction (+ English translation when the
+ * original isn't English) → persisted extraction record.
  */
 export async function processDocument(
   documentId: string,
@@ -21,17 +31,26 @@ export async function processDocument(
   });
 
   try {
-    const text = await extractTextFromFile(buffer, doc.mimeType);
-    if (!text.trim()) {
-      throw new Error(
-        "No readable text found in the document. Scanned documents need OCR, which is not enabled in this demo."
+    let text = await extractTextFromFile(buffer, doc.mimeType);
+    let ocr = false;
+    if (!hasReadableText(text)) {
+      // Scanned, faxed or handwritten: no text layer, so read the image.
+      const read = await runAI("readDocument", (ai) =>
+        ai.readDocument({ buffer, mimeType: doc.mimeType, filename: doc.filename })
       );
+      text = read.value.text;
+      ocr = true;
     }
+    if (!hasReadableText(text)) {
+      throw new ApiError("No readable text was found in the document.", 422, "UNREADABLE_DOCUMENT");
+    }
+    const language = detectLanguage(text);
 
     const ai = getAIService();
-    const [kind, result] = await Promise.all([
+    const [kind, result, translatedText] = await Promise.all([
       ai.classifyDocument(text, doc.filename),
       ai.extractMedicalDocument(text),
+      language === "en" ? Promise.resolve(null) : ai.translateText(text, "English"),
     ]);
 
     await prisma.documentExtraction.upsert({
@@ -45,15 +64,21 @@ export async function processDocument(
 
     return prisma.document.update({
       where: { id: documentId },
-      data: { status: "PROCESSED", kind, textContent: text.slice(0, 20000) },
+      data: {
+        status: "PROCESSED",
+        kind,
+        textContent: text.slice(0, 20000),
+        ocr,
+        language,
+        translatedText: translatedText?.slice(0, 20000) ?? null,
+      },
       include: { extraction: true },
     });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Document processing failed.";
+    if (!(err instanceof ApiError)) console.error(`[documents] processing ${documentId} failed:`, err);
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: "FAILED", error: message },
+      data: { status: "FAILED", error: processingErrorMessage(err) },
     });
     throw err;
   }
@@ -78,6 +103,7 @@ function toExtractionRow(result: {
   summary: string;
   missingInfo: string[];
   confidence: number;
+  source?: string;
 }) {
   const e = result.extraction;
   return {
@@ -97,6 +123,7 @@ function toExtractionRow(result: {
     summary: result.summary,
     missingInfo: result.missingInfo ?? [],
     confidence: result.confidence,
+    aiSource: result.source ?? null,
     raw: JSON.parse(JSON.stringify(result)),
   };
 }

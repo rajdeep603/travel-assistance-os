@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { MockAIService } from "@/lib/services/ai/mock";
-import type { VoiceDialogState } from "@/lib/services/types";
 
 const ai = new MockAIService();
 
@@ -93,52 +92,5 @@ describe("MockAIService: document classification", () => {
     expect(await ai.classifyDocument("Prescription Rx-1 prescribed by")).toBe("PRESCRIPTION");
     expect(await ai.classifyDocument("Clinical examination and diagnosis")).toBe("MEDICAL_REPORT");
     expect(await ai.classifyDocument("holiday photos")).toBe("OTHER");
-  });
-});
-
-describe("MockAIService: voice NLU", () => {
-  const baseState = (): VoiceDialogState => ({
-    step: "COLLECTING",
-    expecting: null,
-    info: {
-      name: null, location: null, problem: null, specialty: null,
-      preferredDate: null, preferredTime: null, language: null, contact: null,
-    },
-    presentedProviderIds: [],
-    selectedProviderId: null,
-    selectedSlot: null,
-    appointmentRef: null,
-    caseRef: null,
-  });
-
-  it("extracts multiple slots from one utterance", async () => {
-    const r = await ai.interpretVoiceUtterance(
-      "I'm in Taksim with a bad fever and need a doctor tomorrow afternoon",
-      baseState()
-    );
-    expect(r.info.location).toBe("Taksim");
-    expect(r.info.specialty).toBe("General Medicine");
-    expect(r.info.preferredDate).toBeTruthy();
-    expect(r.info.preferredTime).toBe("afternoon");
-  });
-
-  it("fills the expected slot from a bare answer", async () => {
-    const state = baseState();
-    state.expecting = "name";
-    const r = await ai.interpretVoiceUtterance("Daniel Foster", state);
-    expect(r.info.name).toBe("Daniel Foster");
-  });
-
-  it("detects option selection while presenting", async () => {
-    const state = baseState();
-    state.step = "PRESENTING";
-    expect((await ai.interpretVoiceUtterance("the first one please", state)).selectedOption).toBe(1);
-    expect((await ai.interpretVoiceUtterance("option 2", state)).selectedOption).toBe(2);
-  });
-
-  it("detects confirmation and refusal", async () => {
-    const state = baseState();
-    expect((await ai.interpretVoiceUtterance("yes, book it", state)).confirmation).toBe("yes");
-    expect((await ai.interpretVoiceUtterance("no, cancel that", state)).confirmation).toBe("no");
   });
 });

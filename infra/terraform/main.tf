@@ -67,7 +67,7 @@ resource "aws_security_group" "app" {
   dynamic "ingress" {
     for_each = var.enable_https_port ? [1] : []
     content {
-      description = "HTTPS"
+      description = "HTTPS (Let's Encrypt via the tls compose profile)"
       from_port   = 443
       to_port     = 443
       protocol    = "tcp"
@@ -145,12 +145,17 @@ resource "aws_instance" "app" {
   vpc_security_group_ids      = [aws_security_group.app.id]
   key_name                    = var.ssh_public_key != "" ? aws_key_pair.this[0].key_name : null
   iam_instance_profile        = aws_iam_instance_profile.instance.name
-  user_data_replace_on_change = true
+  user_data_replace_on_change = false
 
+  # First-boot bootstrap only. Edits here never touch a running instance
+  # (see ignore_changes below) — they apply to newly created instances.
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
-    repo_url    = var.repo_url
-    repo_branch = var.repo_branch
-    app_dir     = "/home/ubuntu/travel-assistance-os"
+    repo_url          = var.repo_url
+    repo_branch       = var.repo_branch
+    app_dir           = "/home/ubuntu/travel-assistance-os"
+    domain_name       = var.domain_name
+    letsencrypt_email = var.letsencrypt_email
+    backup_bucket     = var.backup_bucket_name
   })
 
   root_block_device {
@@ -161,8 +166,9 @@ resource "aws_instance" "app" {
   }
 
   metadata_options {
-    http_tokens   = "required" # IMDSv2 only
-    http_endpoint = "enabled"
+    http_tokens                 = "required" # IMDSv2 only
+    http_endpoint               = "enabled"
+    http_put_response_hop_limit = 1 # host only: containers can't reach instance credentials
   }
 
   tags = { Name = "${var.project_name}-app" }
@@ -170,8 +176,10 @@ resource "aws_instance" "app" {
   lifecycle {
     # The demo database lives on this instance's Docker volumes —
     # protect against accidental replacement wiping it.
-    prevent_destroy = false
-    ignore_changes  = [ami] # AMI updates should be a deliberate rebuild
+    prevent_destroy = true
+    # AMI updates should be a deliberate rebuild; user_data only matters on
+    # first boot, and changing it would otherwise stop/start the instance.
+    ignore_changes = [ami, user_data]
   }
 }
 
@@ -184,4 +192,73 @@ resource "aws_eip" "app" {
   tags = { Name = "${var.project_name}-eip" }
 
   depends_on = [aws_internet_gateway.this]
+}
+
+# --- DNS (optional): A record for the domain in a Route 53 hosted zone -------
+
+resource "aws_route53_record" "app" {
+  count   = var.domain_name != "" && var.route53_zone_id != "" ? 1 : 0
+  zone_id = var.route53_zone_id
+  name    = var.domain_name
+  type    = "A"
+  ttl     = 300
+  records = [aws_eip.app.public_ip]
+}
+
+# --- Off-host database backups (optional) -----------------------------------
+
+resource "aws_s3_bucket" "backups" {
+  count  = var.backup_bucket_name != "" ? 1 : 0
+  bucket = var.backup_bucket_name
+
+  tags = { Name = "${var.project_name}-backups" }
+}
+
+resource "aws_s3_bucket_public_access_block" "backups" {
+  count                   = var.backup_bucket_name != "" ? 1 : 0
+  bucket                  = aws_s3_bucket.backups[0].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "backups" {
+  count  = var.backup_bucket_name != "" ? 1 : 0
+  bucket = aws_s3_bucket.backups[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "backups" {
+  count  = var.backup_bucket_name != "" ? 1 : 0
+  bucket = aws_s3_bucket.backups[0].id
+
+  rule {
+    id     = "expire-old-dumps"
+    status = "Enabled"
+    filter {}
+    expiration {
+      days = var.backup_retention_days
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "backups" {
+  count = var.backup_bucket_name != "" ? 1 : 0
+  name  = "${var.project_name}-backup-writer"
+  role  = aws_iam_role.instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject", "s3:ListBucket"]
+      Resource = [aws_s3_bucket.backups[0].arn, "${aws_s3_bucket.backups[0].arn}/*"]
+    }]
+  })
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Sparkles } from "lucide-react";
 import {
+  AISourceBadge,
   Button,
   Card,
   EmptyState,
@@ -112,6 +113,7 @@ interface Analysis {
   existingCaseRef: string | null;
   summary: string;
   suggestedActions: string[];
+  source?: string;
   existingCase: { ref: string; status: string; id: string } | null;
 }
 
@@ -259,7 +261,10 @@ export default function CasesPage() {
           ) : analysis ? (
             <>
               <Card className="animate-fade-up">
-                <SectionTitle>Case summary</SectionTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <SectionTitle>Case summary</SectionTitle>
+                  <AISourceBadge source={analysis.source} />
+                </div>
                 <p className="mt-2 text-sm leading-relaxed text-slate-700">
                   {analysis.summary}
                 </p>

@@ -51,9 +51,44 @@ variable "repo_branch" {
 }
 
 variable "enable_https_port" {
-  description = "Also open port 443 (for when you configure TLS in nginx)."
+  description = "Open port 443. Needed for HTTPS, which the browser microphone and Twilio media streams require."
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "domain_name" {
+  description = "Public hostname for the platform, e.g. demo.example.com. Enables HTTPS (Let's Encrypt) on new instances. Empty = HTTP on the IP only."
+  type        = string
+  default     = ""
+}
+
+variable "letsencrypt_email" {
+  description = "Contact e-mail for Let's Encrypt expiry notices. Required when domain_name is set."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.letsencrypt_email == "" || can(regex("^[^@\\s]+@[^@\\s]+$", var.letsencrypt_email))
+    error_message = "letsencrypt_email must be an e-mail address."
+  }
+}
+
+variable "route53_zone_id" {
+  description = "Route 53 hosted zone ID to create the domain's A record in. Empty = manage DNS at your registrar (point an A record at the public_ip output)."
+  type        = string
+  default     = ""
+}
+
+variable "backup_bucket_name" {
+  description = "S3 bucket for nightly database dumps (created here). Empty = backups stay on the instance only."
+  type        = string
+  default     = ""
+}
+
+variable "backup_retention_days" {
+  description = "Days to keep database dumps in the backup bucket."
+  type        = number
+  default     = 30
 }
 
 variable "vpc_cidr" {

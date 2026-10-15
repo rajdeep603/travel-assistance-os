@@ -1,6 +1,6 @@
 import type { Case, Patient } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { nextCaseRef, nextPatientRef } from "@/lib/refs";
+import { withRef } from "@/lib/refs";
 import { getAIService } from "./ai";
 import { getNotificationService } from "./notification";
 import type { CaseIntakeAnalysis } from "./types";
@@ -41,27 +41,29 @@ export async function createCaseFromAnalysis(
     patientId = patient.id;
   }
 
-  const created = await prisma.case.create({
-    data: {
-      ref: await nextCaseRef(),
-      title: analysis.medicalIssue
-        ? `${analysis.medicalIssue} — ${analysis.location ?? "location unknown"}`
-        : `Assistance request — ${analysis.location ?? "location unknown"}`,
-      description: input.requestText,
-      location: analysis.location ?? "Unknown",
-      country: analysis.country ?? "Unknown",
-      assistanceType: analysis.assistanceType,
-      priority: analysis.urgency,
-      status: "NEW",
-      urgency: analysis.urgency,
-      symptoms: analysis.symptoms,
-      aiSummary: analysis.summary,
-      suggestedActions: analysis.suggestedActions,
-      assignedTo: null,
-      patientId,
-    },
-    include: { patient: true },
-  });
+  const created = await withRef("case", (ref) =>
+    prisma.case.create({
+      data: {
+        ref,
+        title: analysis.medicalIssue
+          ? `${analysis.medicalIssue} — ${analysis.location ?? "location unknown"}`
+          : `Assistance request — ${analysis.location ?? "location unknown"}`,
+        description: input.requestText,
+        location: analysis.location ?? "Unknown",
+        country: analysis.country ?? "Unknown",
+        assistanceType: analysis.assistanceType,
+        priority: analysis.urgency,
+        status: "NEW",
+        urgency: analysis.urgency,
+        symptoms: analysis.symptoms,
+        aiSummary: analysis.summary,
+        suggestedActions: analysis.suggestedActions,
+        assignedTo: null,
+        patientId,
+      },
+      include: { patient: true },
+    })
+  );
 
   await getNotificationService().notify({
     kind: "CASE_CREATED",
@@ -102,19 +104,19 @@ export async function createDemoPatient(name: string | null): Promise<Patient> {
   )
     .trim()
     .split(/\s+/);
-  const ref = await nextPatientRef();
-  const n = Number(ref.split("-")[1]);
-  return prisma.patient.create({
-    data: {
-      ref,
-      firstName: parts[0],
-      lastName: parts.slice(1).join(" ") || "(unknown)",
-      dateOfBirth: new Date("1980-01-01"),
-      nationality: "Unknown",
-      language: "English",
-      phone: "(not provided)",
-      email: "(not provided)",
-      policyNumber: `POL-TR-${100000 + n}`,
-    },
-  });
+  return withRef("patient", (ref) =>
+    prisma.patient.create({
+      data: {
+        ref,
+        firstName: parts[0],
+        lastName: parts.slice(1).join(" ") || "(unknown)",
+        dateOfBirth: new Date("1980-01-01"),
+        nationality: "Unknown",
+        language: "English",
+        phone: "(not provided)",
+        email: "(not provided)",
+        policyNumber: `POL-TR-${100000 + Number(ref.split("-")[1])}`,
+      },
+    })
+  );
 }

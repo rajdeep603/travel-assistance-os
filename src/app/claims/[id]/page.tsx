@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, ArrowLeft, CheckCircle2, MinusCircle, RefreshCw } from "lucide-react";
 import {
+  AISourceBadge,
   Button,
   Card,
   EmptyState,
@@ -28,6 +29,7 @@ interface HistoryEntry {
   at: string;
   action: string;
   note: string | null;
+  by?: string;
 }
 
 interface ClaimDetail {
@@ -37,6 +39,7 @@ interface ClaimDetail {
   amount: number | null;
   currency: string | null;
   summary: string | null;
+  aiSource: string | null;
   issues: Issue[] | null;
   history: HistoryEntry[] | null;
   createdAt: string;
@@ -206,6 +209,11 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
             <p className="mt-2 text-sm leading-relaxed text-slate-700">
               {claim.summary ?? "No AI summary yet — run the AI review."}
             </p>
+            {claim.summary ? (
+              <div className="mt-2">
+                <AISourceBadge source={claim.aiSource} />
+              </div>
+            ) : null}
           </Card>
 
           <Card>
@@ -282,7 +290,7 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
               <div className="mt-3">
                 <Timeline
                   items={[...claim.history].reverse().map((h) => ({
-                    title: h.action,
+                    title: h.by ? `${h.action} · ${h.by}` : h.action,
                     meta: h.note ?? undefined,
                     time: formatDateTime(h.at),
                     dotClass: "bg-blue-500",

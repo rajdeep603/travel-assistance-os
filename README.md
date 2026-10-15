@@ -2,15 +2,15 @@
 
 **AI-powered automation for travel assistance and healthcare operations.**
 
-A working demonstration platform built for ITIC Global. Six modules show how AI
-slots into an assistance company's daily operations — every workflow is real
-(live database, real document processing, real bookings), and **all data is
-fictional demo data**.
+A working demonstration platform built for ITIC Global. It shows how AI slots
+into an assistance company's daily operations — every workflow is real (live
+database, real document processing, real bookings, real phone calls), and
+**all data is fictional demo data**.
 
 > This is a demonstration/prototype platform. It is not a production medical
 > decision-making system and never gives medical advice.
 
-## The six modules
+## Modules
 
 | Module | What it demonstrates |
 |---|---|
@@ -19,7 +19,11 @@ fictional demo data**.
 | **Claims Automation** | Upload claim documents → classification → extraction → completeness check → human review actions (approve / request info / escalate) |
 | **Provider Search** | Match demo providers on specialty, language, availability and distance, with "why this provider" reasoning and real slot booking |
 | **Internal AI Assistant** | Lightweight RAG over an operational knowledge base + live case/provider lookups, with sources |
-| **AI Voice Medical Assistance Agent** | Browser-based voice agent that collects details, searches providers, confirms, **books a real appointment**, creates a case and hands off to a human case manager |
+| **AI Voice Medical Assistance Agent** | Speech-to-speech agent (xAI Grok Voice 3.0) in the browser: collects details, searches providers, confirms, **books a real appointment**, creates the case and hands off to a human |
+| **AI Call Center** | Phone agents on Twilio: a 24/7 hotline (emergency triage with **warm transfer to a doctor**, coverage questions answered from the policy, bookings, case/claim status) and outbound calls (hospital coordination in Turkish, reminders, follow-ups, missing-document chasers, guarantee receipt checks), with a live call board |
+| **Live interpreter** | A case manager (English, browser) and a foreign hospital (phone) talk through real-time AI interpretation both ways, with bilingual captions |
+| **E-mail & fax automation** | Inbound claims and hospital mail/faxes: OCR for scans and handwriting, translation, explainable case matching, claim filing, automatic replies in the traveller's language, risky messages held for review |
+| **Letters of Guarantee** | Hospital cost estimate → rules-based decision against the policy → letter PDF → approved automatically or by an operator → faxed back → receipt confirmed |
 
 ## Quick start (development)
 
@@ -33,13 +37,18 @@ npx prisma migrate deploy       # apply schema
 npm run demo:pdfs               # generate fictional demo PDFs
 npm run db:seed                 # idempotent demo data seed
 npm run dev                     # http://localhost:3000
+npm run dev:gateway             # voice gateway on :8080 (needs XAI_API_KEY for live voice)
 ```
+
+Everything except voice and phone runs offline. Voice needs `XAI_API_KEY`;
+phone calls also need Twilio and a public HTTPS URL (see
+[DEPLOYMENT.md](DEPLOYMENT.md) §2b).
 
 ## Quick start (production stack, locally)
 
 ```bash
 cp .env.example .env            # set a real POSTGRES_PASSWORD
-docker compose up -d --build    # nginx → app → postgres
+docker compose up -d --build    # nginx → app + voice gateway → postgres (+ backups)
 curl http://localhost/api/health
 ```
 
@@ -51,19 +60,23 @@ to seed demo data.
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Development server |
+| `npm run dev:gateway` | Voice gateway (WebSocket server) in watch mode |
 | `npm run build` / `npm start` | Production build / server |
 | `npm run lint` / `npm run typecheck` | Static checks |
 | `npm test` | Unit + integration tests (needs the dev database) |
 | `npm run test:e2e` | End-to-end tests against a running app (`E2E_BASE_URL` overridable) |
 | `npm run db:migrate` / `npm run db:seed` | Apply migrations / seed demo data |
 | `npm run demo:pdfs` | Regenerate the fictional demo PDFs |
+| `npm run demo:inbound` | Regenerate the inbound samples (cost estimate, Turkish epikriz, fax scans) |
+| `npm run auth:hash -- <name> <password>` | Print an `OPERATOR_USERS` entry |
 
 ## AI configuration
 
-The platform runs fully offline by default using a deterministic demo AI
-provider, so demos never depend on network or API quotas. To use the live
-Claude API instead, set `AI_API_KEY` in `.env` — the deterministic provider
-remains as an automatic fallback if the API call fails. See
+The platform runs offline by default using a deterministic demo AI provider,
+so demos never depend on network or API quotas. To use the live Claude API
+(document extraction, OCR, translation, summaries), set `AI_API_KEY` — the
+deterministic provider remains as an automatic fallback on any failure. Voice
+agents use xAI Grok Voice 3.0 (`XAI_API_KEY`). See
 [ENVIRONMENT.md](ENVIRONMENT.md).
 
 ## Documentation

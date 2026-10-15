@@ -4,6 +4,8 @@
 // because the platform is demonstrated at ITIC Global.
 // ---------------------------------------------------------------------------
 
+import { addDays, weekdayIndex, zonedToday } from "@/lib/time";
+
 export const ISTANBUL_DISTRICTS: Record<string, { lat: number; lng: number }> = {
   taksim: { lat: 41.0369, lng: 28.985 },
   beyoglu: { lat: 41.0322, lng: 28.9779 },
@@ -148,29 +150,21 @@ export function maxUrgency(
   return level;
 }
 
-/** Resolve relative day expressions to YYYY-MM-DD (local time). */
+/** Resolve relative day expressions to an Istanbul calendar date (YYYY-MM-DD). */
 export function parseDateExpression(text: string, from = new Date()): string | null {
   const t = norm(text);
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const add = (days: number) => {
-    const d = new Date(from);
-    d.setDate(d.getDate() + days);
-    return fmt(d);
-  };
-  if (/\bday after tomorrow\b/.test(t)) return add(2);
-  if (/\btomorrow\b/.test(t)) return add(1);
-  if (/\btoday\b|\bright now\b|\bas soon as\b|\basap\b/.test(t)) return add(0);
+  const today = zonedToday(0, from);
+  if (/\bday after tomorrow\b/.test(t)) return addDays(today, 2);
+  if (/\btomorrow\b/.test(t)) return addDays(today, 1);
+  if (/\btoday\b|\bright now\b|\bas soon as\b|\basap\b/.test(t)) return today;
   const iso = t.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return iso[0];
   const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
   for (let i = 0; i < weekdays.length; i++) {
     if (t.includes(weekdays[i])) {
-      const d = new Date(from);
-      let diff = (i - d.getDay() + 7) % 7;
+      let diff = (i - weekdayIndex(today) + 7) % 7;
       if (diff === 0) diff = 7;
-      d.setDate(d.getDate() + diff);
-      return fmt(d);
+      return addDays(today, diff);
     }
   }
   return null;

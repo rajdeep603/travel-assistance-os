@@ -21,7 +21,7 @@ fi
 # --- 2. Docker + Compose plugin + git ---------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl git
+apt-get install -y ca-certificates curl git openssl
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
@@ -42,6 +42,9 @@ PUBLIC_IP="$(curl -fsS -H "X-aws-ec2-metadata-token: $(curl -fsS -X PUT \
   -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' http://169.254.169.254/latest/api/token)" \
   http://169.254.169.254/latest/meta-data/public-ipv4 || echo localhost)"
 
+DOMAIN="${domain_name}"
+if [ -n "$DOMAIN" ]; then BASE_URL="https://$DOMAIN"; else BASE_URL="http://$PUBLIC_IP"; fi
+
 if [ ! -f "$APP_DIR/.env" ]; then
   DB_PASSWORD="$(openssl rand -hex 24)"
   cat > "$APP_DIR/.env" <<ENV
@@ -50,25 +53,41 @@ if [ ! -f "$APP_DIR/.env" ]; then
 POSTGRES_USER=taap
 POSTGRES_PASSWORD=$DB_PASSWORD
 POSTGRES_DB=taap
-NEXT_PUBLIC_APP_URL=http://$PUBLIC_IP
+NEXT_PUBLIC_APP_URL=$BASE_URL
+PUBLIC_BASE_URL=$BASE_URL
+DOMAIN=$DOMAIN
+LETSENCRYPT_EMAIL=${letsencrypt_email}
 AI_API_KEY=
-AI_MODEL=claude-haiku-4-5
+AI_MODEL=claude-opus-5-5
 MAX_UPLOAD_MB=10
 AUTO_SEED=true
 HTTP_PORT=80
 ENV
   chown ubuntu:ubuntu "$APP_DIR/.env"
   chmod 600 "$APP_DIR/.env"
+
+  # First operator login; the password is readable by the ubuntu user only.
+  (cd "$APP_DIR" && sudo -u ubuntu ./scripts/add-operator.sh admin > /home/ubuntu/taap-admin-login.txt)
+  chmod 600 /home/ubuntu/taap-admin-login.txt
+  echo "[bootstrap] operator login written to /home/ubuntu/taap-admin-login.txt"
 fi
 
 # --- 5. Build and start the stack (migrations + seed run in the entrypoint) --
 cd "$APP_DIR"
+if [ -n "$DOMAIN" ]; then export COMPOSE_PROFILES=tls; fi
 docker compose up -d --build
+
+# --- 5b. Off-host backups (when a bucket is configured) ----------------------
+if [ -n "${backup_bucket}" ]; then
+  snap install aws-cli --classic
+  echo "30 3 * * * root $APP_DIR/scripts/backup-to-s3.sh s3://${backup_bucket}/taap >> /var/log/taap-backup.log 2>&1" \
+    > /etc/cron.d/taap-backup
+fi
 
 # --- 6. Health gate -----------------------------------------------------------
 for i in $(seq 1 40); do
   if curl -fsS http://localhost/api/health | grep -q '"status":"ok"'; then
-    echo "[bootstrap] $(date -Is) SUCCESS — http://$PUBLIC_IP is serving and healthy"
+    echo "[bootstrap] $(date -Is) SUCCESS — $BASE_URL is serving and healthy (HTTPS starts once the certificate is issued)"
     exit 0
   fi
   sleep 10

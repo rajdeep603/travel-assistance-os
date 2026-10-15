@@ -1,5 +1,13 @@
 import type { Provider } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  formatPlainDate,
+  isPastSlot,
+  utcToZoned,
+  weekdayKey,
+  zonedDayRange,
+  zonedToday,
+} from "@/lib/time";
 import { ISTANBUL_DISTRICTS, distanceKm } from "./nlu";
 
 // ---------------------------------------------------------------------------
@@ -28,14 +36,11 @@ export interface ScoredProvider {
 
 type WeeklyAvailability = Record<string, string[]>; // { mon: ["09:00", ...] }
 
-const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-
-function slotsForDate(provider: Provider, date: string): string[] {
+/** Template slots for an Istanbul calendar date (wall-clock "HH:MM"). */
+export function slotsForDate(provider: Pick<Provider, "availability">, date: string): string[] {
   const availability = provider.availability as WeeklyAvailability | null;
   if (!availability) return [];
-  const d = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return [];
-  return availability[DAY_KEYS[d.getDay()]] ?? [];
+  return availability[weekdayKey(date)] ?? [];
 }
 
 function inTimeOfDay(time: string, timeOfDay?: string): boolean {
@@ -57,51 +62,30 @@ function inTimeOfDay(time: string, timeOfDay?: string): boolean {
 }
 
 /** "2026-10-03" → "Fri 3 Oct" for human-readable match reasons. */
-function friendlyDate(date: string): string {
-  const d = new Date(`${date}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return date;
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(d);
-}
-
-function defaultDate(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  // Local date parts, not toISOString(): the demo runs in local time.
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+const friendlyDate = (date: string) => formatPlainDate(date);
 
 export async function searchProviders(
   query: ProviderSearchQuery
 ): Promise<ScoredProvider[]> {
   const city = query.city?.trim() || "Istanbul";
-  const date = query.date || defaultDate();
+  const date = query.date || zonedToday(1);
   const providers = await prisma.provider.findMany({
     where: { city: { equals: city, mode: "insensitive" } },
   });
 
   // Slots already taken on that day are not offered again.
+  const day = zonedDayRange(date);
   const booked = await prisma.appointment.findMany({
     where: {
-      scheduledAt: {
-        gte: new Date(`${date}T00:00:00`),
-        lte: new Date(`${date}T23:59:59`),
-      },
+      scheduledAt: { gte: day.start, lt: day.end },
       status: { in: ["PENDING", "CONFIRMED"] },
     },
     select: { providerId: true, scheduledAt: true },
   });
   const bookedSlots = new Set(
-    booked.map(
-      (b) =>
-        `${b.providerId}|${String(b.scheduledAt.getHours()).padStart(2, "0")}:${String(
-          b.scheduledAt.getMinutes()
-        ).padStart(2, "0")}`
-    )
+    booked.map((b) => `${b.providerId}|${utcToZoned(b.scheduledAt).time}`)
   );
+  const now = new Date();
 
   const origin = query.district
     ? ISTANBUL_DISTRICTS[query.district.toLowerCase()] ?? null
@@ -135,7 +119,7 @@ export async function searchProviders(
     }
 
     const allSlots = slotsForDate(provider, date).filter(
-      (t) => !bookedSlots.has(`${provider.id}|${t}`)
+      (t) => !bookedSlots.has(`${provider.id}|${t}`) && !isPastSlot(date, t, now)
     );
     const slots = allSlots
       .filter((t) => inTimeOfDay(t, query.timeOfDay))

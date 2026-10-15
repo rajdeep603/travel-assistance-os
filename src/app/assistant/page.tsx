@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import { BookOpenText, FileText, SendHorizonal, Sparkles } from "lucide-react";
 import {
+  AISourceBadge,
   Button,
   Card,
   ErrorBanner,
@@ -34,6 +35,7 @@ interface Turn {
   role: "user" | "assistant";
   text: string;
   sources?: { title: string; source: string }[];
+  aiSource?: string;
 }
 
 const SUGGESTED = [
@@ -79,7 +81,7 @@ export default function AssistantPage() {
       const body = await res.json();
       setTurns((t) => [
         ...t,
-        { role: "assistant", text: body.answer, sources: body.sources },
+        { role: "assistant", text: body.answer, sources: body.sources, aiSource: body.aiSource },
       ]);
     } catch {
       setError("The assistant is unreachable — please check your connection.");
@@ -133,6 +135,7 @@ export default function AssistantPage() {
                     </div>
                     {t.sources?.length ? (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-200 pt-2">
+                        <AISourceBadge source={t.aiSource} />
                         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                           Sources
                         </span>

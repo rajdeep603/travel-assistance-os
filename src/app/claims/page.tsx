@@ -15,6 +15,8 @@ import {
   readApiError,
 } from "@/components/ui";
 import { AIPipeline } from "@/components/ai-progress";
+import { CaseContextBanner, useCaseContext } from "@/components/case-context";
+import { useQueryParam } from "@/lib/client/use-query-param";
 import { formatMoney } from "@/lib/format";
 
 const CLAIM_STAGES = [
@@ -55,6 +57,10 @@ export default function ClaimsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Opened from a case (?caseId=): the claim is filed on that case.
+  const [detached, setDetached] = useState(false);
+  const linkedCase = useCaseContext(useQueryParam("caseId"));
+  const forCase = detached ? null : linkedCase;
 
   const load = useCallback(async () => {
     try {
@@ -80,7 +86,11 @@ export default function ClaimsPage() {
     setNotice(null);
     setUploading(true);
     try {
-      const res = await fetch("/api/claims/sample", { method: "POST" });
+      const res = await fetch("/api/claims/sample", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(forCase ? { caseId: forCase.id } : {}),
+      });
       if (!res.ok) {
         setError(await readApiError(res, "The sample claim could not be created."));
         return;
@@ -99,7 +109,7 @@ export default function ClaimsPage() {
   async function submitClaim() {
     setError(null);
     setNotice(null);
-    if (!patientId) {
+    if (!patientId && !forCase) {
       setError("Please select the patient this claim belongs to.");
       return;
     }
@@ -110,7 +120,8 @@ export default function ClaimsPage() {
     setUploading(true);
     try {
       const form = new FormData();
-      form.append("patientId", patientId);
+      if (forCase) form.append("caseId", forCase.id);
+      else form.append("patientId", patientId);
       for (const f of files) form.append("files", f);
       const res = await fetch("/api/claims/upload", { method: "POST", body: form });
       if (!res.ok) {
@@ -135,6 +146,9 @@ export default function ClaimsPage() {
         title="Claims Automation"
         subtitle="Upload claim documents — AI classifies them, extracts the claim data, checks completeness and prepares the claim for human review."
       />
+      {forCase ? (
+        <CaseContextBanner kase={forCase} action="New claims are filed" onClear={() => setDetached(true)} />
+      ) : null}
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
       {notice ? (
         <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -145,18 +159,25 @@ export default function ClaimsPage() {
       <Card className="mb-5">
         <SectionTitle>New claim from documents</SectionTitle>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <select
-            value={patientId}
-            onChange={(e) => setPatientId(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none"
-          >
-            <option value="">Select patient…</option>
-            {patients.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.ref} — {p.firstName} {p.lastName}
-              </option>
-            ))}
-          </select>
+          {forCase ? (
+            <span className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {forCase.patient.ref} — {forCase.patient.firstName} {forCase.patient.lastName}
+            </span>
+          ) : (
+            <select
+              aria-label="Patient"
+              value={patientId}
+              onChange={(e) => setPatientId(e.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="">Select patient…</option>
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.ref} — {p.firstName} {p.lastName}
+                </option>
+              ))}
+            </select>
+          )}
           <Button variant="secondary" onClick={() => fileInput.current?.click()}>
             <UploadCloud size={15} />
             {files.length > 0 ? `${files.length} document(s) selected` : "Choose documents"}

@@ -4,7 +4,9 @@
 // clock regardless of where the app is hosted.
 // ---------------------------------------------------------------------------
 
-export const DEMO_TIME_ZONE = "Europe/Istanbul";
+import { DEMO_TIME_ZONE, formatPlainDate } from "./time";
+
+export { DEMO_TIME_ZONE };
 
 /** "MEDICAL_REPORT" → "Medical report" */
 export function formatEnum(value: string): string {
@@ -34,13 +36,7 @@ export function formatDate(iso: string | Date): string {
 
 /** "2026-10-03" (a plain slot date, no timezone) → "Fri 3 Oct" */
 export function formatSlotDate(date: string): string {
-  const d = new Date(`${date}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return date;
-  return new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(d);
+  return formatPlainDate(date);
 }
 
 export function formatMoney(amount: number, currency: string | null): string {
@@ -54,4 +50,12 @@ export function formatMoney(amount: number, currency: string | null): string {
   } catch {
     return `${amount.toLocaleString("en-GB")} ${currency}`;
   }
+}
+
+/** "+905321234567" → "+90 ••• ••• 4567": callers are real people, screens are public. */
+export function maskPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/[^\d+]/g, "");
+  if (digits.length < 6) return "•••";
+  return `${digits.slice(0, 3)} ••• ••• ${digits.slice(-4)}`;
 }

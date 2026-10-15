@@ -89,6 +89,23 @@ const STATUS_STYLES: Record<string, string> = {
   MEDIUM: "bg-blue-50 text-blue-700 border-blue-200",
   HIGH: "bg-amber-50 text-amber-700 border-amber-200",
   CRITICAL: "bg-red-50 text-red-700 border-red-200",
+  // inbox
+  RECEIVED: "bg-blue-50 text-blue-700 border-blue-200",
+  MATCHED: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  REPLIED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  SENT: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  DELIVERED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  // letters of guarantee
+  DRAFT: "bg-amber-50 text-amber-700 border-amber-200",
+  ACKNOWLEDGED: "bg-teal-50 text-teal-700 border-teal-200",
+  // calls
+  QUEUED: "bg-slate-100 text-slate-600 border-slate-200",
+  RINGING: "bg-amber-50 text-amber-700 border-amber-200",
+  TRANSFERRED: "bg-violet-50 text-violet-700 border-violet-200",
+  VOICEMAIL: "bg-slate-100 text-slate-600 border-slate-200",
+  NO_ANSWER: "bg-slate-100 text-slate-600 border-slate-200",
+  BUSY: "bg-slate-100 text-slate-600 border-slate-200",
+  CANCELED: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 export function StatusBadge({ value }: { value: string }) {
@@ -140,6 +157,7 @@ export function Button({
   disabled,
   busy,
   className = "",
+  ...aria
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -148,9 +166,12 @@ export function Button({
   disabled?: boolean;
   busy?: boolean;
   className?: string;
+  "aria-pressed"?: boolean;
+  "aria-label"?: string;
 }) {
   return (
     <button
+      {...aria}
       type={type}
       onClick={onClick}
       disabled={disabled || busy}
@@ -333,4 +354,26 @@ export async function readApiError(res: Response, fallback: string): Promise<str
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Says who produced an AI result: the live model or the offline rules
+ * (shown when the model was unavailable or no key is configured).
+ */
+export function AISourceBadge({ source }: { source?: string | null }) {
+  if (!source) return null;
+  const live = source === "claude";
+  return (
+    <span
+      title={live ? "Produced by the live Claude model" : "Produced by the offline rules engine (no live model used)"}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+        live
+          ? "border-violet-200 bg-violet-50 text-violet-700"
+          : "border-slate-200 bg-slate-50 text-slate-600"
+      }`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-violet-500" : "bg-slate-400"}`} aria-hidden />
+      {live ? "Claude" : "Offline rules"}
+    </span>
+  );
 }

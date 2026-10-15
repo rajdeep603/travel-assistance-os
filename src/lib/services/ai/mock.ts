@@ -5,24 +5,20 @@ import type {
   ChatMessage,
   ClaimSummaryInput,
   ContextChunk,
+  DocumentFile,
   MedicalExtraction,
   MedicalExtractionResult,
-  VoiceDialogState,
-  VoiceNLUResult,
 } from "../types";
+import { ApiError } from "@/lib/errors";
+import { detectLanguage } from "@/lib/intake/language";
+import { sampleScanText } from "@/lib/intake/samples";
 import {
   findCity,
   findDistrict,
-  findEmail,
   findExistingCaseRef,
-  findLanguage,
   findName,
-  findPhone,
-  findSpecialty,
   matchSymptoms,
   maxUrgency,
-  parseDateExpression,
-  parseTimeExpression,
 } from "../nlu";
 
 // ---------------------------------------------------------------------------
@@ -79,9 +75,13 @@ export class MockAIService implements AIService {
       "Total Amount",
       "Amount Due",
       "Grand Total",
+      "Estimated Total",
+      "Estimated Cost",
+      "Tahmini Toplam",
+      "Toplam Tutar",
     ]);
     let invoiceAmount: number | null = null;
-    let currency: string | null = grab(text, ["Currency"]);
+    let currency: string | null = grab(text, ["Currency", "Para Birimi"]);
     if (amountRaw) {
       const m = amountRaw.replace(/,/g, "").match(/([A-Z]{3})?\s*([\d.]+)\s*([A-Z]{3})?/);
       if (m) {
@@ -91,16 +91,17 @@ export class MockAIService implements AIService {
     }
 
     const extraction: MedicalExtraction = {
-      patientName: grab(text, ["Patient Name", "Patient", "Name of Patient"]),
-      dateOfBirth: grab(text, ["Date of Birth", "DOB", "Birth Date"]),
-      hospital: grab(text, ["Hospital", "Facility", "Medical Center", "Clinic"]),
-      doctor: grab(text, ["Attending Physician", "Doctor", "Physician", "Prescribing Doctor"]),
-      diagnosis: grab(text, ["Diagnosis", "Primary Diagnosis", "Clinical Diagnosis"]),
-      symptoms: grabList(text, ["Symptoms", "Presenting Symptoms", "Presenting Complaints"]),
-      admissionDate: grab(text, ["Admission Date", "Date of Admission", "Admitted"]),
-      dischargeDate: grab(text, ["Discharge Date", "Date of Discharge", "Discharged"]),
-      procedures: grabList(text, ["Procedures", "Procedures Performed", "Treatment Provided"]),
-      medications: grabList(text, ["Medications", "Medications Prescribed", "Prescription", "Prescribed"]),
+      // English labels, plus the Turkish ones used by local hospitals.
+      patientName: grab(text, ["Patient Name", "Patient", "Name of Patient", "Hasta Adı", "Hasta"]),
+      dateOfBirth: grab(text, ["Date of Birth", "DOB", "Birth Date", "Doğum Tarihi"]),
+      hospital: grab(text, ["Hospital", "Facility", "Medical Center", "Clinic", "Hastane", "Kurum"]),
+      doctor: grab(text, ["Attending Physician", "Doctor", "Physician", "Prescribing Doctor", "Sorumlu Hekim", "Doktor"]),
+      diagnosis: grab(text, ["Diagnosis", "Primary Diagnosis", "Clinical Diagnosis", "Tanı", "Teşhis"]),
+      symptoms: grabList(text, ["Symptoms", "Presenting Symptoms", "Presenting Complaints", "Şikayetler"]),
+      admissionDate: grab(text, ["Admission Date", "Date of Admission", "Admitted", "Planned Admission", "Yatış Tarihi"]),
+      dischargeDate: grab(text, ["Discharge Date", "Date of Discharge", "Discharged", "Taburcu Tarihi"]),
+      procedures: grabList(text, ["Procedures", "Procedures Performed", "Treatment Provided", "Planned Treatment", "Yapılan İşlemler", "Planlanan Tedavi"]),
+      medications: grabList(text, ["Medications", "Medications Prescribed", "Prescription", "Prescribed", "İlaçlar"]),
       invoiceAmount,
       currency,
       policyReference: grab(text, [
@@ -109,6 +110,8 @@ export class MockAIService implements AIService {
         "Policy No",
         "Claim Reference",
         "Claim Number",
+        "Poliçe No",
+        "Poliçe Numarası",
       ]),
     };
 
@@ -139,7 +142,7 @@ export class MockAIService implements AIService {
         ? `${parts.join(" ").replace(/\s+\./g, ".")}.`
         : "No structured medical information could be identified in this document.";
 
-    return { extraction, summary, missingInfo, confidence };
+    return { extraction, summary, missingInfo, confidence, source: "offline" };
   }
 
   async analyzeAssistanceRequest(text: string): Promise<CaseIntakeAnalysis> {
@@ -202,16 +205,18 @@ export class MockAIService implements AIService {
       existingCaseRef: findExistingCaseRef(text),
       summary: summaryBits.filter(Boolean).join(" ").replace(/\s+/g, " ").replace(/\s\./g, "."),
       suggestedActions,
+      source: "offline",
     };
   }
 
   async classifyDocument(text: string, filename = ""): Promise<DocumentKind> {
     await thinkingDelay();
     const t = `${filename}\n${text}`.toLowerCase();
-    if (/invoice|amount due|billing|total amount/.test(t)) return "HOSPITAL_INVOICE";
-    if (/discharge summary|discharge date|discharged/.test(t)) return "DISCHARGE_SUMMARY";
-    if (/prescription|rx\b|prescribed|pharmacy/.test(t)) return "PRESCRIPTION";
-    if (/medical report|diagnosis|clinical|examination|physician/.test(t)) return "MEDICAL_REPORT";
+    if (/cost estimate|estimated total|estimated cost|maliyet tahmini|tahmini toplam/.test(t)) return "COST_ESTIMATE";
+    if (/invoice|amount due|billing|total amount|fatura/.test(t)) return "HOSPITAL_INVOICE";
+    if (/discharge summary|discharge date|discharged|epikriz|taburcu/.test(t)) return "DISCHARGE_SUMMARY";
+    if (/prescription|rx\b|prescribed|pharmacy|reçete/.test(t)) return "PRESCRIPTION";
+    if (/medical report|diagnosis|clinical|examination|physician|tıbbi rapor|tanı/.test(t)) return "MEDICAL_REPORT";
     return "OTHER";
   }
 
@@ -226,80 +231,6 @@ export class MockAIService implements AIService {
       .map((c) => `From “${c.title}”: ${firstSentences(c.content, 1)}`)
       .join("\n\n");
     return [firstSentences(best.content, 4), extra].filter(Boolean).join("\n\n");
-  }
-
-  async interpretVoiceUtterance(
-    utterance: string,
-    state: VoiceDialogState
-  ): Promise<VoiceNLUResult> {
-    const info: VoiceNLUResult["info"] = {};
-    const t = utterance.toLowerCase();
-
-    const name = findName(utterance);
-    if (name) info.name = name;
-
-    const district = findDistrict(utterance);
-    const city = findCity(utterance);
-    if (district) info.location = district;
-    else if (city) info.location = city;
-
-    const symptoms = matchSymptoms(utterance);
-    if (symptoms.length > 0) {
-      info.problem = symptoms[0].symptom;
-      info.specialty = symptoms[0].specialty;
-    }
-    const explicitSpecialty = findSpecialty(utterance);
-    if (explicitSpecialty && !info.specialty) info.specialty = explicitSpecialty;
-
-    const date = parseDateExpression(utterance);
-    if (date) info.preferredDate = date;
-    const time = parseTimeExpression(utterance);
-    if (time) info.preferredTime = time;
-
-    const lang = findLanguage(utterance);
-    if (lang) info.language = lang;
-
-    const phone = findPhone(utterance);
-    const email = findEmail(utterance);
-    if (phone) info.contact = phone;
-    else if (email) info.contact = email;
-
-    // Bare answers to a direct question fill the expected slot.
-    if (state.expecting && info[state.expecting] === undefined) {
-      const bare = utterance.trim();
-      if (state.expecting === "name" && !name && /^[A-Za-z'. -]{2,40}$/.test(bare) && !/\b(yes|no|ok|okay)\b/i.test(bare)) {
-        info.name = bare
-          .split(/\s+/)
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" ");
-      }
-      if (state.expecting === "problem" && symptoms.length === 0 && bare.length > 2) {
-        info.problem = bare;
-        info.specialty = "General Medicine";
-      }
-      if (state.expecting === "contact" && !phone && !email && /\d{6,}/.test(bare.replace(/\D/g, ""))) {
-        info.contact = bare;
-      }
-    }
-
-    // Option selection ("the first one", "option 2", "number three").
-    let selectedOption: number | null = null;
-    const ord = t.match(/\b(first|second|third|1st|2nd|3rd|one|two|three)\b/);
-    const num = t.match(/\b(?:option|number|no\.?)\s*(\d)\b/);
-    if (state.step === "PRESENTING") {
-      if (num) selectedOption = Number(num[1]);
-      else if (ord) {
-        const map: Record<string, number> = { first: 1, "1st": 1, one: 1, second: 2, "2nd": 2, two: 2, third: 3, "3rd": 3, three: 3 };
-        selectedOption = map[ord[1]] ?? null;
-      }
-    }
-
-    // Confirmation.
-    let confirmation: "yes" | "no" | null = null;
-    if (/\b(yes|yeah|yep|sure|confirm|correct|book it|please do|go ahead|sounds good|that works)\b/.test(t)) confirmation = "yes";
-    else if (/\b(no|nope|cancel|don't|do not|change|different|wrong)\b/.test(t)) confirmation = "no";
-
-    return { info, selectedOption, confirmation };
   }
 
   async summarizeClaim(input: ClaimSummaryInput): Promise<string> {
@@ -328,6 +259,37 @@ export class MockAIService implements AIService {
       .map((t) => `“${t}”`)
       .join("; ")}${userTexts.length > 4 ? " …" : ""}`;
   }
+
+  /**
+   * Offline OCR knows only the bundled fax samples (their written text is the
+   * ground truth); any other scan needs the live model.
+   */
+  async readDocument(file: DocumentFile): Promise<{ text: string; language: string | null }> {
+    await thinkingDelay();
+    const text = sampleScanText(file.filename);
+    if (!text) {
+      throw new ApiError(
+        "This is a scanned document. Reading scans (OCR) needs the live AI model (AI_API_KEY).",
+        422,
+        "OCR_UNAVAILABLE"
+      );
+    }
+    return { text, language: detectLanguage(text) };
+  }
+
+  /**
+   * Offline translation: a medical glossary for Turkish (the demo's hospital
+   * language), clearly labelled; other languages need the live model.
+   */
+  async translateText(text: string, targetLanguage: string): Promise<string> {
+    await thinkingDelay();
+    if (targetLanguage !== "English" || detectLanguage(text) !== "tr") {
+      return `[Translation needs the live AI model — original text follows]\n${text}`;
+    }
+    let out = text;
+    for (const [tr, en] of TR_EN_GLOSSARY) out = out.replace(new RegExp(tr, "gi"), en);
+    return `[Offline glossary translation — verify before relying on it]\n${out}`;
+  }
 }
 
 function firstSentences(text: string, n: number): string {
@@ -335,3 +297,38 @@ function firstSentences(text: string, n: number): string {
   const sentences = cleaned.match(/[^.!?]+[.!?]+/g) ?? [cleaned];
   return sentences.slice(0, n).join(" ").trim();
 }
+
+// Longest phrases first so they win over their parts.
+const TR_EN_GLOSSARY: [string, string][] = [
+  ["KURGUSAL DEMO BELGESİ — YALNIZCA GÖSTERİM AMAÇLIDIR", "FICTIONAL DEMO DOCUMENT — FOR DEMONSTRATION ONLY"],
+  ["Hasta stabil durumda taburcu edilmiştir", "The patient was discharged in a stable condition"],
+  ["Uçuş öncesi kardiyoloji kontrolü önerilir", "A cardiology check-up before flying is recommended"],
+  ["Kararsız angina pektoris", "Unstable angina pectoris"],
+  ["Koroner anjiyografi", "Coronary angiography"],
+  ["EKG takibi", "ECG monitoring"],
+  ["göğüs ağrısı", "chest pain"],
+  ["nefes darlığı", "shortness of breath"],
+  ["Taburcu Özeti", "Discharge Summary"],
+  ["Sorumlu Hekim", "Attending Physician"],
+  ["Hasta Adı", "Patient Name"],
+  ["Doğum Tarihi", "Date of Birth"],
+  ["Poliçe No", "Policy Number"],
+  ["Yatış Tarihi", "Admission Date"],
+  ["Taburcu Tarihi", "Discharge Date"],
+  ["Yapılan İşlemler", "Procedures"],
+  ["Şikayetler", "Symptoms"],
+  ["İlaçlar", "Medications"],
+  ["Hastane", "Hospital"],
+  ["Tanı", "Diagnosis"],
+  ["İmza", "Signed"],
+  ["EPİKRİZ", "DISCHARGE SUMMARY (EPICRISIS)"],
+  ["Epikriz", "Discharge summary"],
+  ["Sayın yetkili", "Dear Sir or Madam"],
+  ["Saygılarımızla", "Kind regards"],
+  ["Uluslararası Hasta Birimi", "International Patient Department"],
+  ["Hastanız", "Your patient"],
+  ["belgesini ekte bulabilirsiniz", "document is attached"],
+  ["stabil olarak taburcu edilmiştir", "was discharged in a stable condition"],
+  ["Ekim", "October"],
+  ["Maliyet Tahmini", "Cost Estimate"],
+];

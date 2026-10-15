@@ -11,7 +11,7 @@ aws_region    = "eu-central-1"
 #   aws configure list-profiles                  # available profiles
 #   aws sts get-caller-identity --profile <p>    # account ID of a profile
 aws_profile        = ""   # e.g. "personal-cloud"
-allowed_account_id = ""   # e.g. "009846316535"
+allowed_account_id = ""   # e.g. "123456789012"
 instance_type = "t3.small"
 repo_branch   = "main"
 
@@ -20,5 +20,11 @@ repo_branch   = "main"
 ssh_public_key   = ""
 allowed_ssh_cidr = "" # your IP, e.g. "203.0.113.7/32"
 
-# Open port 443 once you configure TLS in nginx:
-enable_https_port = false
+# HTTPS (required for the browser microphone and Twilio voice):
+enable_https_port = true
+domain_name       = ""   # e.g. "demo.example.com"
+letsencrypt_email = ""   # expiry notices from Let's Encrypt
+route53_zone_id   = ""   # set to manage the A record here; else create it at your registrar
+
+# Off-host nightly database backups (optional):
+backup_bucket_name = ""  # e.g. "taap-demo-backups-<random>"

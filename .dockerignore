@@ -14,3 +14,4 @@ Dockerfile
 .github
 *.md
 tsconfig.tsbuildinfo
+infra

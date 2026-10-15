@@ -14,6 +14,8 @@ async function findCase(idOrRef: string) {
       claims: true,
       documents: { include: { extraction: true } },
       conversations: true,
+      calls: { orderBy: { startedAt: "desc" }, select: { id: true, ref: true, channel: true, direction: true, agentProfile: true, status: true, startedAt: true, durationSec: true, summary: true } },
+      events: { orderBy: { createdAt: "asc" } },
     },
   });
 }

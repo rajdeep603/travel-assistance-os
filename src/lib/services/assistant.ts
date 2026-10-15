@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getAIService } from "./ai";
+import { runAI } from "./ai";
 import { findCity } from "./nlu";
 import type { AssistantAnswer, ContextChunk } from "./types";
 
@@ -136,9 +136,12 @@ export async function askAssistant(question: string): Promise<AssistantAnswer> {
 
   // Otherwise: RAG over the knowledge base.
   const context = await retrieveContext(question);
-  const answer = await getAIService().answerWithContext(question, context);
+  const { value: answer, source: aiSource } = await runAI("answerWithContext", (ai) =>
+    ai.answerWithContext(question, context)
+  );
   return {
     answer,
     sources: context.map((c) => ({ title: c.title, source: c.source })),
+    aiSource,
   };
 }

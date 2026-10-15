@@ -5,6 +5,13 @@ import { ApiError } from "./errors";
 
 type Handler<T> = (req: Request, ctx: T) => Promise<Response>;
 
+/** Prisma request errors that are the caller's fault, not an outage. */
+const KNOWN_PRISMA_ERRORS: Record<string, { status: number; code: string; message: string }> = {
+  P2002: { status: 409, code: "CONFLICT", message: "That record already exists or was just taken." },
+  P2003: { status: 400, code: "BAD_REFERENCE", message: "A referenced record does not exist." },
+  P2025: { status: 404, code: "NOT_FOUND", message: "The requested record was not found." },
+};
+
 /**
  * Wraps a route handler so every error becomes a safe JSON response.
  * Stack traces are logged server-side only and never sent to the client.
@@ -28,6 +35,16 @@ export function withErrorHandling<T>(handler: Handler<T>): Handler<T> {
           { error: { code: "VALIDATION_ERROR", message } },
           { status: 400 }
         );
+      }
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        const mapped = KNOWN_PRISMA_ERRORS[err.code];
+        if (mapped) {
+          console.warn(`[api] ${err.code}:`, err.meta);
+          return NextResponse.json(
+            { error: { code: mapped.code, message: mapped.message } },
+            { status: mapped.status }
+          );
+        }
       }
       if (
         err instanceof Prisma.PrismaClientKnownRequestError ||

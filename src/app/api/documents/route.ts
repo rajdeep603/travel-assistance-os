@@ -1,20 +1,18 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import { json, serialize, withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
-import { env } from "@/lib/env";
-import { badRequest } from "@/lib/errors";
+import { badRequest, notFound } from "@/lib/errors";
 import { processDocument } from "@/lib/services/document-extraction";
+import { processingErrorMessage, readUpload, storeUpload } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
-
-const ALLOWED_TYPES = new Set(["application/pdf", "text/plain"]);
 
 export const GET = withErrorHandling(async () => {
   const documents = await prisma.document.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
-    include: { extraction: true, patient: true },
+    // Full text stays on the detail endpoint; the list only needs metadata.
+    omit: { textContent: true },
+    include: { extraction: true, patient: true, case: { select: { id: true, ref: true } } },
   });
   return json({ documents: serialize(documents) });
 });
@@ -34,30 +32,24 @@ export const POST = withErrorHandling(async (req: Request) => {
   if (!(file instanceof File) || file.size === 0) {
     throw badRequest("Please choose a PDF document to upload.");
   }
-  if (!ALLOWED_TYPES.has(file.type)) {
-    throw badRequest("Only PDF and plain-text documents are accepted in this demo.");
-  }
-  if (file.size > env.maxUploadBytes) {
-    throw badRequest(
-      `The file is too large. Maximum size is ${Math.round(env.maxUploadBytes / 1024 / 1024)} MB.`
-    );
-  }
+  const caseId = String(form.get("caseId") ?? "") || null;
+  const kase = caseId
+    ? await prisma.case.findUnique({ where: { id: caseId }, select: { id: true, patientId: true } })
+    : null;
+  if (caseId && !kase) throw notFound("Case");
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  // Store the upload on disk (a Docker volume in production).
-  const uploadDir = path.resolve(env.uploadDir);
-  await fs.mkdir(uploadDir, { recursive: true });
-  const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  await fs.writeFile(path.join(uploadDir, safeName), buffer);
+  const { buffer, mimeType } = await readUpload(file);
+  const storagePath = await storeUpload(file.name, buffer);
 
   const doc = await prisma.document.create({
     data: {
       filename: file.name,
-      mimeType: file.type,
+      mimeType,
       sizeBytes: file.size,
       status: "UPLOADED",
-      storagePath: `uploads/${safeName}`,
+      storagePath,
+      caseId: kase?.id ?? null,
+      patientId: kase?.patientId ?? null,
     },
   });
 
@@ -72,13 +64,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     return json(
       {
         document: serialize(failed),
-        error: {
-          code: "PROCESSING_FAILED",
-          message:
-            err instanceof Error
-              ? err.message
-              : "The document could not be processed.",
-        },
+        error: { code: "PROCESSING_FAILED", message: processingErrorMessage(err) },
       },
       { status: 422 }
     );

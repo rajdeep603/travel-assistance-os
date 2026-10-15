@@ -103,41 +103,18 @@ describe("Workflow: Case Manager — request → AI analysis → create case →
   });
 });
 
-describe("Workflow: Voice — request → search → select → confirm → appointment → case", () => {
-  it("books an appointment end to end", async () => {
-    const started = await postJSON("/api/voice/start");
-    expect(started.status).toBe(201);
-    const conversationId = started.body.conversationId;
-
-    const date = (() => {
-      const d = new Date();
-      d.setDate(d.getDate() + 21);
-      while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    })();
-
-    const say = (utterance: string) =>
-      postJSON("/api/voice/message", { conversationId, utterance });
-
-    await say(`Hi, I'm near Taksim with a bad fever and need a doctor on ${date} in the afternoon.`);
-    await say("My name is End ToEnd");
-    await say("English");
-    let turn = await say("my number is +44 7700 900777");
-    expect(turn.body.state.step).toBe("PRESENTING");
-    expect(turn.body.options.length).toBeGreaterThan(0);
-
-    turn = await say("option 1");
-    expect(turn.body.state.step).toBe("CONFIRMING");
-
-    turn = await say("yes please");
-    expect(turn.body.state.step).toBe("BOOKED");
-    expect(turn.body.appointment.status).toBe("CONFIRMED");
-    expect(turn.body.case.ref).toMatch(/^CASE-/);
-
-    const kase = await fetch(`${BASE}/api/cases/${turn.body.case.ref}`);
-    const detail = (await kase.json()).case;
-    expect(detail.appointments).toHaveLength(1);
-    expect(detail.assignedTo).toMatch(/human case manager/i);
+describe("Workflow: Voice — session start", () => {
+  // The live conversation (Grok Voice) is covered by tests/integration/voice-gateway.test.ts
+  // against a scripted model; here we check the app hands out a gateway ticket.
+  it("starts a voice session or explains that voice isn't configured", async () => {
+    const res = await postJSON("/api/voice/session", {});
+    if (res.status === 503) {
+      expect(res.body.error.code).toBe("VOICE_NOT_CONFIGURED");
+      return;
+    }
+    expect(res.status).toBe(201);
+    expect(res.body.call.ref).toMatch(/^CALL-\d+$/);
+    expect(res.body.url).toMatch(/\/ws\/voice\?ticket=/);
   });
 });
 

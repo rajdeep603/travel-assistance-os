@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, FileText, UploadCloud } from "lucide-react";
 import {
+  AISourceBadge,
   Card,
   ConfidenceBar,
   EmptyState,
@@ -14,7 +15,9 @@ import {
   readApiError,
 } from "@/components/ui";
 import { AIPipeline } from "@/components/ai-progress";
+import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { formatEnum } from "@/lib/format";
+import { useQueryParam } from "@/lib/client/use-query-param";
 
 /** "medical-report-aylin-yilmaz.pdf" → "Medical report — Aylin Yilmaz" */
 function sampleLabel(filename: string): string {
@@ -54,6 +57,7 @@ interface Extraction {
   summary: string | null;
   missingInfo: string[];
   confidence: number | null;
+  aiSource?: string | null;
 }
 
 interface Doc {
@@ -62,7 +66,10 @@ interface Doc {
   kind: string;
   status: string;
   storagePath: string | null;
-  textContent: string | null;
+  textContent?: string | null;
+  translatedText?: string | null;
+  language?: string | null;
+  ocr?: boolean;
   error: string | null;
   createdAt: string;
   extraction: Extraction | null;
@@ -75,6 +82,10 @@ export default function DocumentsPage() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Opened from a case (?caseId=): new documents are filed on that case.
+  const [detached, setDetached] = useState(false);
+  const linkedCase = useCaseContext(useQueryParam("caseId"));
+  const attachTo = detached ? null : linkedCase;
 
   const loadRecent = useCallback(async () => {
     try {
@@ -103,6 +114,7 @@ export default function DocumentsPage() {
     try {
       const form = new FormData();
       form.append("file", file);
+      if (attachTo) form.append("caseId", attachTo.id);
       const res = await fetch("/api/documents", { method: "POST", body: form });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
@@ -129,7 +141,7 @@ export default function DocumentsPage() {
       const res = await fetch("/api/documents/sample", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file }),
+        body: JSON.stringify({ file, caseId: attachTo?.id }),
       });
       if (!res.ok) {
         setError(await readApiError(res, "The sample document could not be processed."));
@@ -145,6 +157,21 @@ export default function DocumentsPage() {
     }
   }
 
+  async function openRecent(d: Doc) {
+    setCurrent(d);
+    setError(null);
+    // The list omits full text; fetch it for the viewer.
+    try {
+      const res = await fetch(`/api/documents/${d.id}`);
+      if (res.ok) {
+        const body = await res.json();
+        setCurrent((cur) => (cur?.id === d.id ? body.document : cur));
+      }
+    } catch {
+      // Viewer falls back to the empty state; extraction is already shown.
+    }
+  }
+
   const e = current?.extraction ?? null;
 
   return (
@@ -153,6 +180,9 @@ export default function DocumentsPage() {
         title="Medical Document AI"
         subtitle="Upload a medical PDF — the pipeline runs text extraction, AI classification and structured extraction, then flags missing information."
       />
+      {attachTo ? (
+        <CaseContextBanner kase={attachTo} action="Documents are filed" onClear={() => setDetached(true)} />
+      ) : null}
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -232,6 +262,15 @@ export default function DocumentsPage() {
               </div>
             )}
           </Card>
+
+          {current?.translatedText ? (
+            <Card>
+              <SectionTitle>English translation ({current.language?.toUpperCase()} original)</SectionTitle>
+              <pre className="mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+                {current.translatedText}
+              </pre>
+            </Card>
+          ) : null}
         </div>
 
         {/* Right: extraction results */}
@@ -239,7 +278,18 @@ export default function DocumentsPage() {
           <Card>
             <div className="flex items-center justify-between">
               <SectionTitle>Structured extraction</SectionTitle>
-              {current ? <StatusBadge value={current.status} /> : null}
+              <span className="flex items-center gap-2">
+                {current?.ocr ? (
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">OCR</span>
+                ) : null}
+                {current?.language && current.language !== "en" ? (
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                    {current.language.toUpperCase()}
+                  </span>
+                ) : null}
+                {e ? <AISourceBadge source={e.aiSource} /> : null}
+                {current ? <StatusBadge value={current.status} /> : null}
+              </span>
             </div>
             {processing ? (
               <div className="mt-4">
@@ -347,10 +397,7 @@ export default function DocumentsPage() {
               <button
                 key={d.id}
                 type="button"
-                onClick={() => {
-                  setCurrent(d);
-                  setError(null);
-                }}
+                onClick={() => openRecent(d)}
                 className="flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors hover:bg-slate-50"
               >
                 <span className="flex min-w-0 items-center gap-2 text-sm text-slate-700">

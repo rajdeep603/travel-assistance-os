@@ -1,6 +1,6 @@
 output "app_url" {
   description = "Public URL of the platform (allow ~5 minutes on first boot for the Docker build)."
-  value       = "http://${aws_eip.app.public_ip}"
+  value       = var.domain_name != "" ? "https://${var.domain_name}" : "http://${aws_eip.app.public_ip}"
 }
 
 output "public_ip" {
@@ -33,4 +33,9 @@ output "github_actions_secrets" {
     EC2_APP_DIR = "/home/ubuntu/travel-assistance-os"
     EC2_SSH_KEY = "<contents of the private key matching var.ssh_public_key>"
   }
+}
+
+output "dns_record_hint" {
+  description = "DNS record to create at your registrar when Route 53 isn't managing the domain."
+  value       = var.domain_name != "" && var.route53_zone_id == "" ? "A  ${var.domain_name}  →  ${aws_eip.app.public_ip}" : "n/a"
 }

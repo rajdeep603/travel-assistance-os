@@ -12,9 +12,12 @@ import {
   readApiError,
 } from "@/components/ui";
 import { AIPipeline } from "@/components/ai-progress";
+import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { ProviderMap } from "@/components/provider-map";
+import { useQueryParam } from "@/lib/client/use-query-param";
 import { formatSlotDate } from "@/lib/format";
 import { ISTANBUL_DISTRICTS } from "@/lib/services/nlu";
+import { zonedToday } from "@/lib/time";
 
 interface ProviderResult {
   provider: {
@@ -58,11 +61,8 @@ const LANGUAGES = ["English", "German", "French", "Russian", "Arabic", "Spanish"
 /** Theoretical maximum of the ranking score — used to show a match %. */
 const MAX_SCORE = 110;
 
-function tomorrow(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+/** Tomorrow in Istanbul, the operational timezone of the demo. */
+const tomorrow = () => zonedToday(1);
 
 export default function ProvidersPage() {
   const [form, setForm] = useState({
@@ -85,6 +85,11 @@ export default function ProvidersPage() {
   } | null>(null);
   const [bookingPatient, setBookingPatient] = useState("");
   const [bookingBusy, setBookingBusy] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  // Opened from a case (?caseId=): book for that case's patient and link it.
+  const [detached, setDetached] = useState(false);
+  const linkedCase = useCaseContext(useQueryParam("caseId"));
+  const forCase = detached ? null : linkedCase;
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -105,11 +110,11 @@ export default function ProvidersPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [booking]);
 
-  async function search() {
+  async function search({ keepConfirmation = false } = {}) {
     setSearching(true);
     setError(null);
     setResults(null);
-    setConfirmation(null);
+    if (!keepConfirmation) setConfirmation(null);
     setSelectedId(null);
     try {
       const res = await fetch("/api/providers/search", {
@@ -137,34 +142,40 @@ export default function ProvidersPage() {
     cardRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
+  const patientForBooking = forCase?.patient.id ?? bookingPatient;
+
   async function book() {
-    if (!booking || !bookingPatient) return;
+    if (!booking || !patientForBooking) return;
     setBookingBusy(true);
-    setError(null);
+    setBookingError(null);
     try {
       const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patientId: bookingPatient,
+          patientId: patientForBooking,
           providerId: booking.result.provider.id,
           date: booking.slot.date,
           time: booking.slot.time,
           reason: `${form.specialty} appointment via Provider Search`,
+          ...(forCase ? { caseId: forCase.id } : {}),
         }),
       });
       if (!res.ok) {
-        setError(await readApiError(res, "The appointment could not be booked."));
+        // Shown inside the dialog, where the operator is looking.
+        setBookingError(await readApiError(res, "The appointment could not be booked."));
         return;
       }
       const body = await res.json();
       setConfirmation(
-        `Appointment ${body.appointment.ref} confirmed with ${booking.result.provider.name} on ${formatSlotDate(booking.slot.date)} at ${booking.slot.time}.`
+        `Appointment ${body.appointment.ref} confirmed with ${booking.result.provider.name} on ${formatSlotDate(booking.slot.date)} at ${booking.slot.time}${forCase ? ` — linked to ${forCase.ref}` : ""}.`
       );
       setBooking(null);
       setBookingPatient("");
+      // The booked slot is no longer free; refresh the results.
+      void search({ keepConfirmation: true });
     } catch {
-      setError("The appointment could not be booked — please try again.");
+      setBookingError("The appointment could not be booked — please try again.");
     } finally {
       setBookingBusy(false);
     }
@@ -191,6 +202,9 @@ export default function ProvidersPage() {
         title="Provider Search"
         subtitle="Find suitable healthcare providers in the demo network — matched on specialty, language, availability and distance."
       />
+      {forCase ? (
+        <CaseContextBanner kase={forCase} action="Booking" onClear={() => setDetached(true)} />
+      ) : null}
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
       {confirmation ? (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -265,7 +279,7 @@ export default function ProvidersPage() {
           </label>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button onClick={search} busy={searching}>
+          <Button onClick={() => search()} busy={searching}>
             <Search size={15} aria-hidden />
             Search providers
           </Button>
@@ -401,6 +415,7 @@ export default function ProvidersPage() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    setBookingError(null);
                                     setBooking({ result: r, slot: s });
                                     setConfirmation(null);
                                   }}
@@ -459,28 +474,40 @@ export default function ProvidersPage() {
                 {formatSlotDate(booking.slot.date)} at {booking.slot.time}
               </span>
             </p>
-            <label className="mt-4 block">
-              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Patient
-              </span>
-              <select
-                value={bookingPatient}
-                onChange={(e) => setBookingPatient(e.target.value)}
-                className={selectCls}
-              >
-                <option value="">Select patient…</option>
-                {patients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} ({p.ref})
-                  </option>
-                ))}
-              </select>
-            </label>
+            {forCase ? (
+              <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                Patient: <span className="font-medium">{forCase.patient.firstName} {forCase.patient.lastName}</span>{" "}
+                ({forCase.patient.ref}) · case {forCase.ref}
+              </p>
+            ) : (
+              <label className="mt-4 block">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Patient
+                </span>
+                <select
+                  value={bookingPatient}
+                  onChange={(e) => setBookingPatient(e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="">Select patient…</option>
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName} {p.lastName} ({p.ref})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {bookingError ? (
+              <div className="mt-4">
+                <ErrorBanner message={bookingError} />
+              </div>
+            ) : null}
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setBooking(null)}>
                 Cancel
               </Button>
-              <Button onClick={book} busy={bookingBusy} disabled={!bookingPatient}>
+              <Button onClick={book} busy={bookingBusy} disabled={!patientForBooking}>
                 Confirm booking
               </Button>
             </div>

@@ -2,13 +2,15 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarCheck,
+  FileCheck2,
   FileText,
   FolderKanban,
-  Languages,
+  Headset,
+  Inbox,
   MessageSquareText,
   Mic,
+  PhoneCall,
   ReceiptText,
-  ScanSearch,
   Stethoscope,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
@@ -61,14 +63,29 @@ const MODULES = [
     description: "Help travellers find and book medical appointments through voice.",
     tag: "Voice",
   },
+  {
+    href: "/calls",
+    icon: Headset,
+    title: "AI Call Center",
+    description: "Phone agents answer every call and place outbound calls — triage, coverage, bookings, hospitals in Turkish.",
+    tag: "Phone",
+  },
+  {
+    href: "/inbox",
+    icon: Inbox,
+    title: "E-mail & Fax Automation",
+    description: "Read claims and faxes (OCR), match the case, reply automatically and issue Letters of Guarantee.",
+    tag: "Intake",
+  },
 ];
 
 const STORY: { step: string; href: string | null }[] = [
   { step: "Customer", href: null },
-  { step: "Voice / Email", href: "/voice" },
+  { step: "Phone / Email / Fax", href: "/calls" },
   { step: "AI Understanding", href: "/cases" },
   { step: "Case Creation", href: "/cases" },
-  { step: "Medical Documents", href: "/documents" },
+  { step: "Medical Documents", href: "/inbox" },
+  { step: "Letter of Guarantee", href: "/inbox" },
   { step: "Provider Search", href: "/providers" },
   { step: "Appointment", href: "/providers" },
   { step: "Claims", href: "/claims" },
@@ -88,6 +105,7 @@ const CLAIM_STATUS_ORDER = [
   "PROCESSING",
   "NEEDS_REVIEW",
   "INFO_REQUESTED",
+  "ESCALATED",
   "APPROVED",
   "REJECTED",
   "PAID",
@@ -103,6 +121,9 @@ async function getStats() {
       upcomingAppointments,
       documentsProcessed,
       confidenceAgg,
+      callsByStatus,
+      inboundByStatus,
+      lettersIssued,
     ] = await Promise.all([
       prisma.case.groupBy({ by: ["status"], _count: { _all: true } }),
       prisma.claim.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -112,7 +133,12 @@ async function getStats() {
       }),
       prisma.document.count({ where: { status: "PROCESSED" } }),
       prisma.documentExtraction.aggregate({ _avg: { confidence: true } }),
+      prisma.call.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.inboundMessage.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.guaranteeLetter.count({ where: { status: { in: ["SENT", "ACKNOWLEDGED"] } } }),
     ]);
+    const callCounts = Object.fromEntries(callsByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
+    const inboundCounts = Object.fromEntries(inboundByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
 
     const caseCounts = Object.fromEntries(
       casesByStatus.map((g) => [g.status, g._count._all])
@@ -128,7 +154,8 @@ async function getStats() {
       (claimCounts.SUBMITTED ?? 0) +
       (claimCounts.PROCESSING ?? 0) +
       (claimCounts.NEEDS_REVIEW ?? 0) +
-      (claimCounts.INFO_REQUESTED ?? 0);
+      (claimCounts.INFO_REQUESTED ?? 0) +
+      (claimCounts.ESCALATED ?? 0);
 
     return {
       caseCounts,
@@ -141,6 +168,11 @@ async function getStats() {
       upcomingAppointments,
       documentsProcessed,
       avgConfidence: confidenceAgg._avg.confidence,
+      callsHandled: (callCounts.COMPLETED ?? 0) + (callCounts.TRANSFERRED ?? 0) + (callCounts.VOICEMAIL ?? 0),
+      callsTransferred: callCounts.TRANSFERRED ?? 0,
+      inboundTotal: Object.values(inboundCounts).reduce((a, b) => a + b, 0),
+      inboundAutomated: (inboundCounts.REPLIED ?? 0) + (inboundCounts.MATCHED ?? 0),
+      lettersIssued,
     };
   } catch {
     return null;
@@ -214,28 +246,25 @@ export default async function DashboardPage() {
           context: "booked by AI + web",
         },
         {
-          icon: Stethoscope,
+          icon: PhoneCall,
           accent: "bg-sky-50 text-sky-600",
-          value: stats.providerCount,
-          label: "Network providers",
-          context: `${stats.specialtyCount} specialties`,
+          value: stats.callsHandled,
+          label: "AI calls handled",
+          context: `${stats.callsTransferred} handed to a person`,
         },
         {
-          icon: ScanSearch,
+          icon: Inbox,
           accent: "bg-indigo-50 text-indigo-600",
-          value: stats.documentsProcessed,
-          label: "Documents AI-processed",
-          context:
-            stats.avgConfidence != null
-              ? `${Math.round(stats.avgConfidence * 100)}% avg confidence`
-              : "structured extraction",
+          value: stats.inboundAutomated,
+          label: "E-mails & faxes automated",
+          context: `of ${stats.inboundTotal} received · ${stats.documentsProcessed} documents read`,
         },
         {
-          icon: Languages,
+          icon: FileCheck2,
           accent: "bg-violet-50 text-violet-600",
-          value: stats.languageCount,
-          label: "Provider languages",
-          context: "matched to the traveller",
+          value: stats.lettersIssued,
+          label: "Letters of Guarantee",
+          context: "issued to hospitals",
         },
       ]
     : [];

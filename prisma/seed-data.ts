@@ -132,6 +132,20 @@ export const APPOINTMENTS: SeedAppointment[] = [
 
 export const KNOWLEDGE_DOCUMENTS = [
   {
+    slug: "plan-benefits",
+    title: "Travel Policy Plans and Benefits (Essential, Plus, Premier)",
+    category: "Coverage",
+    content:
+      "Three plans are sold. Essential: emergency medical expenses up to EUR 50,000 with a EUR 100 excess; emergency dental up to EUR 300; medical evacuation and repatriation covered when medically necessary; baggage delay EUR 150 after 12 hours; trip delay, trip cancellation and pre-existing conditions are NOT covered. Plus: medical expenses up to EUR 250,000 with a EUR 50 excess; emergency dental up to EUR 500; evacuation and repatriation covered; trip delay EUR 30 per full 6 hours of delay, up to EUR 300, after a minimum 6-hour delay; baggage delay EUR 300; trip cancellation up to EUR 3,000; declared stable pre-existing conditions up to EUR 10,000. Premier: medical expenses up to EUR 1,000,000 with no excess; emergency dental up to EUR 1,000; evacuation and repatriation covered; trip delay EUR 50 per full 6 hours, up to EUR 600, after a minimum 4-hour delay; baggage delay EUR 500; trip cancellation up to EUR 10,000; declared pre-existing conditions covered within the medical limit. All benefits require a valid policy on the date of the event; final decisions are made by the claims team.",
+  },
+  {
+    slug: "trip-delay-cover",
+    title: "Trip Delay and Missed Connection Cover",
+    category: "Coverage",
+    content:
+      "Trip delay benefit compensates delays of the booked public transport (flight, train, ship) caused by weather, strikes or mechanical failure of the carrier. It is paid per full block of 6 hours after the plan's minimum delay (Plus: 6 hours, Premier: 4 hours) up to the plan limit; Essential has no trip delay cover. Delays caused by the traveller, known strikes announced before departure, or voluntary changes of itinerary are excluded. Claims need written confirmation from the carrier stating the scheduled and actual departure times and the reason for the delay. Receipts for reasonable meals and accommodation are needed only when claiming above the flat benefit. The claim must be submitted within 30 days of return.",
+  },
+  {
     slug: "hospitalization-required-documents",
     title: "Required Documents for a Hospitalization Case",
     category: "Case Procedures",
@@ -197,3 +211,75 @@ export const DEMO_KB_COUNTS = {
   appointments: APPOINTMENTS.length,
   knowledgeDocuments: KNOWLEDGE_DOCUMENTS.length,
 };
+
+// --- Travel policies (one per patient; fictional) ------------------------------
+
+type Benefit = {
+  code: string;
+  label: string;
+  covered: boolean;
+  limit: number | null;
+  unit?: string;
+  excess: number;
+  waitingHours?: number;
+  conditions: string[];
+};
+
+export const POLICY_PLANS: Record<"Essential" | "Plus" | "Premier", { medicalLimit: number; benefits: Benefit[] }> = {
+  Essential: {
+    medicalLimit: 50000,
+    benefits: [
+      { code: "MEDICAL_EXPENSES", label: "Emergency medical expenses", covered: true, limit: 50000, excess: 100, conditions: ["Emergency treatment only", "Network providers preferred"] },
+      { code: "HOSPITALIZATION", label: "Hospital admission", covered: true, limit: 50000, excess: 100, conditions: ["Requires a guarantee of payment from the assistance team"] },
+      { code: "EMERGENCY_DENTAL", label: "Emergency dental treatment", covered: true, limit: 300, excess: 0, conditions: ["Pain relief only"] },
+      { code: "MEDICAL_EVACUATION", label: "Medical evacuation", covered: true, limit: null, excess: 0, conditions: ["When medically necessary and arranged by the assistance team"] },
+      { code: "REPATRIATION", label: "Medical repatriation", covered: true, limit: null, excess: 0, conditions: ["Arranged by the assistance team"] },
+      { code: "TRIP_DELAY", label: "Trip delay", covered: false, limit: null, excess: 0, conditions: ["Not included in Essential"] },
+      { code: "BAGGAGE_DELAY", label: "Baggage delay", covered: true, limit: 150, excess: 0, waitingHours: 12, conditions: ["Carrier's property irregularity report required"] },
+      { code: "TRIP_CANCELLATION", label: "Trip cancellation", covered: false, limit: null, excess: 0, conditions: ["Not included in Essential"] },
+      { code: "PRE_EXISTING_CONDITIONS", label: "Pre-existing conditions", covered: false, limit: null, excess: 0, conditions: ["Not included in Essential"] },
+    ],
+  },
+  Plus: {
+    medicalLimit: 250000,
+    benefits: [
+      { code: "MEDICAL_EXPENSES", label: "Emergency medical expenses", covered: true, limit: 250000, excess: 50, conditions: ["Emergency treatment only"] },
+      { code: "HOSPITALIZATION", label: "Hospital admission", covered: true, limit: 250000, excess: 50, conditions: ["Requires a guarantee of payment from the assistance team"] },
+      { code: "EMERGENCY_DENTAL", label: "Emergency dental treatment", covered: true, limit: 500, excess: 0, conditions: ["Pain relief only"] },
+      { code: "MEDICAL_EVACUATION", label: "Medical evacuation", covered: true, limit: null, excess: 0, conditions: ["When medically necessary and arranged by the assistance team"] },
+      { code: "REPATRIATION", label: "Medical repatriation", covered: true, limit: null, excess: 0, conditions: ["Arranged by the assistance team"] },
+      { code: "TRIP_DELAY", label: "Trip delay", covered: true, limit: 300, unit: "EUR 30 per full 6 hours", excess: 0, waitingHours: 6, conditions: ["Carrier's written confirmation of the delay and its reason", "Claim within 30 days of return"] },
+      { code: "BAGGAGE_DELAY", label: "Baggage delay", covered: true, limit: 300, excess: 0, waitingHours: 12, conditions: ["Carrier's property irregularity report required"] },
+      { code: "TRIP_CANCELLATION", label: "Trip cancellation", covered: true, limit: 3000, excess: 100, conditions: ["Listed reasons only (illness, bereavement, jury service)"] },
+      { code: "PRE_EXISTING_CONDITIONS", label: "Pre-existing conditions", covered: true, limit: 10000, excess: 50, conditions: ["Declared and stable for 6 months before travel"] },
+    ],
+  },
+  Premier: {
+    medicalLimit: 1000000,
+    benefits: [
+      { code: "MEDICAL_EXPENSES", label: "Emergency medical expenses", covered: true, limit: 1000000, excess: 0, conditions: ["Emergency treatment"] },
+      { code: "HOSPITALIZATION", label: "Hospital admission", covered: true, limit: 1000000, excess: 0, conditions: ["Requires a guarantee of payment from the assistance team"] },
+      { code: "EMERGENCY_DENTAL", label: "Emergency dental treatment", covered: true, limit: 1000, excess: 0, conditions: ["Pain relief and temporary repairs"] },
+      { code: "MEDICAL_EVACUATION", label: "Medical evacuation", covered: true, limit: null, excess: 0, conditions: ["When medically necessary and arranged by the assistance team"] },
+      { code: "REPATRIATION", label: "Medical repatriation", covered: true, limit: null, excess: 0, conditions: ["Arranged by the assistance team"] },
+      { code: "TRIP_DELAY", label: "Trip delay", covered: true, limit: 600, unit: "EUR 50 per full 6 hours", excess: 0, waitingHours: 4, conditions: ["Carrier's written confirmation of the delay and its reason", "Claim within 30 days of return"] },
+      { code: "BAGGAGE_DELAY", label: "Baggage delay", covered: true, limit: 500, excess: 0, waitingHours: 6, conditions: ["Carrier's property irregularity report required"] },
+      { code: "TRIP_CANCELLATION", label: "Trip cancellation", covered: true, limit: 10000, excess: 0, conditions: ["Listed reasons only (illness, bereavement, jury service)"] },
+      { code: "PRE_EXISTING_CONDITIONS", label: "Pre-existing conditions", covered: true, limit: 1000000, excess: 0, conditions: ["Declared before travel"] },
+    ],
+  },
+};
+
+/** Which plan each fictional patient holds, and how much of the medical limit is used. */
+export const PATIENT_POLICIES: { patientRef: string; plan: keyof typeof POLICY_PLANS; medicalUsed: number }[] = [
+  { patientRef: "PAT-1001", plan: "Plus", medicalUsed: 4200 },
+  { patientRef: "PAT-1002", plan: "Premier", medicalUsed: 0 },
+  { patientRef: "PAT-1003", plan: "Essential", medicalUsed: 1850 },
+  { patientRef: "PAT-1004", plan: "Plus", medicalUsed: 640 },
+  { patientRef: "PAT-1005", plan: "Essential", medicalUsed: 0 },
+  { patientRef: "PAT-1006", plan: "Plus", medicalUsed: 0 },
+  { patientRef: "PAT-1007", plan: "Premier", medicalUsed: 12500 },
+  { patientRef: "PAT-1008", plan: "Essential", medicalUsed: 46200 },
+  { patientRef: "PAT-1009", plan: "Plus", medicalUsed: 980 },
+  { patientRef: "PAT-1010", plan: "Premier", medicalUsed: 0 },
+];

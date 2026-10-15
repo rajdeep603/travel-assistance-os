@@ -1,11 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { json, serialize, withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { notFound } from "@/lib/errors";
-import { nextClaimRef } from "@/lib/refs";
+import { withRef } from "@/lib/refs";
 import { processDocument } from "@/lib/services/document-extraction";
 import { reviewClaim } from "@/lib/services/claims";
+import { processingErrorMessage } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +25,18 @@ const SAMPLE_PACK = {
   ],
 };
 
-export const POST = withErrorHandling(async () => {
-  const patient = await prisma.patient.findUnique({
-    where: { ref: SAMPLE_PACK.patientRef },
-  });
+const bodySchema = z.object({ caseId: z.string().optional() });
+
+export const POST = withErrorHandling(async (req: Request) => {
+  const { caseId } = bodySchema.parse(await req.json().catch(() => ({})));
+  // Filed on a case when opened from one; otherwise on the sample patient.
+  const kase = caseId
+    ? await prisma.case.findUnique({ where: { id: caseId }, select: { id: true, patientId: true } })
+    : null;
+  if (caseId && !kase) throw notFound("Case");
+  const patient = kase
+    ? await prisma.patient.findUnique({ where: { id: kase.patientId } })
+    : await prisma.patient.findUnique({ where: { ref: SAMPLE_PACK.patientRef } });
   if (!patient) throw notFound("Sample patient");
 
   const dir = path.join(process.cwd(), "public", "demo-documents");
@@ -39,20 +49,23 @@ export const POST = withErrorHandling(async () => {
     }
   }
 
-  const claim = await prisma.claim.create({
-    data: {
-      ref: await nextClaimRef(),
-      status: "PROCESSING",
-      patientId: patient.id,
-      history: [
-        {
-          at: new Date().toISOString(),
-          action: "Claim created from the fictional sample pack",
-          note: null,
-        },
-      ],
-    },
-  });
+  const claim = await withRef("claim", (ref) =>
+    prisma.claim.create({
+      data: {
+        ref,
+        status: "PROCESSING",
+        patientId: patient.id,
+        caseId: kase?.id ?? null,
+        history: [
+          {
+            at: new Date().toISOString(),
+            action: "Claim created from the fictional sample pack",
+            note: null,
+          },
+        ],
+      },
+    })
+  );
 
   const warnings: string[] = [];
   for (const { name, buffer } of buffers) {
@@ -64,15 +77,14 @@ export const POST = withErrorHandling(async () => {
         status: "UPLOADED",
         storagePath: `demo-documents/${name}`,
         claimId: claim.id,
+        caseId: kase?.id ?? null,
         patientId: patient.id,
       },
     });
     try {
       await processDocument(doc.id, buffer);
     } catch (err) {
-      warnings.push(
-        `"${name}" could not be processed${err instanceof Error ? `: ${err.message}` : "."}`
-      );
+      warnings.push(`"${name}": ${processingErrorMessage(err)}`);
     }
   }
 

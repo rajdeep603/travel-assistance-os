@@ -1,0 +1,14 @@
+# HTTP-only mode: local stacks, and production until the TLS certificate
+# has been issued (the ACME challenge is served from here).
+include /etc/nginx/taap/snippets/common.conf;
+
+server {
+    listen 80 default_server;
+    server_name _;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    include /etc/nginx/taap/snippets/app.conf;
+}

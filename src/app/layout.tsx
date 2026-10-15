@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { MobileNav, SideNav } from "@/components/nav";
+import { OperatorMenu } from "@/components/operator-menu";
 import { PresentToggle } from "@/components/present-toggle";
 import { BrandMark } from "@/components/brand";
 import "./globals.css";
@@ -64,6 +65,7 @@ export default function RootLayout({
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <OperatorMenu />
                 <PresentToggle />
                 <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 md:text-[11px]">
                   Demo — fictional data only

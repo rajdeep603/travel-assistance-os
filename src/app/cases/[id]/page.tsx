@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarPlus, FilePlus2, ReceiptText } from "lucide-react";
 import {
   Card,
   EmptyState,
@@ -18,6 +18,9 @@ import {
   readApiError,
 } from "@/components/ui";
 import type { TimelineItem } from "@/components/ui";
+import { InterpreterCard } from "@/components/calls/interpreter-card";
+import { GuaranteeLettersCard } from "@/components/cases/guarantee-letters-card";
+import { PlaceCallCard } from "@/components/calls/place-call-card";
 import { formatDateTime, formatEnum } from "@/lib/format";
 
 interface CaseDetail {
@@ -55,6 +58,37 @@ interface CaseDetail {
   claims: { id: string; ref: string; status: string }[];
   documents: { id: string; filename: string; kind: string; status: string }[];
   conversations: { id: string; channel: string; summary: string | null }[];
+  calls: {
+    id: string;
+    ref: string;
+    channel: string;
+    direction: string;
+    status: string;
+    startedAt: string;
+    durationSec: number | null;
+    summary: string | null;
+  }[];
+  events: { id: string; type: string; title: string; body: string | null; actor: string | null; createdAt: string }[];
+}
+
+const EVENT_DOTS: Record<string, string> = {
+  CALL: "bg-sky-500",
+  APPOINTMENT: "bg-emerald-500",
+  NOTE: "bg-slate-400",
+  EMAIL: "bg-indigo-500",
+  FAX: "bg-indigo-500",
+  LETTER_OF_GUARANTEE: "bg-violet-500",
+  STATUS: "bg-blue-500",
+  DOCUMENT: "bg-indigo-400",
+  CLAIM: "bg-indigo-500",
+};
+
+/** "agent:inbound-hotline" → "AI agent", "operator:elif" → "elif". */
+function actorLabel(actor: string | null): string | undefined {
+  if (!actor) return undefined;
+  if (actor.startsWith("agent:")) return "AI agent";
+  if (actor.startsWith("operator:")) return actor.slice("operator:".length);
+  return actor === "system" ? "System" : actor;
 }
 
 const STATUSES = ["NEW", "IN_PROGRESS", "PENDING_INFO", "ESCALATED", "RESOLVED", "CLOSED"];
@@ -64,19 +98,24 @@ function buildJourney(data: CaseDetail): TimelineItem[] {
   const items: TimelineItem[] = [
     {
       title: "Assistance request received",
-      meta: `AI intake — ${formatEnum(data.assistanceType)}, priority ${formatEnum(data.priority)}`,
+      meta: `${data.aiSummary ? "Analysed by AI" : "Logged"} — ${formatEnum(data.assistanceType)}, priority ${formatEnum(data.priority)}`,
       time: formatDateTime(data.createdAt),
       dotClass: "bg-blue-500",
     },
   ];
-  for (const c of data.conversations) {
+  // Everything recorded on the case timeline (calls, bookings, notes, letters…).
+  for (const e of data.events ?? []) {
+    const by = actorLabel(e.actor);
     items.push({
-      title: `${formatEnum(c.channel)} conversation handled by the AI agent`,
-      meta: c.summary ?? undefined,
-      dotClass: "bg-sky-500",
+      title: e.title,
+      meta: [e.body, by ? `— ${by}` : null].filter(Boolean).join(" ") || undefined,
+      time: formatDateTime(e.createdAt),
+      dotClass: EVENT_DOTS[e.type] ?? "bg-slate-400",
     });
   }
   for (const a of data.appointments) {
+    // Bookings made by voice agents are already on the timeline as events.
+    if ((data.events ?? []).some((e) => e.type === "APPOINTMENT" && e.title.includes(a.ref))) continue;
     items.push({
       title: `Appointment ${a.ref} — ${a.provider.name}`,
       meta: `${a.provider.facility}, ${a.provider.district} · ${formatEnum(a.status)}`,
@@ -287,7 +326,32 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             </div>
           </Card>
 
-          {data.conversations.length > 0 ? (
+          <GuaranteeLettersCard caseId={data.id} onChanged={() => void load()} />
+
+          {data.calls?.length ? (
+            <Card>
+              <SectionTitle>Voice calls</SectionTitle>
+              <div className="mt-2 divide-y divide-slate-100">
+                {data.calls.map((c) => (
+                  <div key={c.id} className="py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <Link href={`/calls/${c.id}`} className="text-sm font-semibold text-blue-600 hover:underline">
+                        {c.ref} · {c.channel === "PHONE" ? `${formatEnum(c.direction)} phone call` : "Web voice session"}
+                      </Link>
+                      <StatusBadge value={c.status} />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {formatDateTime(c.startedAt)}
+                      {c.durationSec != null ? ` · ${Math.floor(c.durationSec / 60)}m ${c.durationSec % 60}s` : ""}
+                    </p>
+                    {c.summary ? <p className="mt-1 text-sm text-slate-700">{c.summary}</p> : null}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
+          {data.conversations.length > 0 && !data.calls?.length ? (
             <Card>
               <SectionTitle>Conversations</SectionTitle>
               <div className="mt-2 space-y-2">
@@ -307,6 +371,32 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
         </div>
 
         <div className="space-y-5">
+          <Card>
+            <SectionTitle>Act on this case</SectionTitle>
+            <div className="mt-3 grid gap-2">
+              {[
+                { href: `/providers?caseId=${data.id}`, label: "Book a provider", Icon: CalendarPlus },
+                { href: `/documents?caseId=${data.id}`, label: "Add a medical document", Icon: FilePlus2 },
+                { href: `/claims?caseId=${data.id}`, label: "Start a claim", Icon: ReceiptText },
+              ].map(({ href, label, Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  <Icon size={16} className="text-blue-600" aria-hidden />
+                  {label}
+                </Link>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Everything created from here is linked back to {data.ref}.
+            </p>
+          </Card>
+
+          <PlaceCallCard caseId={data.id} />
+          <InterpreterCard caseId={data.id} />
+
           <Card>
             <SectionTitle>Case details</SectionTitle>
             <dl className="mt-2">

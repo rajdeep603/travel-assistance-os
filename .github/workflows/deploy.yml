@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     name: Lint, typecheck, test, build
@@ -51,9 +54,32 @@ jobs:
 
       - name: Unit & integration tests
         run: npm test
+        env:
+          MOCK_AI_LATENCY_MS: "0"
 
       - name: Build
         run: npm run build
+
+      # Browser journeys (Playwright) against the production build and the
+      # seeded CI database: dashboard, case → booking, fax → Letter of
+      # Guarantee, Turkish document translation, voice configuration notice.
+      - name: Browser end-to-end tests
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:ui
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+
+      # The production image has hand-copied runtime dependencies (pdf-parse,
+      # pdf.js, canvas); build it here so a broken Dockerfile fails CI, not the deploy.
+      - name: Docker image build
+        run: docker build --pull -t taap-app:ci .
 
   deploy:
     name: Deploy to EC2 over SSH
@@ -67,11 +93,22 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_DIR: ${{ secrets.EC2_APP_DIR || '~/travel-assistance-os' }}
+          SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          script_stop: true
+          # SHA256 host key fingerprint (ssh-keyscan <host> | ssh-keygen -lf -); guards against MITM.
+          fingerprint: ${{ secrets.EC2_HOST_FINGERPRINT }}
+          envs: APP_DIR,SHA
           command_timeout: 20m
+          # Check out the exact commit CI tested first, so the new deploy.sh runs.
           script: |
-            ${{ secrets.EC2_APP_DIR || '~/travel-assistance-os' }}/scripts/deploy.sh ${{ secrets.EC2_APP_DIR || '~/travel-assistance-os' }}
+            set -e
+            APP_DIR="${APP_DIR/#\~/$HOME}"
+            cd "$APP_DIR"
+            git fetch --prune origin
+            git checkout --quiet --detach "$SHA"
+            ./scripts/deploy.sh "$APP_DIR" "$SHA"

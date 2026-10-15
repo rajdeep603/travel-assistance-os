@@ -2,12 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { DEMO_DOCUMENTS } from "../scripts/demo-documents";
+import { syncRefSequences } from "../src/lib/refs";
+import { zonedToUtc, zonedToday } from "../src/lib/time";
 import {
   APPOINTMENTS,
   CASES,
   CLAIMS,
   KNOWLEDGE_DOCUMENTS,
   PATIENTS,
+  PATIENT_POLICIES,
+  POLICY_PLANS,
   PROVIDERS,
 } from "./seed-data";
 
@@ -25,14 +29,18 @@ function daysAgo(n: number): Date {
   return d;
 }
 
-function atTime(date: Date, time: string): Date {
-  const [h, m] = time.split(":").map(Number);
-  const d = new Date(date);
-  d.setHours(h, m, 0, 0);
-  return d;
+/** An Istanbul wall-clock slot `daysFromNow` days away, as a UTC instant. */
+function slotAt(daysFromNow: number, time: string): Date {
+  return zonedToUtc(zonedToday(daysFromNow), time);
 }
 
 async function main() {
+  // --if-empty: only seed a fresh database, so restarts and deploys don't
+  // reset what was changed during a demo (cases worked, letters sent, …).
+  if (process.argv.includes("--if-empty") && (await prisma.patient.count()) > 0) {
+    console.log("Database already has demo data — skipping seed (AUTO_SEED=always re-seeds).");
+    return;
+  }
   console.log("Seeding fictional demo data …");
 
   // --- Patients --------------------------------------------------------------
@@ -46,6 +54,27 @@ async function main() {
     patientIds.set(p.ref, row.id);
   }
   console.log(`  patients: ${PATIENTS.length}`);
+
+  // --- Policies (one per patient) -----------------------------------------------
+  for (const pp of PATIENT_POLICIES) {
+    const patient = PATIENTS.find((p) => p.ref === pp.patientRef)!;
+    const plan = POLICY_PLANS[pp.plan];
+    const data = {
+      plan: pp.plan,
+      validFrom: daysAgo(60),
+      validTo: daysAgo(-305),
+      currency: "EUR",
+      medicalLimit: plan.medicalLimit,
+      medicalUsed: pp.medicalUsed,
+      benefits: plan.benefits,
+    };
+    await prisma.policy.upsert({
+      where: { number: patient.policyNumber },
+      create: { number: patient.policyNumber, ...data },
+      update: data,
+    });
+  }
+  console.log(`  policies: ${PATIENT_POLICIES.length}`);
 
   // --- Providers ---------------------------------------------------------------
   const providerIds = new Map<string, string>();
@@ -104,7 +133,7 @@ async function main() {
   // --- Appointments -----------------------------------------------------------
   for (const a of APPOINTMENTS) {
     const { patientRef, providerRef, caseRef, daysFromNow, time, ...rest } = a;
-    const when = atTime(daysAgo(-daysFromNow), time);
+    const when = slotAt(daysFromNow, time);
     const data = {
       ...rest,
       scheduledAt: when,
@@ -195,6 +224,9 @@ async function main() {
     docCount++;
   }
   console.log(`  demo documents with extractions: ${docCount}`);
+
+  // Seeded refs are fixed; move the ref sequences past them.
+  await syncRefSequences(prisma);
 
   console.log("Seed complete. All records are fictional demo data.");
 }

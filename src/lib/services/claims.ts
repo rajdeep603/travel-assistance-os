@@ -1,7 +1,7 @@
 import type { Claim, Document, DocumentExtraction, Patient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
-import { getAIService } from "./ai";
+import { runAI } from "./ai";
 import { getNotificationService } from "./notification";
 import type { ClaimIssue } from "./types";
 
@@ -87,20 +87,22 @@ export async function reviewClaim(claimId: string): Promise<ClaimWithRelations> 
       extractions.find((e) => e.policyReference)?.policyReference ?? null,
   };
 
-  const summary = await getAIService().summarizeClaim({
-    claimRef: claim.ref,
-    patientName: `${claim.patient.firstName} ${claim.patient.lastName}`,
-    documents: claim.documents.map((d) => ({ kind: d.kind, filename: d.filename })),
-    extraction: {
-      diagnosis: extraction.diagnosis,
-      hospital: extraction.hospital,
-      invoiceAmount:
-        extraction.invoiceAmount != null ? Number(extraction.invoiceAmount) : null,
-      currency: extraction.currency,
-      policyReference: extraction.policyReference,
-    },
-    issues,
-  });
+  const { value: summary, source: aiSource } = await runAI("summarizeClaim", (ai) =>
+    ai.summarizeClaim({
+      claimRef: claim.ref,
+      patientName: `${claim.patient.firstName} ${claim.patient.lastName}`,
+      documents: claim.documents.map((d) => ({ kind: d.kind, filename: d.filename })),
+      extraction: {
+        diagnosis: extraction.diagnosis,
+        hospital: extraction.hospital,
+        invoiceAmount:
+          extraction.invoiceAmount != null ? Number(extraction.invoiceAmount) : null,
+        currency: extraction.currency,
+        policyReference: extraction.policyReference,
+      },
+      issues,
+    })
+  );
 
   const amount = claim.amount ?? extraction.invoiceAmount ?? null;
   const currency = claim.currency ?? extraction.currency ?? null;
@@ -110,6 +112,7 @@ export async function reviewClaim(claimId: string): Promise<ClaimWithRelations> 
     data: {
       issues: JSON.parse(JSON.stringify(issues)),
       summary,
+      aiSource,
       amount,
       currency,
       // Every analysed claim lands with a human — the AI never auto-approves.
@@ -128,7 +131,8 @@ export type ClaimAction = "APPROVE" | "REQUEST_INFO" | "ESCALATE";
 export async function applyClaimAction(
   claimId: string,
   action: ClaimAction,
-  note?: string
+  note?: string,
+  actor?: string
 ): Promise<Claim> {
   const claim = await prisma.claim.findUnique({ where: { id: claimId } });
   if (!claim) throw notFound("Claim");
@@ -151,7 +155,7 @@ export async function applyClaimAction(
     where: { id: claimId },
     data: {
       status: statusMap[action],
-      history: appendHistory(claim.history, labelMap[action], note),
+      history: appendHistory(claim.history, labelMap[action], note, actor),
     },
   });
 
@@ -164,8 +168,8 @@ export async function applyClaimAction(
   return updated;
 }
 
-function appendHistory(history: unknown, action: string, note?: string | null) {
+function appendHistory(history: unknown, action: string, note?: string | null, by?: string) {
   const list = Array.isArray(history) ? [...history] : [];
-  list.push({ at: new Date().toISOString(), action, note: note ?? null });
+  list.push({ at: new Date().toISOString(), action, note: note ?? null, ...(by ? { by } : {}) });
   return list;
 }

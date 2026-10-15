@@ -5,10 +5,6 @@ import { bookAppointment } from "@/lib/services/appointment";
 import { analyzeRequest, createCaseFromAnalysis } from "@/lib/services/case-intake";
 import { reviewClaim, applyClaimAction } from "@/lib/services/claims";
 import { askAssistant, retrieveContext } from "@/lib/services/assistant";
-import {
-  handleVoiceUtterance,
-  startVoiceConversation,
-} from "@/lib/services/voice-agent";
 
 // Integration tests run against the seeded demo database (docker-compose.dev).
 const prisma = new PrismaClient();
@@ -118,6 +114,61 @@ describe("Appointments (database)", () => {
       })
     ).rejects.toThrow(/slot/i);
   });
+
+  it("lets exactly one of several concurrent bookings win a slot", async () => {
+    const provider = await prisma.provider.findUniqueOrThrow({ where: { ref: "PRV-2004" } });
+    const patient = await prisma.patient.findUniqueOrThrow({ where: { ref: "PAT-1006" } });
+    const date = futureWeekday(21);
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 5 }, (_, i) =>
+        bookAppointment({
+          patientId: patient.id,
+          providerId: provider.id,
+          date,
+          time: "14:00",
+          reason: `integration race ${i}`,
+        })
+      )
+    );
+    const won = attempts.filter((a) => a.status === "fulfilled");
+    const lost = attempts.filter((a) => a.status === "rejected");
+    for (const a of won) created.appointmentIds.push((a as PromiseFulfilledResult<{ id: string }>).value.id);
+    expect(won).toHaveLength(1);
+    expect(lost).toHaveLength(4);
+    for (const l of lost) {
+      expect((l as PromiseRejectedResult).reason).toMatchObject({ status: 409 });
+    }
+  });
+
+  it("stores Istanbul wall-clock times as the correct UTC instant", async () => {
+    const provider = await prisma.provider.findUniqueOrThrow({ where: { ref: "PRV-2004" } });
+    const patient = await prisma.patient.findUniqueOrThrow({ where: { ref: "PAT-1006" } });
+    const date = futureWeekday(28);
+    const apt = await bookAppointment({
+      patientId: patient.id,
+      providerId: provider.id,
+      date,
+      time: "14:00",
+      reason: "integration timezone check",
+    });
+    created.appointmentIds.push(apt.id);
+    // Istanbul is UTC+3: 14:00 local is 11:00Z, whatever TZ the test host uses.
+    expect(apt.scheduledAt.toISOString()).toBe(`${date}T11:00:00.000Z`);
+  });
+
+  it("rejects times outside the provider's weekly template", async () => {
+    const provider = await prisma.provider.findUniqueOrThrow({ where: { ref: "PRV-2004" } });
+    const patient = await prisma.patient.findUniqueOrThrow({ where: { ref: "PAT-1006" } });
+    await expect(
+      bookAppointment({
+        patientId: patient.id,
+        providerId: provider.id,
+        date: futureWeekday(35),
+        time: "03:17",
+        reason: "integration off-template",
+      })
+    ).rejects.toThrow(/no appointment slot/i);
+  });
 });
 
 describe("Case intake (database)", () => {
@@ -177,44 +228,5 @@ describe("Internal assistant (database)", () => {
   it("handles unknown case references gracefully", async () => {
     const res = await askAssistant("What is the status of CASE-99999?");
     expect(res.answer).toMatch(/could not find/i);
-  });
-});
-
-describe("Voice agent end-to-end (database)", () => {
-  it("runs the full booking workflow and creates real records", async () => {
-    const start = await startVoiceConversation();
-    created.conversationIds.push(start.conversationId);
-    expect(start.reply).toMatch(/assistance/i);
-
-    const date = futureWeekday(14);
-    let turn = await handleVoiceUtterance(
-      start.conversationId,
-      `Hello, I'm in Taksim and I have a bad fever. I need a doctor on ${date} in the afternoon.`
-    );
-    turn = await handleVoiceUtterance(start.conversationId, "My name is Test Traveller");
-    turn = await handleVoiceUtterance(start.conversationId, "English");
-    turn = await handleVoiceUtterance(start.conversationId, "my number is +44 7700 900999");
-    expect(turn.state.step).toBe("PRESENTING");
-    expect(turn.options.length).toBeGreaterThan(0);
-
-    turn = await handleVoiceUtterance(start.conversationId, "the first one please");
-    expect(turn.state.step).toBe("CONFIRMING");
-
-    turn = await handleVoiceUtterance(start.conversationId, "yes, book it");
-    expect(turn.state.step).toBe("BOOKED");
-    expect(turn.appointment?.ref).toMatch(/^APT-/);
-    expect(turn.case?.ref).toMatch(/^CASE-/);
-
-    const kase = await prisma.case.findUniqueOrThrow({
-      where: { ref: turn.case!.ref },
-      include: { appointments: true, conversations: true },
-    });
-    created.caseIds.push(kase.id);
-    created.appointmentIds.push(...kase.appointments.map((a) => a.id));
-    created.patientIds.push(kase.patientId);
-    expect(kase.assignedTo).toMatch(/human case manager/i);
-    expect(kase.appointments).toHaveLength(1);
-    expect(kase.conversations).toHaveLength(1);
-    expect(kase.conversations[0].summary).toBeTruthy();
   });
 });

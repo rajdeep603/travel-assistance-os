@@ -2,6 +2,7 @@ import { z } from "zod";
 import { json, serialize, withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
+import { getOperator } from "@/lib/auth/session";
 import { applyClaimAction } from "@/lib/services/claims";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,8 @@ export const POST = withErrorHandling(
       select: { id: true },
     });
     if (!claim) throw notFound("Claim");
-    const updated = await applyClaimAction(claim.id, body.action, body.note);
+    const operator = (await getOperator(req)) ?? undefined;
+    const updated = await applyClaimAction(claim.id, body.action, body.note, operator);
     return json({ claim: serialize(updated) });
   }
 );
