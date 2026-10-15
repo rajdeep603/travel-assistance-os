@@ -77,7 +77,7 @@ export const INBOUND_PDFS: InboundPdf[] = [
     handwritten: true,
     lines: [
       "MARMARA DEMO HEART CENTER — FAX — FICTIONAL DEMO",
-      "To: Travel Assistance Medical Desk",
+      "To: CareTrail Medical Desk",
       "",
       "Patient Name: Lena Koch",
       "Date of Birth: 1964-07-29",

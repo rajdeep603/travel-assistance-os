@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import type { AgentContext } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -6,7 +7,7 @@ import type { AgentContext } from "./types";
 // Style, Context, Critical.
 // ---------------------------------------------------------------------------
 
-export const COMPANY = "the Travel Assistance AI Platform";
+export const COMPANY = BRAND.name;
 
 export const SAFETY_GUARDRAILS = `- Red-flag symptoms — chest pain, trouble breathing, unconsciousness, severe bleeding, stroke signs (face drooping, arm weakness, slurred speech), seizures, suicidal thoughts — are emergencies. Tell the caller to call the local emergency number 112 now, then follow the escalation step for emergencies.
 - Never diagnose, give medical advice, or suggest medication or doses. You arrange care; doctors give advice.

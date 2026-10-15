@@ -1,4 +1,5 @@
 import type { DocumentKind, InboundMessage, Prisma } from "@prisma/client";
+import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
@@ -288,7 +289,7 @@ async function draftReply(match: CaseCandidate, claimId: string | null, filename
     `Your case reference is ${match.caseRef}.`,
     "",
     "Kind regards,",
-    "Claims team — Travel Assistance (demonstration platform; all data is fictional)",
+    `Claims team — ${BRAND.name} (demonstration platform; all data is fictional)`,
   ].filter((l, i, all) => l !== "" || all[i - 1] !== "");
   const english = lines.join("\n");
 

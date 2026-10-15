@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { runAI } from "@/lib/services/ai";
@@ -213,7 +214,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
   manager.sendEvent({ type: "bridge_status", status: "connected", languages: [managerLang, hospitalLang] });
   // Open the call for the hospital: one translated sentence explaining the setup.
   ab.sendText(
-    `Hello, I'm calling from the travel assistance company about one of our insured patients. An AI interpreter is translating this call.`
+    `Hello, I'm calling from ${BRAND.name} travel assistance about one of our insured patients. An AI interpreter is translating this call.`
   );
 }
 

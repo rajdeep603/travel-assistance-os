@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
@@ -44,7 +45,7 @@ class SendGridEmail implements EmailService {
       headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: emailAddress(message.to) }] }],
-        from: { email: emailAddress(env.emailFrom), name: "Travel Assistance (demo)" },
+        from: { email: emailAddress(env.emailFrom), name: `${BRAND.name} (demo)` },
         subject: message.subject,
         content: [{ type: "text/plain", value: message.text }],
         ...(message.inReplyTo ? { headers: { "In-Reply-To": message.inReplyTo, References: message.inReplyTo } } : {}),

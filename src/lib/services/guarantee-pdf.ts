@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import PDFDocument from "pdfkit";
+import { BRAND, POWERED_BY } from "@/lib/brand";
 import { formatPlainDate } from "@/lib/time";
 
 // ---------------------------------------------------------------------------
@@ -65,7 +66,7 @@ export function renderGuaranteeLetter(c: LetterContent): Promise<Buffer> {
     doc.font(B).fontSize(16).text("LETTER OF GUARANTEE");
     doc.font(R).fontSize(11).fillColor("#555555").text("Ödeme Taahhütnamesi (Garanti Mektubu)");
     doc.moveDown(0.3);
-    doc.fontSize(9).text("Travel Assistance AI Platform — demonstration build. Fictional data; this letter has no legal or financial effect.");
+    doc.fontSize(9).text(`${BRAND.name} · ${POWERED_BY} — demonstration build. Fictional data; this letter has no legal or financial effect.`);
     doc.fillColor("#000000").moveDown();
 
     const row = (label: string, tr: string, value: string) => {

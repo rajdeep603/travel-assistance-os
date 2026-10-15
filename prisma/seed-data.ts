@@ -502,7 +502,7 @@ export function seedCalls(clock: SeedClock): SeedCall[] {
       summary: "Wellbeing follow-up after Emma Van Dijk's dermatology visit reached her voicemail. The agent left a short message: it will try again tomorrow, and she can call the assistance line any time.",
       transcript: [
         ["user", "Hi, this is Emma — I can't take your call right now. Leave a message after the beep!"],
-        ["agent", "Hello Emma, this is Ada, the AI assistant of your travel assistance company. I'm calling to see how you're feeling after your visit to Dr. Yildiz yesterday. There's nothing you need to do — we'll try you again tomorrow, or you can call the assistance line any time, day or night. Take care!"],
+        ["agent", "Hello Emma, this is Ada, the AI assistant at CareTrail, your travel assistance service. I'm calling to see how you're feeling after your visit to Dr. Yildiz yesterday. There's nothing you need to do — we'll try you again tomorrow, or you can call the assistance line any time, day or night. Take care!"],
       ],
       events: [],
     },
@@ -560,7 +560,7 @@ export function seedCalls(clock: SeedClock): SeedCall[] {
       endReason: "conversation complete",
       summary: "Reminder call for Aylin Yilmaz's post-discharge check at Istanbul Central Demo Hospital that afternoon. She has felt well since her discharge in the morning and asked to cancel; APT-2026-1010 was cancelled with her agreement.",
       transcript: [
-        ["agent", "Hello, this is Ada, the AI assistant of your travel assistance company. May I speak to Aylin Yilmaz?"],
+        ["agent", "Hello, this is Ada, the AI assistant at CareTrail, your travel assistance service. May I speak to Aylin Yilmaz?"],
         ["user", "Speaking."],
         ["agent", "I'm calling about your check-up with Dr. Kerem Aydin at Istanbul Central Demo Hospital this afternoon at four. Will you be able to make it?"],
         ["user", "Honestly, I've felt completely fine since they discharged me this morning. Do I still need it?"],
@@ -693,7 +693,7 @@ export function seedCalls(clock: SeedClock): SeedCall[] {
       endReason: "conversation complete",
       summary: "Reminder call to Carlos Garcia for his orthopaedic appointment with Dr. Cem Duran at Besiktas Demo Sports Medicine the next afternoon. He confirmed he will attend; the knee is still swollen, so he will take a taxi.",
       transcript: [
-        ["agent", "Hola, this is Ada, the AI assistant of your travel assistance company. Am I speaking with Carlos Garcia?"],
+        ["agent", "Hola, this is Ada, the AI assistant at CareTrail, your travel assistance service. Am I speaking with Carlos Garcia?"],
         ["user", "Yes, that's me. English is fine."],
         ["agent", "I'm calling to remind you of your appointment tomorrow at 3 p.m. with Dr. Cem Duran at Besiktas Demo Sports Medicine, Ciragan Caddesi 40. Will you be able to make it?"],
         ["user", "Yes, I'll be there. The knee is still swollen, so I'll take a taxi."],
@@ -898,7 +898,7 @@ export interface SeedInboundMessage {
 }
 
 const MARCO_ACK =
-  "Dear Marco Bianchi,\n\nThank you for your message — we have received it.\n\nYour case reference is CASE-1011.\n\nKind regards,\nClaims team — Travel Assistance (demonstration platform; all data is fictional)";
+  "Dear Marco Bianchi,\n\nThank you for your message — we have received it.\n\nYour case reference is CASE-1011.\n\nKind regards,\nClaims team — CareTrail (demonstration platform; all data is fictional)";
 
 export function seedInboundMessages(clock: SeedClock): SeedInboundMessage[] {
   return [
@@ -993,7 +993,7 @@ export function seedInboundMessages(clock: SeedClock): SeedInboundMessage[] {
       reply: {
         approvedBy: "elif",
         afterSec: 1680,
-        body: "Dear Aylin Yilmaz,\n\nThank you for your message — we have received it with 3 documents: medical-report-aylin-yilmaz.pdf, hospital-invoice-aylin-yilmaz.pdf, discharge-summary-aylin-yilmaz.pdf.\nYour claim CLM-10245 is now being reviewed.\nTo complete it we still need your policy number — it isn't on the hospital documents. You can simply reply to this e-mail with it.\nYour case reference is CASE-1020.\n\nWe're glad you're feeling better — rest well.\n\nKind regards,\nClaims team — Travel Assistance (demonstration platform; all data is fictional)",
+        body: "Dear Aylin Yilmaz,\n\nThank you for your message — we have received it with 3 documents: medical-report-aylin-yilmaz.pdf, hospital-invoice-aylin-yilmaz.pdf, discharge-summary-aylin-yilmaz.pdf.\nYour claim CLM-10245 is now being reviewed.\nTo complete it we still need your policy number — it isn't on the hospital documents. You can simply reply to this e-mail with it.\nYour case reference is CASE-1020.\n\nWe're glad you're feeling better — rest well.\n\nKind regards,\nClaims team — CareTrail (demonstration platform; all data is fictional)",
       },
     },
     {
@@ -1122,7 +1122,7 @@ export function seedInboundMessages(clock: SeedClock): SeedInboundMessage[] {
           language: "en",
           textContent: [
             "KADIKOY DEMO EYE INSTITUTE — FAX — FICTIONAL DEMO",
-            "To: Travel Assistance Medical Desk",
+            "To: CareTrail Medical Desk",
             "",
             "Re: S. Murphy — appointment request",
             "Patient: Siobhan Murphy",

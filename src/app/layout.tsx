@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { BRAND, POWERED_BY } from "@/lib/brand";
 import { PRESENT_STORAGE_KEY } from "@/lib/present-mode";
 import "./globals.css";
 
@@ -10,8 +11,8 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Travel Assistance AI Platform",
-  description: "AI-powered automation for travel assistance and healthcare operations.",
+  title: `${BRAND.name} · ${BRAND.tagline}`,
+  description: `${BRAND.name}: ${BRAND.tagline}. ${POWERED_BY}.`,
 };
 
 // Presentation mode is a per-browser setting; applying it before the first

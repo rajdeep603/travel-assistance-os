@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { getTelephony } from "@/lib/services/telephony";
 import { claimUploadUrl } from "@/lib/upload-links";
@@ -155,7 +156,7 @@ export const sendUploadLinkTool = defineTool({
     let sent = false;
     if (telephony.configured && /^\+\d{8,15}$/.test(to)) {
       try {
-        await telephony.sendSms(to, `Travel Assistance (demo): upload the documents for claim ${claim.ref} here: ${url} (valid 7 days)`);
+        await telephony.sendSms(to, `${BRAND.name} (demo): upload the documents for claim ${claim.ref} here: ${url} (valid 7 days)`);
         sent = true;
       } catch (err) {
         console.warn(`[voice] SMS for ${claim.ref} failed:`, err instanceof Error ? err.message : err);
