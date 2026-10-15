@@ -6,7 +6,7 @@ import { DEMO_DOCUMENTS } from "../scripts/demo-documents";
 import { env } from "../src/lib/env";
 import { maskPhone } from "../src/lib/format";
 import { MATCH_THRESHOLD } from "../src/lib/intake/case-matching";
-import { LANGUAGE_NAMES } from "../src/lib/intake/language";
+import { intakeSummary } from "../src/lib/intake/summary";
 import { isUniqueViolation, syncRefSequences } from "../src/lib/refs";
 import { decideGuarantee } from "../src/lib/services/guarantee-decision";
 import type { Benefit } from "../src/lib/services/policy";
@@ -298,26 +298,6 @@ async function timeline(
   else await prisma.caseEvent.create({ data });
 }
 
-/** The intake pipeline's message summary (src/lib/intake/intake.ts, step 5). */
-function intakeSummary(
-  channel: "EMAIL" | "FAX",
-  from: string,
-  caseRef: string | null,
-  kinds: string[],
-  claimRef: string | null,
-  language: string,
-  actions: string[]
-): string {
-  return [
-    `${channel === "EMAIL" ? "E-mail" : "Fax"} from ${from}`,
-    caseRef ? `about ${caseRef}` : "with no confident case match",
-    kinds.length ? `— ${kinds.length} document(s): ${kinds.join(", ")}` : "— no documents",
-    claimRef ? `; filed on claim ${claimRef}` : "",
-    language !== "en" ? `; written in ${LANGUAGE_NAMES[language] ?? language}` : "",
-    ...actions.map((a) => `; ${a}`),
-  ].join(" ");
-}
-
 async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDocumentIds }: SeedIds): Promise<void> {
   const clock: SeedClock = {
     date: (n) => zonedToday(n),
@@ -377,7 +357,15 @@ async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDo
     const demoDocs = (m.demoDocuments ?? []).map((file) => DEMO_DOCUMENTS.find((d) => d.file === file)!);
     const filenames = [...m.documents.map((d) => d.filename), ...demoDocs.map((d) => d.file)];
     const kinds = [...m.documents.map((d) => d.kind), ...demoDocs.map((d) => d.kind)].map((k) => k.replace(/_/g, " ").toLowerCase());
-    const summary = intakeSummary(m.channel, m.fromAddress, matched?.caseRef ?? null, kinds, m.claimRef ?? null, m.language, letterActions(m.ref));
+    const summary = intakeSummary({
+      channel: m.channel,
+      from: m.fromAddress,
+      caseRef: matched?.caseRef ?? null,
+      kinds,
+      claimRef: m.claimRef ?? null,
+      language: m.language,
+      actions: letterActions(m.ref),
+    });
 
     const data = {
       channel: m.channel,

@@ -993,7 +993,7 @@ export function seedInboundMessages(clock: SeedClock): SeedInboundMessage[] {
       reply: {
         approvedBy: "elif",
         afterSec: 1680,
-        body: "Dear Aylin Yilmaz,\n\nThank you for your message — we have received it with 3 document(s): medical-report-aylin-yilmaz.pdf, hospital-invoice-aylin-yilmaz.pdf, discharge-summary-aylin-yilmaz.pdf.\nYour claim CLM-10245 is now being reviewed.\nTo complete it we still need your policy number — it isn't on the hospital documents. You can simply reply to this e-mail with it.\nYour case reference is CASE-1020.\n\nWe're glad you're feeling better — rest well.\n\nKind regards,\nClaims team — Travel Assistance (demonstration platform; all data is fictional)",
+        body: "Dear Aylin Yilmaz,\n\nThank you for your message — we have received it with 3 documents: medical-report-aylin-yilmaz.pdf, hospital-invoice-aylin-yilmaz.pdf, discharge-summary-aylin-yilmaz.pdf.\nYour claim CLM-10245 is now being reviewed.\nTo complete it we still need your policy number — it isn't on the hospital documents. You can simply reply to this e-mail with it.\nYour case reference is CASE-1020.\n\nWe're glad you're feeling better — rest well.\n\nKind regards,\nClaims team — Travel Assistance (demonstration platform; all data is fictional)",
       },
     },
     {

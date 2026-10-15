@@ -11,6 +11,7 @@ import { sendEmail } from "@/lib/services/outbox";
 import { processingErrorMessage, sniffType, storeUpload } from "@/lib/uploads";
 import { MATCH_THRESHOLD, matchCase, type CaseCandidate } from "./case-matching";
 import { LANGUAGE_NAMES, detectLanguage, languageCode } from "./language";
+import { intakeSummary } from "./summary";
 
 // ---------------------------------------------------------------------------
 // Intake automation for inbound e-mail and fax:
@@ -189,16 +190,15 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
 
     // 5. Summary and case timeline.
     const kinds = processed.map((d) => d.kind.replace(/_/g, " ").toLowerCase());
-    const sentence = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}${/[.!?]$/.test(s) ? "" : "."}`;
-    const summary = [
-      `${message.channel === "EMAIL" ? "E-mail" : "Fax"} from ${message.fromAddress} ${matched ? `about ${matched.caseRef}` : "with no confident case match"}.`,
-      processed.length ? `${processed.length === 1 ? "1 document" : `${processed.length} documents`}: ${kinds.join(", ")}.` : "No documents.",
-      claimRef ? `Filed on claim ${claimRef}.` : "",
-      language !== "en" ? `Written in ${LANGUAGE_NAMES[language] ?? language}.` : "",
-      ...actions.map(sentence),
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const summary = intakeSummary({
+      channel: message.channel === "EMAIL" ? "EMAIL" : "FAX",
+      from: message.fromAddress,
+      caseRef: matched?.caseRef ?? null,
+      kinds,
+      claimRef: claimRef ?? null,
+      language,
+      actions,
+    });
     if (matched) {
       await prisma.caseEvent.create({
         data: {
