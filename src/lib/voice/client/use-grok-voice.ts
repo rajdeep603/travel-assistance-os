@@ -14,6 +14,8 @@ export interface TranscriptLine {
   id: number;
   role: "user" | "agent";
   text: string;
+  /** Set on caller utterances, which are updated as they grow. */
+  line?: string;
 }
 
 export interface ProviderOption {
@@ -97,6 +99,7 @@ interface GatewayEvent {
   type: string;
   role?: "user" | "agent";
   text?: string;
+  line?: string;
   name?: string;
   status?: ToolActivity["status"];
   summary?: string;
@@ -152,11 +155,12 @@ function reducer(state: VoiceState, action: Action): VoiceState {
         }
         case "transcript": {
           const role = e.role ?? "agent";
-          return {
-            ...state,
-            transcript: [...state.transcript, { id: ++lineId, role, text: e.text ?? "" }],
-            partial: { ...state.partial, [role]: "" },
-          };
+          const idx = e.line ? state.transcript.findIndex((t) => t.line === e.line) : -1;
+          const transcript =
+            idx >= 0
+              ? state.transcript.map((t, i) => (i === idx ? { ...t, text: e.text ?? "" } : t))
+              : [...state.transcript, { id: ++lineId, role, text: e.text ?? "", line: e.line }];
+          return { ...state, transcript, partial: { ...state.partial, [role]: "" } };
         }
         case "tool": {
           const tools = [...state.tools];

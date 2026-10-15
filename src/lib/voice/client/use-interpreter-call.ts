@@ -8,6 +8,8 @@ export interface Caption {
   side: "manager" | "hospital";
   kind: "original" | "translation";
   text: string;
+  /** Set on originals, which are updated while that side is still speaking. */
+  line?: string;
 }
 
 export type BridgeStatus = "idle" | "dialing" | "ringing" | "connecting" | "connected" | "no_answer" | "ended" | "error";
@@ -73,7 +75,7 @@ export function useInterpreterCall() {
       wsRef.current = ws;
       audio.onChunk = (b64) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ type: "audio", data: b64 }));
       ws.onmessage = (m) => {
-        let e: { type: string; data?: string; mark?: string; status?: BridgeStatus; side?: Caption["side"]; kind?: Caption["kind"]; text?: string; message?: string; languages?: string[] };
+        let e: { type: string; data?: string; mark?: string; status?: BridgeStatus; side?: Caption["side"]; kind?: Caption["kind"]; text?: string; line?: string; message?: string; languages?: string[] };
         try {
           e = JSON.parse(m.data as string);
         } catch {
@@ -87,8 +89,12 @@ export function useInterpreterCall() {
           setStatus(e.status);
           if (e.languages) setLanguages(e.languages);
         } else if (e.type === "caption" && e.side && e.kind && e.text) {
-          const c: Caption = { id: ++captionId, side: e.side, kind: e.kind, text: e.text };
-          setCaptions((list) => [...list, c].slice(-60));
+          const { side, kind, text, line } = e;
+          setCaptions((list) => {
+            const idx = line ? list.findIndex((c) => c.line === line) : -1;
+            if (idx >= 0) return list.map((c, i) => (i === idx ? { ...c, text } : c));
+            return [...list, { id: ++captionId, side, kind, text, line }].slice(-60);
+          });
         } else if (e.type === "error") {
           setError(e.message ?? "The interpreter failed.");
           setStatus("error");

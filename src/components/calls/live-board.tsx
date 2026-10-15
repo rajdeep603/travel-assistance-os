@@ -15,7 +15,7 @@ interface ActiveCall {
   startedAt: string;
   caller: string | null;
   caseRef: string | null;
-  transcript: { role: "user" | "agent"; text: string; at: string }[];
+  transcript: { role: "user" | "agent"; text: string; at: string; line?: string }[];
   tools: { name: string; status: string; summary?: string; at: string }[];
 }
 
@@ -27,6 +27,7 @@ interface MonitorMessage {
   call?: ActiveCall;
   role?: "user" | "agent";
   text?: string;
+  line?: string;
   name?: string;
   status?: string;
   summary?: string;
@@ -97,7 +98,13 @@ export function LiveBoard({ monitorUrl, onCallEnded }: { monitorUrl: string | nu
           const copy = { ...call };
           const at = msg.at ?? new Date().toISOString();
           if (msg.type === "transcript" && msg.text) {
-            copy.transcript = [...call.transcript, { role: msg.role ?? "agent", text: msg.text, at }].slice(-30);
+            const text = msg.text;
+            // A caller utterance that grew replaces its earlier version.
+            const idx = msg.line ? call.transcript.findIndex((t) => t.line === msg.line) : -1;
+            copy.transcript =
+              idx >= 0
+                ? call.transcript.map((t, i) => (i === idx ? { ...t, text } : t))
+                : [...call.transcript, { role: msg.role ?? "agent", text, at, line: msg.line }].slice(-30);
           } else if (msg.type === "tool" && msg.name) {
             const entry = { name: msg.name, status: msg.status ?? "done", summary: msg.summary, at };
             const idx = entry.status === "running" ? -1 : call.tools.findLastIndex((t) => t.name === entry.name && t.status === "running");

@@ -10,6 +10,9 @@ import WebSocket from "ws";
 //   Function calls arrive as "function_call"; answer each with
 //   sendFunctionResult() — the next response starts once every call of the
 //   turn has an output (parallel calls get a single response.create).
+//   What the caller says arrives as "user_transcript" (text, itemId): Grok
+//   re-sends the whole utterance as it grows, so each item is one line whose
+//   text is replaced, not a new line per event.
 // ---------------------------------------------------------------------------
 
 export type AudioFormat =
@@ -61,8 +64,8 @@ export interface RealtimeSessionEvents {
   audio: [base64: string];
   agent_transcript_delta: [text: string];
   agent_transcript_done: [text: string];
-  user_transcript_delta: [text: string];
-  user_transcript: [text: string];
+  /** The caller's line `itemId` now reads `text` (repeats as the utterance grows). */
+  user_transcript: [text: string, itemId: string];
   speech_started: [];
   speech_stopped: [];
   function_call: [call: FunctionCall];
@@ -80,6 +83,7 @@ interface ServerEvent {
   delta?: string;
   transcript?: string;
   call_id?: string;
+  item_id?: string;
   name?: string;
   arguments?: string;
   item?: { type?: string; call_id?: string; name?: string; arguments?: string };
@@ -96,6 +100,12 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
   private turnHadCalls = false;
   private responseInFlight = false;
   private agentText = "";
+  /** Caller utterances by item: the latest text as received and as shown. */
+  private userLines = new Map<string, { raw: string; text: string }>();
+  private lastUserItem: string | null = null;
+  private previousUserRaw = "";
+  private currentUserItem: string | null = null;
+  private anonItems = 0;
 
   constructor(private readonly opts: RealtimeSessionOptions) {
     super();
@@ -214,14 +224,20 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
         if (text?.trim()) this.emit("agent_transcript_done", text.trim());
         break;
       }
+      // xAI sends .updated and .completed alike with the cumulative text, many
+      // times per item; OpenAI-style .delta carries increments.
       case "conversation.item.input_audio_transcription.updated":
-      case "conversation.item.input_audio_transcription.delta":
-        if (msg.delta || msg.transcript) this.emit("user_transcript_delta", (msg.delta ?? msg.transcript) as string);
-        break;
       case "conversation.item.input_audio_transcription.completed":
-        if (msg.transcript?.trim()) this.emit("user_transcript", msg.transcript.trim());
+        if (typeof msg.transcript === "string") this.onUserTranscript(msg.item_id, msg.transcript);
+        break;
+      case "conversation.item.input_audio_transcription.delta":
+        if (msg.delta) {
+          const id = msg.item_id ?? this.currentUserItem ?? "";
+          this.onUserTranscript(msg.item_id, (this.userLines.get(id)?.raw ?? "") + msg.delta);
+        }
         break;
       case "input_audio_buffer.speech_started":
+        this.currentUserItem = msg.item_id ?? `item_${++this.anonItems}`;
         this.emit("speech_started");
         break;
       case "input_audio_buffer.speech_stopped":
@@ -247,6 +263,23 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
       default:
         break;
     }
+  }
+
+  private onUserTranscript(itemId: string | undefined, raw: string): void {
+    const id = itemId ?? this.currentUserItem ?? `item_${++this.anonItems}`;
+    if (!this.userLines.has(id)) {
+      // A new utterance.
+      if (this.lastUserItem) this.previousUserRaw = this.userLines.get(this.lastUserItem)?.raw ?? "";
+      this.lastUserItem = id;
+    }
+    raw = raw.trim();
+    let text = raw;
+    // Grok sometimes starts a new utterance with the previous one's words.
+    const prev = this.previousUserRaw;
+    if (prev && text.length > prev.length && text.startsWith(prev)) text = text.slice(prev.length).trim();
+    const before = this.userLines.get(id);
+    this.userLines.set(id, { raw, text: text || (before?.text ?? "") });
+    if (text && text !== before?.text) this.emit("user_transcript", text, id);
   }
 
   private onFunctionCall(callId: string | undefined, name: string | undefined, raw: string | undefined) {

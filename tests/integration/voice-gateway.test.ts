@@ -239,4 +239,48 @@ describe("voice gateway (browser session)", () => {
     }
     expect(call.caseId).toBe(kase.id);
   });
+
+  it("keeps one transcript line per caller utterance while Grok re-sends it", async () => {
+    const browser = await newBrowserCall();
+    const model = await fake.nextConnection();
+    await model.waitFor((e) => e.type === "session.update");
+    model.send({ type: "session.updated" });
+    await model.waitFor((e) => e.type === "conversation.item.create" && JSON.stringify(e).includes("The call has connected"));
+
+    // As grok-voice-3.0 sends them: the whole utterance so far, as .updated and
+    // .completed, many times per item; a new item may repeat the previous one first.
+    const heard = (item: string, transcript: string) => {
+      model.send({ type: "conversation.item.input_audio_transcription.updated", item_id: item, transcript });
+      model.send({ type: "conversation.item.input_audio_transcription.completed", item_id: item, transcript });
+    };
+    model.send({ type: "input_audio_buffer.speech_started", item_id: "item-a" });
+    heard("item-a", "Hello, my name");
+    heard("item-a", "Hello, my name is James Carter.");
+    heard("item-a", "Hello, my name is James Carter.");
+    model.send({ type: "input_audio_buffer.speech_started", item_id: "item-b" });
+    heard("item-b", "Hello, my name is James Carter. My flight was");
+    heard("item-b", "Hello, my name is James Carter. My flight was delayed.");
+
+    await browser.waitForEvent((e) => e.type === "transcript" && e.text === "My flight was delayed.");
+    const lines = browser.events.filter((e) => e.type === "transcript" && e.role === "user");
+    expect(lines.map((e) => [e.line, e.text])).toEqual([
+      ["item-a", "Hello, my name"],
+      ["item-a", "Hello, my name is James Carter."],
+      ["item-b", "My flight was"],
+      ["item-b", "My flight was delayed."],
+    ]);
+
+    browser.ws.send(JSON.stringify({ type: "hangup" }));
+    let call = await prisma.call.findUniqueOrThrow({ where: { id: browser.call.id } });
+    for (let i = 0; i < 50 && !call.endedAt; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      call = await prisma.call.findUniqueOrThrow({ where: { id: browser.call.id } });
+    }
+    const conversation = await prisma.conversation.findUniqueOrThrow({ where: { id: call.conversationId! } });
+    const saved = conversation.messages as { role: string; text: string }[];
+    expect(saved.filter((m) => m.role === "user").map((m) => m.text)).toEqual([
+      "Hello, my name is James Carter.",
+      "My flight was delayed.",
+    ]);
+  });
 });

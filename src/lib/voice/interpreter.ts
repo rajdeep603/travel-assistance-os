@@ -211,25 +211,36 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
   ba.on("audio", (b64) => manager.sendAudio(b64));
 
   // Captions: what each side said, and how it was rendered for the other.
-  const caption = (side: "manager" | "hospital", kind: "original" | "translation", text: string) => {
-    manager.sendEvent({ type: "caption", side, kind, text });
+  // Originals grow while a side speaks: `line` (that utterance) updates one caption in place.
+  const originals = new Map<string, ChatMessage & { side: string }>();
+  const caption = (side: "manager" | "hospital", kind: "original" | "translation", text: string, line?: string) => {
+    const captionLine = line ? `${side}:${line}` : undefined;
+    manager.sendEvent({ type: "caption", side, kind, text, line: captionLine });
     monitorBus.publish({
       callId: bridge.hospitalCallId,
       callRef: managerCall?.ref ?? bridge.bridgeId,
       type: "transcript",
       role: side === "manager" ? "user" : "agent",
       text: `${kind === "translation" ? "→ " : ""}${text}`,
+      line: captionLine,
     });
-    state.transcript.push({
-      role: side === "manager" ? "user" : "agent",
+    const existing = captionLine ? originals.get(captionLine) : undefined;
+    if (existing) {
+      existing.text = text;
+      return;
+    }
+    const entry = {
+      role: side === "manager" ? ("user" as const) : ("agent" as const),
       side,
       text: kind === "translation" ? `[${side === "manager" ? hospitalLang : managerLang}] ${text}` : text,
       at: new Date().toISOString(),
-    });
+    };
+    if (captionLine) originals.set(captionLine, entry);
+    state.transcript.push(entry);
   };
-  ab.on("user_transcript", (t) => caption("manager", "original", t));
+  ab.on("user_transcript", (t, line) => caption("manager", "original", t, line));
   ab.on("agent_transcript_done", (t) => caption("manager", "translation", t));
-  ba.on("user_transcript", (t) => caption("hospital", "original", t));
+  ba.on("user_transcript", (t, line) => caption("hospital", "original", t, line));
   ba.on("agent_transcript_done", (t) => caption("hospital", "translation", t));
   ab.on("closed", () => void finish(bridge, "interpreter disconnected"));
   ba.on("closed", () => void finish(bridge, "interpreter disconnected"));

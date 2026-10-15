@@ -24,7 +24,8 @@ export interface ActiveCall {
   startedAt: string;
   caller: string | null;
   caseRef: string | null;
-  transcript: { role: "user" | "agent"; text: string; at: string }[];
+  /** `line` identifies a caller utterance that is updated as it grows. */
+  transcript: { role: "user" | "agent"; text: string; at: string; line?: string }[];
   tools: { name: string; status: string; summary?: string; at: string }[];
 }
 
@@ -48,8 +49,13 @@ class MonitorBus {
     const call = this.active.get(full.callId);
     if (call) {
       if (full.type === "transcript" && typeof full.text === "string") {
-        call.transcript.push({ role: full.role as "user" | "agent", text: full.text, at: full.at });
-        if (call.transcript.length > TRANSCRIPT_TAIL) call.transcript.shift();
+        const line = typeof full.line === "string" ? full.line : undefined;
+        const existing = line ? call.transcript.find((t) => t.line === line) : undefined;
+        if (existing) existing.text = full.text;
+        else {
+          call.transcript.push({ role: full.role as "user" | "agent", text: full.text, at: full.at, line });
+          if (call.transcript.length > TRANSCRIPT_TAIL) call.transcript.shift();
+        }
       }
       if (full.type === "tool") {
         const entry = { name: String(full.name), status: String(full.status), summary: full.summary as string | undefined, at: full.at };

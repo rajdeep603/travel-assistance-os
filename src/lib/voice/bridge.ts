@@ -120,6 +120,21 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     emit({ type: "transcript", role, text });
   };
 
+  // The caller's utterances grow and get corrected while they speak: one
+  // message per utterance, updated in place; `line` lets UIs do the same.
+  const callerLines = new Map<string, ChatMessage>();
+  const recordCaller = (text: string, line: string) => {
+    let message = callerLines.get(line);
+    if (message) message.text = text;
+    else {
+      message = { role: "user", text, at: new Date().toISOString() };
+      callerLines.set(line, message);
+      messages.push(message);
+    }
+    scheduleFlush();
+    emit({ type: "transcript", role: "user", text, line });
+  };
+
   const ctx: ToolContext = {
     callId: call.id,
     callRef: call.ref,
@@ -318,8 +333,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   });
   session.on("agent_transcript_delta", (text) => emit({ type: "transcript_delta", role: "agent", text }));
   session.on("agent_transcript_done", (text) => record("agent", text));
-  session.on("user_transcript_delta", (text) => emit({ type: "transcript_delta", role: "user", text }));
-  session.on("user_transcript", (text) => record("user", text));
+  session.on("user_transcript", recordCaller);
   session.on("function_call", async ({ callId, name, args }) => {
     emit({ type: "tool", name, status: "running" });
     const result = await executeTool(name, args, ctx, profile.tools);
