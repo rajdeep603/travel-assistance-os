@@ -15,6 +15,8 @@ export interface FakeConnection {
   waitFor(match: (e: Record<string, any>) => boolean, timeoutMs?: number): Promise<Record<string, any>>;
   /** Server side of one assistant turn that only calls a function. */
   callFunction(name: string, args: Record<string, unknown>, callId?: string): void;
+  /** One assistant turn calling several functions in parallel. */
+  callFunctions(calls: { name: string; args: Record<string, unknown> }[]): void;
   /** Server side of one spoken assistant turn. */
   say(text: string): void;
 }
@@ -75,6 +77,18 @@ export async function startFakeXai(): Promise<{
           name,
           arguments: JSON.stringify(args),
         });
+        send({ type: "response.done" });
+      },
+      callFunctions(calls) {
+        send({ type: "response.created", response: { id: `resp_${++n}` } });
+        for (const { name, args } of calls) {
+          send({
+            type: "response.function_call_arguments.done",
+            call_id: `call_${++n}`,
+            name,
+            arguments: JSON.stringify(args),
+          });
+        }
         send({ type: "response.done" });
       },
       say(text) {

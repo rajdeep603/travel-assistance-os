@@ -189,4 +189,52 @@ describe("voice gateway (browser session)", () => {
     expect(transcript.some((m) => m.role === "user" && m.text.includes("Taksim"))).toBe(true);
     expect(transcript.some((m) => m.role === "agent")).toBe(true);
   });
+
+  it("books once when the model sends the same booking twice in one turn", async () => {
+    const browser = await newBrowserCall();
+    const model = await fake.nextConnection();
+    await model.waitFor((e) => e.type === "session.update");
+    model.send({ type: "session.updated" });
+
+    const date = weekdayAhead(12);
+    model.callFunction("search_providers", { location: "Taksim", specialty: "General Medicine", date });
+    const search = JSON.parse((await model.waitFor((e) => e.item?.type === "function_call_output")).item.output);
+    const pick = search.options[0];
+
+    // Grok sometimes issues parallel identical function calls in one response.
+    const booking = {
+      provider_id: pick.provider_id,
+      date,
+      time: pick.slots[0],
+      patient_name: "Parallel Booking Traveller",
+      reason: "ear pain",
+      caller_confirmed: true,
+    };
+    model.callFunctions([
+      { name: "book_appointment", args: booking },
+      { name: "book_appointment", args: booking },
+    ]);
+    const outputs: Record<string, any>[] = [];
+    for (let i = 0; i < 2; i++) {
+      outputs.push(JSON.parse((await model.waitFor((e) => e.item?.type === "function_call_output")).item.output));
+    }
+    expect(outputs.map((o) => o.booked)).toEqual([true, true]);
+    expect(outputs[1].appointment_ref).toBe(outputs[0].appointment_ref);
+    expect(outputs[1].case_ref).toBe(outputs[0].case_ref);
+    // Both calls answered → the agent is asked to continue once.
+    await model.waitFor((e) => e.type === "response.create");
+
+    const kase = await prisma.case.findUniqueOrThrow({ where: { ref: outputs[0].case_ref }, include: { appointments: true } });
+    expect(kase.appointments).toHaveLength(1);
+    await browser.waitForEvent((e) => e.type === "booked");
+    expect(browser.events.filter((e) => e.type === "booked")).toHaveLength(1);
+
+    browser.ws.send(JSON.stringify({ type: "hangup" }));
+    let call = await prisma.call.findUniqueOrThrow({ where: { id: browser.call.id } });
+    for (let i = 0; i < 50 && !call.endedAt; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      call = await prisma.call.findUniqueOrThrow({ where: { id: browser.call.id } });
+    }
+    expect(call.caseId).toBe(kase.id);
+  });
 });
