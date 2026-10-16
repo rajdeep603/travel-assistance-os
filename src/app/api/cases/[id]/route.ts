@@ -2,6 +2,7 @@ import { z } from "zod";
 import { json, serialize, withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
+import { caseMoney } from "@/lib/services/exposure";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export const GET = withErrorHandling(
   async (_req: Request, { params }: { params: { id: string } }) => {
     const found = await findCase(params.id);
     if (!found) throw notFound("Case");
-    return json({ case: serialize(found) });
+    return json({ case: serialize({ ...found, money: await caseMoney(found.id) }) });
   }
 );
 

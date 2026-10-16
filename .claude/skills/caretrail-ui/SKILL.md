@@ -37,6 +37,8 @@ These are used by the orb (`VoiceOrb`), the live call board dots and anything el
 
 Violet (`ai`) always means "AI at work", as in `AISourceBadge`. Don't reuse it for anything else.
 
+Money: savings and accepted amounts use `brand`, anything needing a decision or over a limit uses `warn`. Show cents (`formatMoneyExact`) on invoices and reviews, whole euros on overviews. Integrity signals are internal: never show them on traveller-facing surfaces.
+
 ## Motion
 
 - `motion` (`motion/react`) is installed. Use it only in client components.
@@ -61,6 +63,9 @@ Violet (`ai`) always means "AI at work", as in `AISourceBadge`. Don't reuse it f
 | `useWordReveal` | `src/lib/client/use-word-reveal.ts` | writes a finished answer out word by word (capped at 1.2 s) |
 | `Elapsed` | `src/components/elapsed.tsx` | ticking m:ss timer |
 | `toolSteps` | `src/lib/voice/tool-steps.ts` | collapses the model's parallel duplicate tool calls into one step |
+| `BillReviewCard` | `src/components/bill-review-card.tsx` | a bill review: billed vs reference tariff, flagged lines with reasons, accept / pay as billed |
+| `MoneyCard` | `src/components/cases/money-card.tsx` | money on a case: estimated → guaranteed → invoiced → after review → paid, plus the policy limit bar |
+| `IntegrityCard` | `src/components/integrity-card.tsx` | internal fraud, waste and abuse signals on a claim, with "Refer to the fraud team" |
 | `SampleFiles` | `src/components/sample-files.tsx` | the collapsed "Sample files to download" panel beside an upload; kits come from `src/lib/samples/catalog.ts` |
 
 ## Things to avoid

@@ -316,3 +316,62 @@ export function buildSummary(
     `${DISCLAIMER}. ${BRAND.name} · ${POWERED_BY}`,
   ].join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// Cost containment: the medical-spend side, kept apart from the labour
+// figures above. Bill review of hospital invoices against a reference tariff
+// usually saves far more than the hours it frees; the defaults are
+// deliberately conservative.
+// ---------------------------------------------------------------------------
+
+export interface CostContainmentInputs {
+  /** Hospital and clinic bills paid abroad a year, EUR. */
+  annualMedicalSpend: number;
+  /** Share of that spend whose bills go through review, 0–100. */
+  reviewedPct: number;
+  /** Average saving on a reviewed bill, 0–100. */
+  savingPct: number;
+}
+
+export const DEFAULT_COST_CONTAINMENT: CostContainmentInputs = {
+  annualMedicalSpend: 12_000_000,
+  reviewedPct: 60,
+  savingPct: 8,
+};
+
+/** Medical spend abroad a year for each preset. */
+export const PRESET_MEDICAL_SPEND: Record<string, number> = {
+  specialist: 2_500_000,
+  regional: 12_000_000,
+  large: 60_000_000,
+};
+
+export interface CostContainmentResult {
+  reviewedSpend: number;
+  annualSaving: number;
+  monthlySaving: number;
+}
+
+export function calculateCostContainment(inputs: CostContainmentInputs): CostContainmentResult {
+  const reviewedSpend = amount(inputs.annualMedicalSpend) * share(inputs.reviewedPct);
+  const annualSaving = reviewedSpend * share(inputs.savingPct);
+  return { reviewedSpend, annualSaving, monthlySaving: annualSaving / 12 };
+}
+
+/** The copied summary, with the cost-containment section before the closing line. */
+export function withCostContainment(summary: string, inputs: CostContainmentInputs, result: CostContainmentResult): string {
+  const lines = summary.split("\n");
+  const closing = lines.pop() ?? "";
+  const eur = (v: number) => formatMoney(Math.round(v), CURRENCY);
+  const pct = (v: number) => `${formatCount(share(v) * 100)}%`;
+  return [
+    ...lines,
+    "Medical spend (cost containment, per year)",
+    `- Medical spend abroad: ${eur(amount(inputs.annualMedicalSpend))}`,
+    `- Bills reviewed line by line: ${pct(inputs.reviewedPct)} (${eur(result.reviewedSpend)})`,
+    `- Average saving on a reviewed bill: ${pct(inputs.savingPct)}`,
+    `- Medical spend saved: ${eur(result.annualSaving)} a year (${eur(result.monthlySaving)} a month)`,
+    "",
+    closing,
+  ].join("\n");
+}

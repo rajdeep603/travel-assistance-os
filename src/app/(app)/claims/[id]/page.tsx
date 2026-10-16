@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { Timeline } from "@/components/ui";
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
+import { IntegrityCard, type Signal } from "@/components/integrity-card";
 import { formatDateTime, formatEnum, formatMoney } from "@/lib/format";
 
 interface Issue {
@@ -42,6 +43,7 @@ interface ClaimDetail {
   summary: string | null;
   aiSource: string | null;
   issues: Issue[] | null;
+  signals: Signal[] | null;
   history: HistoryEntry[] | null;
   createdAt: string;
   patient: { ref: string; firstName: string; lastName: string; policyNumber: string };
@@ -195,7 +197,7 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
+        <div className="min-w-0 space-y-5 lg:col-span-2">
           <Card>
             <div className="flex items-center justify-between">
               <SectionTitle>AI claim summary</SectionTitle>
@@ -286,6 +288,13 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
               </div>
             )}
           </Card>
+
+          <IntegrityCard
+            claimId={claim.id}
+            signals={claim.signals}
+            referred={claim.history?.some((h) => h.action === "Referred to the fraud team") ?? false}
+            onChanged={() => void load()}
+          />
 
           {claim.documents
             .filter((d) => d.billReview)

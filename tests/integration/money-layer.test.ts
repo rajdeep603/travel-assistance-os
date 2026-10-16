@@ -40,6 +40,7 @@ afterAll(async () => {
   await prisma.documentExtraction.deleteMany({ where: { documentId: { in: docs.map((d) => d.id) } } });
   await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
   await prisma.inboundMessage.deleteMany({ where: { id: { in: msgs.map((m) => m.id) } } });
+  await prisma.claim.deleteMany({ where: { createdAt: { gte: testStart } } });
   await prisma.caseEvent.deleteMany({ where: { createdAt: { gte: testStart } } });
   await prisma.$disconnect();
 });
@@ -85,6 +86,25 @@ describe("bill review on direct billing", () => {
     expect((await call("WAIVED")).status).toBe(409);
     const event = await prisma.caseEvent.findFirst({ where: { type: "BILL_REVIEW", title: { startsWith: "Bill review accepted" }, createdAt: { gte: testStart } } });
     expect(event?.title).toBe("Bill review accepted on MHC-INV-2026-1342: pay 7,582.50 EUR, saving 4,802.50 EUR");
+  });
+
+  it("shows the case's money: guaranteed, invoiced, after review", async () => {
+    const { caseMoney } = await import("@/lib/services/exposure");
+    const kase = await prisma.case.findUniqueOrThrow({ where: { ref: "CASE-1022" } });
+    const money = (await caseMoney(kase.id))!;
+    expect(money).toMatchObject({ guaranteed: 11850, invoiced: 12385, afterReview: 7582.5, expected: 7582.5, exposure: 7582.5, savingsAccepted: 4802.5 });
+    expect(money.openLetters.map((l) => l.ref)).toEqual(["LOG-0902"]);
+    expect(money.policy).toMatchObject({ limit: 50000, used: 1850, committed: 11850, remaining: 36300 });
+  });
+
+  it("adds it to the overview's money figures", async () => {
+    const { getMoneyOutcomes } = await import("@/lib/services/exposure");
+    const m = await getMoneyOutcomes(30);
+    // Seeded history (4 accepted, 1 awaiting) plus this invoice.
+    expect(m.billsReviewed).toBeGreaterThanOrEqual(6);
+    expect(m.savingsAcceptedEur).toBeGreaterThanOrEqual(1511.25 + 4802.5);
+    expect(m.awaitingDecision).toBeGreaterThanOrEqual(1);
+    expect(m.openGuarantees.eur).toBeGreaterThanOrEqual(11850);
   });
 
   it("keeps the decision when the same invoice is reviewed again", async () => {
@@ -150,5 +170,25 @@ describe("guarantees against the policy limit", () => {
     });
     const event = await prisma.caseEvent.findFirst({ where: { caseId: approved.caseId, title: { startsWith: "LOG-0904 approved" }, createdAt: { gte: testStart } } });
     expect(event?.body).toMatch(/Reason: Senior desk approved a top-up/);
+  });
+});
+
+describe("integrity checks on claims", () => {
+  it("spots an invoice already claimed, without telling the claimant", async () => {
+    const { POST } = await import("@/app/api/claims/sample/route");
+    const res = await POST(new Request("http://app/x", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }), {});
+    expect(res.status).toBe(201);
+    const { claim } = await res.json();
+    const stored = await prisma.claim.findUniqueOrThrow({ where: { id: claim.id } });
+    const signals = stored.signals as { code: string; reason: string }[];
+    expect(signals).toEqual([{ code: "DUPLICATE_INVOICE", reason: "Invoice INV-2026-08841 is also on claim CLM-10245: possible duplicate claim." }]);
+    expect(JSON.stringify(stored.issues)).not.toMatch(/duplicate/i);
+
+    const refer = (await import("@/app/api/claims/[id]/refer/route")).POST;
+    const referred = await refer(new Request("http://app/x", { method: "POST", body: "{}" }), { params: { id: stored.id } });
+    expect(referred.status).toBe(200);
+    const after = await prisma.claim.findUniqueOrThrow({ where: { id: stored.id } });
+    expect(after.status).toBe("ESCALATED");
+    expect((after.history as { action: string }[]).at(-1)?.action).toBe("Referred to the fraud team");
   });
 });

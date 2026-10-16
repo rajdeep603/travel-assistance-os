@@ -55,6 +55,21 @@ test("the Turkish epikriz is read and translated", async ({ page }) => {
   await expect(page.getByText(/Unstable angina pectoris/).first()).toBeVisible();
 });
 
+test("an overbilled hospital invoice is reviewed line by line, accepted, and counted", async ({ page }) => {
+  await page.goto("/inbox");
+  await page.getByLabel("Sample message").selectOption("email:hospital-final-invoice");
+  await page.getByRole("button", { name: /Receive it/i }).click();
+  await expect(page.getByText(/Bill review found 4,802\.50 EUR above the reference tariff/).first()).toBeVisible();
+  await page.getByRole("link", { name: "CASE-1022" }).first().click();
+  await expect(page.getByText("Money on this case")).toBeVisible();
+  await expect(page.getByText(/Billed €535\.00 above the guarantee LOG-0902/).first()).toBeVisible();
+  await expect(page.getByText("Same charge as line 5: billed twice.").first()).toBeVisible();
+  await page.getByRole("button", { name: /Accept: pay €7,582\.50/ }).first().click();
+  await expect(page.getByText(/^Accepted by /).first()).toBeVisible();
+  await page.goto("/");
+  await expect(page.getByText("saved, accepted by a person")).toBeVisible();
+});
+
 test("voice page explains when voice isn't configured", async ({ page }) => {
   await page.goto("/voice");
   await page.getByRole("button", { name: /^Start conversation$/ }).click();

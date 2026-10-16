@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, Clock, Copy, Euro, FileCheck2, Moon, RotateCcw } from "lucide-react";
+import { Check, Clock, Copy, Euro, FileCheck2, Moon, ReceiptText, RotateCcw } from "lucide-react";
 import { Button, Card, PageHeader, SectionTitle } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
 import { BRAND, POWERED_BY } from "@/lib/brand";
@@ -9,15 +9,20 @@ import { formatMoney } from "@/lib/format";
 import {
   CURRENCY,
   DEFAULT_ASSUMPTIONS,
+  DEFAULT_COST_CONTAINMENT,
   DEFAULT_INPUTS,
   DISCLAIMER,
   PRESETS,
+  PRESET_MEDICAL_SPEND,
   buildSummary,
   calculateBusinessCase,
+  calculateCostContainment,
+  withCostContainment,
   formatCount,
   formatDuration,
   headline,
   type Assumptions,
+  type CostContainmentInputs,
   type OperationInputs,
 } from "@/lib/business-case";
 
@@ -90,6 +95,12 @@ const percent = (key: keyof Assumptions, label: string, hint: string): FieldSpec
   max: 100,
   step: 5,
 });
+
+const COST_FIELDS: FieldSpec<keyof CostContainmentInputs>[] = [
+  { key: "annualMedicalSpend", label: "Medical spend abroad a year", unit: "€", unitWords: "euros", min: 0, max: 10_000_000_000, step: 100_000 },
+  { key: "reviewedPct", label: "Bills reviewed line by line", unit: "%", unitWords: "percent", min: 0, max: 100, step: 5 },
+  { key: "savingPct", label: "Average saving on a reviewed bill", unit: "%", unitWords: "percent", min: 0, max: 60, step: 1 },
+];
 
 const ASSUMPTION_FIELDS = [
   percent(
@@ -233,6 +244,7 @@ function NumberField<K extends string>({
 export default function BusinessCasePage() {
   const [operation, setOperation] = useState(() => toDraft(DEFAULT_INPUTS));
   const [assumptionDraft, setAssumptionDraft] = useState(() => toDraft(DEFAULT_ASSUMPTIONS));
+  const [costDraft, setCostDraft] = useState(() => toDraft(DEFAULT_COST_CONTAINMENT));
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -241,7 +253,12 @@ export default function BusinessCasePage() {
   const inputs = useMemo(() => fromDraft<OperationInputs>(operation), [operation]);
   const assumptions = useMemo(() => fromDraft<Assumptions>(assumptionDraft), [assumptionDraft]);
   const result = useMemo(() => calculateBusinessCase(inputs, assumptions), [inputs, assumptions]);
-  const summary = useMemo(() => buildSummary(inputs, assumptions, result), [inputs, assumptions, result]);
+  const costInputs = useMemo(() => fromDraft<CostContainmentInputs>(costDraft), [costDraft]);
+  const cost = useMemo(() => calculateCostContainment(costInputs), [costInputs]);
+  const summary = useMemo(
+    () => withCostContainment(buildSummary(inputs, assumptions, result), costInputs, cost),
+    [inputs, assumptions, result, costInputs, cost]
+  );
 
   const activePreset = PRESETS.find((p) =>
     (Object.keys(p.inputs) as (keyof OperationInputs)[]).every((k) => inputs[k] === p.inputs[k])
@@ -265,16 +282,13 @@ export default function BusinessCasePage() {
 
   const eur = (amount: number) => formatMoney(Math.round(amount), CURRENCY);
   // Tile values stay short enough for four across, even in presentation mode
-  // ("€2.81M"; en-US for the capital M).
-  const eurShort = (amount: number) =>
-    amount >= 1_000_000
-      ? new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: CURRENCY,
-          notation: "compact",
-          maximumFractionDigits: 2,
-        }).format(amount)
-      : eur(amount);
+  // ("€2.81M"). Formatted by hand: Intl's compact notation differs between
+  // Node and browsers, which breaks hydration.
+  const eurShort = (amount: number) => {
+    if (amount < 1_000_000) return eur(amount);
+    const m = amount / 1_000_000;
+    return `€${m.toFixed(m >= 100 ? 0 : m >= 10 ? 1 : 2).replace(/\.0+$|(\.\d*?)0+$/, "$1")}M`;
+  };
   const tiles = [
     {
       icon: Clock,
@@ -374,6 +388,42 @@ export default function BusinessCasePage() {
         ))}
       </div>
 
+      <Card className="mt-5">
+        <div className="grid gap-5 lg:grid-cols-5">
+          <div className="lg:col-span-3">
+            <SectionTitle>Medical spend: what bill review saves</SectionTitle>
+            <p className="mt-1 text-sm text-muted">
+              Separate from the hours above. Hospital bills are checked line by line against your tariff before they are paid; a person accepts every change.
+            </p>
+            <div className="mt-4 grid items-end gap-3 sm:grid-cols-3">
+              {COST_FIELDS.map((spec) => (
+                <NumberField
+                  key={spec.key}
+                  spec={spec}
+                  value={costDraft[spec.key]}
+                  onChange={(v) => setCostDraft((d) => ({ ...d, [spec.key]: v }))}
+                  onBlur={() => setCostDraft((d) => ({ ...d, [spec.key]: settle(d[spec.key], spec) }))}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-sm text-muted">
+              Overcharges, extra nights, duplicates and comfort items come off. The saving rate starts low on purpose; on overbilled tourist-area invoices it is often far higher.
+            </p>
+          </div>
+          <div className="flex flex-col justify-center rounded-xl bg-canvas p-5 lg:col-span-2">
+            <ReceiptText size={20} aria-hidden className="text-brand" />
+            <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-ink 2xl:text-4xl">
+              <CountUp value={cost.annualSaving} format={eurShort} durationMs={500} />
+            </p>
+            <p className="mt-1 text-sm font-semibold text-ink">Medical spend saved a year</p>
+            <p className="mt-0.5 text-sm text-muted">
+              {eur(cost.monthlySaving)} a month, on {eurShort(cost.reviewedSpend)} of reviewed bills.
+              {result.annualSaving > 0 ? ` With the operating savings: ${eurShort(cost.annualSaving + result.annualSaving)} a year.` : ""}
+            </p>
+          </div>
+        </div>
+      </Card>
+
       <div className="mt-5 grid gap-5 lg:grid-cols-5">
         <div className="space-y-5 lg:col-span-3">
           <Card>
@@ -385,7 +435,10 @@ export default function BusinessCasePage() {
                   key={p.id}
                   variant={activePreset === p.id ? "primary" : "secondary"}
                   aria-pressed={activePreset === p.id}
-                  onClick={() => setOperation(toDraft(p.inputs))}
+                  onClick={() => {
+                    setOperation(toDraft(p.inputs));
+                    setCostDraft((d) => ({ ...d, annualMedicalSpend: String(PRESET_MEDICAL_SPEND[p.id] ?? d.annualMedicalSpend) }));
+                  }}
                   className="px-3 py-1.5"
                 >
                   {p.label}

@@ -25,7 +25,7 @@ import { useQueryParam } from "@/lib/client/use-query-param";
 function sampleLabel(filename: string): string {
   const base = filename.replace(/\.pdf$/i, "");
   const m = base.match(
-    /^(medical-report|hospital-invoice|discharge-summary|emergency-report|prescription|cost-estimate)-(.+)$/
+    /^(medical-report|hospital-invoice|final-invoice|discharge-summary|emergency-report|prescription|cost-estimate)-(.+)$/
   );
   if (!m) return base.replace(/-/g, " ");
   const name = m[2]

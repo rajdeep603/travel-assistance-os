@@ -21,6 +21,8 @@ import type { TimelineItem } from "@/components/ui";
 import { InterpreterCard } from "@/components/calls/interpreter-card";
 import { GuaranteeLettersCard } from "@/components/cases/guarantee-letters-card";
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
+import { MoneyCard } from "@/components/cases/money-card";
+import type { CaseMoney } from "@/lib/services/exposure";
 import { PlaceCallCard } from "@/components/calls/place-call-card";
 import { formatActor, formatDateTime, formatEnum } from "@/lib/format";
 
@@ -56,7 +58,7 @@ interface CaseDetail {
     reason: string;
     provider: { name: string; facility: string; district: string };
   }[];
-  claims: { id: string; ref: string; status: string }[];
+  claims: { id: string; ref: string; status: string; signals: { code: string; reason: string }[] | null }[];
   documents: {
     id: string;
     filename: string;
@@ -66,6 +68,7 @@ interface CaseDetail {
     billReview: BillReview | null;
   }[];
   conversations: { id: string; channel: string; summary: string | null }[];
+  money: CaseMoney | null;
   calls: {
     id: string;
     ref: string;
@@ -239,7 +242,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
+        <div className="min-w-0 space-y-5 lg:col-span-2">
           <Card>
             <SectionTitle>AI summary</SectionTitle>
             <p className="mt-2 text-sm leading-relaxed text-slate-700">
@@ -305,12 +308,19 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                 <>
                   {data.claims.map((c) => (
                     <div key={c.id} className="flex items-center justify-between py-1">
-                      <Link
-                        href={`/claims/${c.ref}`}
-                        className="text-sm font-semibold text-blue-600 hover:underline"
-                      >
-                        {c.ref}
-                      </Link>
+                      <span className="flex items-center gap-2">
+                        <Link
+                          href={`/claims/${c.ref}`}
+                          className="text-sm font-semibold text-blue-600 hover:underline"
+                        >
+                          {c.ref}
+                        </Link>
+                        {c.signals?.length ? (
+                          <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] font-medium text-ink">
+                            {c.signals.length} integrity {c.signals.length === 1 ? "signal" : "signals"}
+                          </span>
+                        ) : null}
+                      </span>
                       <StatusBadge value={c.status} />
                     </div>
                   ))}
@@ -326,6 +336,8 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               )}
             </div>
           </Card>
+
+          {data.money ? <MoneyCard money={data.money} /> : null}
 
           {data.documents
             .filter((d) => d.billReview && (d.billReview.savings > 0 || d.billReview.result.guarantee?.exceedsBy))
@@ -382,7 +394,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           ) : null}
         </div>
 
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <Card>
             <SectionTitle>Act on this case</SectionTitle>
             <div className="mt-3 grid gap-2">

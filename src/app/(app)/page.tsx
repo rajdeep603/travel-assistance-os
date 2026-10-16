@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  BadgeCheck,
   Bot,
   CalendarCheck,
   Calculator,
@@ -13,8 +14,10 @@ import {
   MailCheck,
   MessageSquareText,
   Mic,
+  Percent,
   ReceiptText,
   ScanText,
+  ShieldCheck,
   Stethoscope,
   Timer,
 } from "lucide-react";
@@ -25,6 +28,7 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { formatEnum } from "@/lib/format";
 import { formatShortDuration, getOutcomes, type Outcomes } from "@/lib/services/outcomes";
+import { getMoneyOutcomes, type MoneyOutcomes } from "@/lib/services/exposure";
 
 export const dynamic = "force-dynamic";
 
@@ -141,6 +145,7 @@ async function getStats() {
       prisma.documentExtraction.aggregate({ _avg: { confidence: true } }),
       getOutcomes(30),
     ]);
+    const money = await getMoneyOutcomes(30);
 
     const caseCounts = Object.fromEntries(
       casesByStatus.map((g) => [g.status, g._count._all])
@@ -160,6 +165,7 @@ async function getStats() {
       (claimCounts.ESCALATED ?? 0);
 
     return {
+      money,
       caseCounts,
       claimCounts,
       openCases,
@@ -290,6 +296,49 @@ function OutcomeGrid({ outcomes: o }: { outcomes: Outcomes }) {
   );
 }
 
+/** What bill review found and what is committed: the figures a claims director asks for first. */
+function MoneyGrid({ money: m }: { money: MoneyOutcomes }) {
+  const share = m.averageSavingShare == null ? null : Math.round(m.averageSavingShare * 100);
+  const cards = [
+    {
+      icon: ReceiptText,
+      value: <CountUp value={m.savingsIdentifiedEur} currency="EUR" />,
+      label: "found above the reference tariff",
+      context: `On ${m.billsReviewed} hospital ${m.billsReviewed === 1 ? "bill" : "bills"} reviewed line by line`,
+    },
+    {
+      icon: BadgeCheck,
+      value: <CountUp value={m.savingsAcceptedEur} currency="EUR" />,
+      label: "saved, accepted by a person",
+      context: m.awaitingDecision ? `${m.awaitingDecision} ${m.awaitingDecision === 1 ? "review awaits" : "reviews await"} a decision` : "Nothing awaiting a decision",
+    },
+    {
+      icon: Percent,
+      value: share == null ? "—" : <><CountUp value={share} />%</>,
+      label: "average saving on reviewed bills",
+      context: "Overcharges, extra nights, duplicates and comfort items",
+    },
+    {
+      icon: ShieldCheck,
+      value: <CountUp value={m.openGuarantees.eur} currency="EUR" />,
+      label: "committed in open guarantees",
+      context: `${m.openGuarantees.count} ${m.openGuarantees.count === 1 ? "letter" : "letters"} on open cases, counted against each policy's limit`,
+    },
+  ];
+  return (
+    <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.map(({ icon: Icon, value, label, context }, i) => (
+        <Card key={label} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
+          <Icon size={20} aria-hidden className="text-brand" />
+          <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-ink">{value}</p>
+          <p className="mt-1 text-sm font-medium text-ink">{label}</p>
+          <p className="mt-1 text-xs text-muted">{context}</p>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
   const stats = await getStats();
 
@@ -335,7 +384,7 @@ export default async function DashboardPage() {
               One journey from the first call to the settled claim: AI prepares every
               step, people stay in charge of care decisions.
             </p>
-            <p className="mt-1 text-xs font-medium uppercase tracking-wider text-slate-400">{POWERED_BY}</p>
+            <p className="mt-1 text-xs font-medium text-muted">{POWERED_BY}</p>
           </div>
           <LiveRefresh />
         </div>
@@ -373,6 +422,8 @@ export default async function DashboardPage() {
         <>
           <SectionTitle className="mt-8">What the AI did · last {stats.outcomes.days} days</SectionTitle>
           <OutcomeGrid outcomes={stats.outcomes} />
+          <SectionTitle className="mt-8">Medical spend under control · last {stats.money.days} days</SectionTitle>
+          <MoneyGrid money={stats.money} />
           <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
             {kpis.map(({ icon: Icon, accent, value, label, context }, i) => (
               <Card key={label} className="animate-fade-up py-4" style={{ animationDelay: `${i * 60}ms` }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { formatMoney } from "@/lib/format";
 
 /**
  * Counts a stat-tile number up from zero on mount — a small demo moment.
@@ -10,11 +11,14 @@ export function CountUp({
   value,
   durationMs = 800,
   format,
+  currency,
 }: {
   value: number;
   durationMs?: number;
   /** Formats the number on every frame, e.g. as currency. */
   format?: (n: number) => string;
+  /** Shorthand for whole-unit currency formatting; usable from server components. */
+  currency?: string;
 }) {
   const [display, setDisplay] = useState(value === 0 ? 0 : null as number | null);
   const frame = useRef<number>();
@@ -32,7 +36,8 @@ export function CountUp({
     const tick = (now: number) => {
       const t = Math.min(1, (now - t0) / durationMs);
       const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-      const current = Math.round(start + eased * (value - start));
+      // Whole numbers while counting; the exact value (cents included) at the end.
+      const current = t >= 1 ? value : Math.round(start + eased * (value - start));
       from.current = current;
       setDisplay(current);
       if (t < 1) frame.current = requestAnimationFrame(tick);
@@ -45,5 +50,6 @@ export function CountUp({
 
   // Before hydration (and on the server) show the real value — no flash of 0.
   const shown = display ?? value;
-  return <>{format ? format(shown) : shown}</>;
+  const fmt = format ?? (currency ? (n: number) => formatMoney(n, currency) : null);
+  return <>{fmt ? fmt(shown) : shown}</>;
 }

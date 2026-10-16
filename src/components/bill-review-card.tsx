@@ -75,6 +75,11 @@ export function BillReviewCard({
   const byLine = new Map<number, Finding[]>();
   for (const f of r.findings) if (f.line != null) byLine.set(f.line, [...(byLine.get(f.line) ?? []), f]);
   const general = r.findings.filter((f) => f.line == null);
+  // Nothing to decide when every line is within the tariff (or it is advice on an estimate).
+  const status =
+    review.status === "PROPOSED" && (review.savings <= 0 || estimate)
+      ? { label: review.savings <= 0 ? "Within the tariff" : "Advice", className: STATUS.ACCEPTED.className }
+      : STATUS[review.status];
 
   async function decide(decision: "ACCEPTED" | "WAIVED") {
     setBusy(decision);
@@ -105,9 +110,7 @@ export function BillReviewCard({
             Bill review{title ? <span className="font-normal text-muted">· {title}</span> : null}
           </span>
         </SectionTitle>
-        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${STATUS[review.status].className}`}>
-          {STATUS[review.status].label}
-        </span>
+        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>{status.label}</span>
       </div>
 
       <dl className="mt-3 grid grid-cols-3 gap-3">
