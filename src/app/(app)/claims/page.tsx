@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
+import { SampleFiles } from "@/components/sample-files";
 import { useQueryParam } from "@/lib/client/use-query-param";
 import { formatMoney } from "@/lib/format";
 
@@ -220,6 +221,7 @@ export default function ClaimsPage() {
             discharge summary together — the full claims flow in one click.
           </p>
         )}
+        <SampleFiles section="claims" className="mt-4 border-t border-line pt-3" />
       </Card>
 
       <Card>

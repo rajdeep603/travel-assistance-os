@@ -1,114 +1,14 @@
+import { createHash } from "node:crypto";
+import scanText from "./scan-text.json";
+
 // ---------------------------------------------------------------------------
 // Fictional inbound samples for the Inbox demo: e-mails and faxes that run
-// through the real intake pipeline ("Simulate" buttons). PDFs live in
-// public/demo-inbound/ (npm run demo:inbound). Faxes are image-only scans; the
-// `lines` are what is written on them — the offline provider's OCR ground
-// truth for these specific samples (the live model reads the image itself).
+// through the real intake pipeline ("Receive it", or importing the .eml/PDF
+// from the sample library). The PDFs come from `npm run demo:samples`
+// (scripts/samples/). Faxes are image-only scans; scan-text.json holds what
+// is written on each, the offline provider's OCR ground truth for those
+// files (the live model reads the image itself).
 // ---------------------------------------------------------------------------
-
-export interface InboundPdf {
-  file: string;
-  title: string;
-  lines: string[];
-  /** Rendered as an image-only fax scan (no text layer). */
-  scanned?: boolean;
-  /** Handwriting-style lettering on the scan. */
-  handwritten?: boolean;
-}
-
-export const INBOUND_PDFS: InboundPdf[] = [
-  {
-    file: "cost-estimate-oliver-bennett.pdf",
-    title: "Cost Estimate / Maliyet Tahmini — Marmara Demo Heart Center",
-    lines: [
-      "FICTIONAL DEMO DOCUMENT — FOR DEMONSTRATION ONLY",
-      "",
-      "COST ESTIMATE / MALİYET TAHMİNİ",
-      "",
-      "Hospital: Marmara Demo Heart Center",
-      "Attending Physician: Dr. Baran Ozturk",
-      "",
-      "Patient Name: Oliver Bennett",
-      "Date of Birth: 1956-12-05",
-      "Policy Number: POL-TR-100950",
-      "",
-      "Diagnosis: Suspected unstable angina",
-      "Planned Admission: 2026-10-15",
-      "Planned Treatment: Coronary angiography; 3 nights cardiology ward; cardiac monitoring",
-      "",
-      "Estimated Total: 6,850.00 EUR",
-      "Currency: EUR",
-      "",
-      "A Letter of Guarantee is required before the procedure.",
-      "Please send the guarantee by fax to +90 212 000 2005 or e-mail billing@demo-heart.example.",
-      "Signed: Billing Office",
-    ],
-  },
-  {
-    file: "epikriz-lena-koch.pdf",
-    title: "Epikriz (Taburcu Özeti) — Marmara Demo Heart Center",
-    lines: [
-      "KURGUSAL DEMO BELGESİ — YALNIZCA GÖSTERİM AMAÇLIDIR",
-      "",
-      "EPİKRİZ",
-      "",
-      "Hastane: Marmara Demo Heart Center",
-      "Sorumlu Hekim: Dr. Baran Ozturk",
-      "",
-      "Hasta Adı: Lena Koch",
-      "Doğum Tarihi: 1964-07-29",
-      "Poliçe No: POL-TR-100946",
-      "",
-      "Yatış Tarihi: 2026-10-12",
-      "Taburcu Tarihi: 2026-10-14",
-      "Şikayetler: göğüs ağrısı, nefes darlığı",
-      "Tanı: Kararsız angina pektoris",
-      "Yapılan İşlemler: Koroner anjiyografi, EKG takibi",
-      "İlaçlar: Aspirin 100mg, Metoprolol 50mg",
-      "",
-      "Hasta stabil durumda taburcu edilmiştir. Uçuş öncesi kardiyoloji kontrolü önerilir.",
-      "İmza: Dr. Baran Ozturk",
-    ],
-  },
-  {
-    file: "fax-medical-report-lena-koch.pdf",
-    title: "Medical report (fax)",
-    scanned: true,
-    handwritten: true,
-    lines: [
-      "MARMARA DEMO HEART CENTER — FAX — FICTIONAL DEMO",
-      "To: CareTrail Medical Desk",
-      "",
-      "Patient Name: Lena Koch",
-      "Date of Birth: 1964-07-29",
-      "Policy Number: POL-TR-100946",
-      "Diagnosis: Unstable angina, stable after treatment",
-      "Procedures: Coronary angiography",
-      "Discharge Date: 2026-10-14",
-      "Fit to fly: yes, with oxygen on request, after 2026-10-17",
-      "Signed: Dr. B. Ozturk",
-    ],
-  },
-  {
-    file: "fax-cost-estimate-oliver-bennett.pdf",
-    title: "Cost estimate (fax)",
-    scanned: true,
-    lines: [
-      "MARMARA DEMO HEART CENTER — BILLING — FAX — FICTIONAL DEMO",
-      "COST ESTIMATE",
-      "",
-      "Hospital: Marmara Demo Heart Center",
-      "Patient Name: Oliver Bennett",
-      "Date of Birth: 1956-12-05",
-      "Policy Number: POL-TR-100950",
-      "Diagnosis: Suspected unstable angina",
-      "Planned Treatment: Coronary angiography; 3 nights cardiology ward",
-      "Estimated Total: 6,850.00 EUR",
-      "Letter of Guarantee required before the procedure.",
-      "Signed: Billing Office",
-    ],
-  },
-];
 
 export interface EmailSample {
   id: string;
@@ -200,9 +100,18 @@ export const FAX_SAMPLES: FaxSample[] = [
   },
 ];
 
-/** OCR ground truth for the scanned samples, by file name. */
-export function sampleScanText(filename: string): string | null {
-  const base = filename.split("/").pop() ?? filename;
-  const pdf = INBOUND_PDFS.find((p) => p.scanned && p.file === base);
-  return pdf ? pdf.lines.join("\n") : null;
+const SCANS = scanText as Record<string, { sha256: string; text: string }>;
+
+/**
+ * OCR ground truth for a bundled fax scan: matched by content, so a renamed
+ * download still reads, or by file name ("fax-…-koch (1).pdf" included).
+ */
+export function sampleScanText(filename: string, buffer?: Buffer): string | null {
+  if (buffer) {
+    const sha256 = createHash("sha256").update(buffer).digest("hex");
+    const hit = Object.values(SCANS).find((s) => s.sha256 === sha256);
+    if (hit) return hit.text;
+  }
+  const base = (filename.split("/").pop() ?? filename).replace(/\s*\(\d+\)(?=\.pdf$)/i, "");
+  return SCANS[base]?.text ?? null;
 }

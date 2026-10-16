@@ -57,7 +57,7 @@ test("the Turkish epikriz is read and translated", async ({ page }) => {
 
 test("voice page explains when voice isn't configured", async ({ page }) => {
   await page.goto("/voice");
-  await page.getByRole("button", { name: /^Start$/ }).click();
+  await page.getByRole("button", { name: /^Start conversation$/ }).click();
   await expect(page.getByText(/Voice isn.t available on this server/i)).toBeVisible();
 });
 

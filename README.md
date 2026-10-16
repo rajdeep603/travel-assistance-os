@@ -66,9 +66,20 @@ to seed demo data.
 | `npm test` | Unit + integration tests (needs the dev database) |
 | `npm run test:e2e` | End-to-end tests against a running app (`E2E_BASE_URL` overridable) |
 | `npm run db:migrate` / `npm run db:seed` | Apply migrations / seed demo data |
-| `npm run demo:pdfs` | Regenerate the fictional demo PDFs |
-| `npm run demo:inbound` | Regenerate the inbound samples (cost estimate, Turkish epikriz, fax scans) |
+| `npm run demo:samples` | Regenerate the whole sample library: documents, fax scans, `.eml` e-mails, assistance requests (macOS, for the handwriting font) |
+| `npm run demo:pdfs` | Regenerate only the text PDFs (what CI runs) |
 | `npm run auth:hash -- <name> <password>` | Print an `OPERATOR_USERS` entry |
+
+## Sample files
+
+Every screen that reads documents has a **Sample files to download** panel next
+to its upload: realistic, fictional hospital documents (letterheads, itemised
+invoices, stamps and signatures), fax scans with no text layer, `.eml` e-mails
+with their attachments, and assistance requests as text. Download one and feed
+it back in through the normal upload, the Inbox's **Import .eml or fax PDF**,
+or the case manager's **Load from file**; each kit is also a `.zip`. The people,
+policies and cases match the seed, so each file lands on the right record. The
+definitions live in `scripts/samples/` and `src/lib/samples/`.
 
 ## AI configuration
 

@@ -1,0 +1,5 @@
+[16/10/2026, 07:41:12] Emma Van Dijk: Hello, is this the travel insurance assistance line?
+[16/10/2026, 07:41:40] CareTrail Assistance: Good morning, yes it is. How can we help?
+[16/10/2026, 07:42:55] Emma Van Dijk: My name is Emma Van Dijk, policy POL-TR-100949. My son is 6 and has had a high fever and a cough since last night. 39.4 this morning.
+[16/10/2026, 07:43:30] Emma Van Dijk: We are in an apartment in Kadikoy. We need a doctor today, preferably one who speaks English or Dutch.
+[16/10/2026, 07:43:52] CareTrail Assistance: Thank you, Emma. We are looking for a paediatric clinic close to you now.

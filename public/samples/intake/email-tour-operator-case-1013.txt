@@ -1,0 +1,14 @@
+From: Duty Desk <duty@bosphorus-tours-demo.example>
+To: assistance@demo-assistance.example
+Date: Fri, 16 Oct 2026 09:20:00 +0300
+Subject: Re: CASE-1013 - dizziness again
+
+Hello,
+
+Following up on CASE-1013. Our tour guide reports that the guest is dizzy again this morning and had a headache overnight. His name is Oliver Bennett, born 5 December 1956. He is resting at the group hotel in Besiktas.
+
+The group flies home on Sunday. Could your doctor advise whether he is fit to travel, and arrange a check-up before then?
+
+Best regards,
+Duty Desk
+Bosphorus Demo Tours

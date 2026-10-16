@@ -1,0 +1,2 @@
+# Saved e-mails must keep their CRLF line endings (RFC 5322).
+*.eml -text

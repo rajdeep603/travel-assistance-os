@@ -61,6 +61,7 @@ Violet (`ai`) always means "AI at work", as in `AISourceBadge`. Don't reuse it f
 | `useWordReveal` | `src/lib/client/use-word-reveal.ts` | writes a finished answer out word by word (capped at 1.2 s) |
 | `Elapsed` | `src/components/elapsed.tsx` | ticking m:ss timer |
 | `toolSteps` | `src/lib/voice/tool-steps.ts` | collapses the model's parallel duplicate tool calls into one step |
+| `SampleFiles` | `src/components/sample-files.tsx` | the collapsed "Sample files to download" panel beside an upload; kits come from `src/lib/samples/catalog.ts` |
 
 ## Things to avoid
 

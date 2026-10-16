@@ -265,7 +265,7 @@ export class MockAIService implements AIService {
    */
   async readDocument(file: DocumentFile): Promise<{ text: string; language: string | null }> {
     await thinkingDelay();
-    const text = sampleScanText(file.filename);
+    const text = sampleScanText(file.filename, file.buffer);
     if (!text) {
       throw new ApiError(
         "This is a scanned document. Reading scans (OCR) needs the live AI model (AI_API_KEY).",

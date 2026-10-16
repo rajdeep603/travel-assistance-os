@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Mail, Printer, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Mail, Printer, Sparkles, Upload } from "lucide-react";
 import { MessageDetailPanel } from "@/components/inbox/message-detail";
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
+import { SampleFiles } from "@/components/sample-files";
 import { Button, Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 
@@ -35,6 +36,7 @@ export default function InboxPage() {
   const [sample, setSample] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
   const pipeline = usePipeline(busy, STAGES.length, { failed: !!error });
 
   const load = useCallback(async () => {
@@ -82,6 +84,28 @@ export default function InboxPage() {
     }
   }
 
+  /** A saved e-mail (.eml) or a fax PDF, through the same pipeline. */
+  async function importFile(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/inbox/import", { method: "POST", body: form });
+      if (!res.ok) {
+        setError(await readApiError(res, `“${file.name}” could not be imported.`));
+        return;
+      }
+      const { message } = await res.json();
+      await load();
+      setSelected(message.id);
+    } catch {
+      setError("The import failed — please check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader
@@ -121,10 +145,27 @@ export default function InboxPage() {
           <Button onClick={() => void simulate()} busy={busy} disabled={!sample}>
             <Sparkles size={15} aria-hidden /> Receive it
           </Button>
+          <span className="text-xs text-muted">or</span>
+          <Button variant="secondary" onClick={() => importInput.current?.click()} disabled={busy}>
+            <Upload size={15} aria-hidden /> Import .eml or fax PDF
+          </Button>
+          <input
+            ref={importInput}
+            type="file"
+            accept=".eml,message/rfc822,application/pdf"
+            aria-label="Import an e-mail or fax"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void importFile(f);
+              e.target.value = "";
+            }}
+          />
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Runs the same pipeline as real e-mails and faxes.
+          Runs the same pipeline as real e-mails and faxes. Import a message saved from any mail app, or a received fax.
         </p>
+        <SampleFiles section="inbox" className="mt-3 border-t border-line pt-3" />
         {pipeline.visible ? (
           <div className="mt-3 border-t border-slate-100 pt-3">
             <AIPipeline stages={STAGES} active={pipeline.active} />
@@ -133,7 +174,7 @@ export default function InboxPage() {
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-5">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <SectionTitle>Messages</SectionTitle>
           {rows === null ? (
             <div className="mt-3">
@@ -171,7 +212,7 @@ export default function InboxPage() {
             </ul>
           )}
         </Card>
-        <div className="lg:col-span-3">
+        <div className="min-w-0 lg:col-span-3">
           {selected ? (
             <MessageDetailPanel id={selected} onChanged={() => void load()} />
           ) : (

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, FileUp, Sparkles } from "lucide-react";
 import {
   AISourceBadge,
   Button,
@@ -17,6 +17,7 @@ import {
   readApiError,
 } from "@/components/ui";
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
+import { SampleFiles } from "@/components/sample-files";
 import { formatEnum } from "@/lib/format";
 
 const ANALYSIS_STAGES = [
@@ -139,6 +140,23 @@ export default function CasesPage() {
   const pipeline = usePipeline(analyzing, ANALYSIS_STAGES.length, { failed: !!error });
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [listLoading, setListLoading] = useState(true);
+  const requestFile = useRef<HTMLInputElement>(null);
+
+  /** A request saved as text (call note, chat export, e-mail) into the box. */
+  async function loadRequest(file: File) {
+    if (file.size > 64 * 1024) {
+      setError(`“${file.name}” is too large for a request; paste the relevant part instead.`);
+      return;
+    }
+    const content = (await file.text()).trim();
+    if (!content) {
+      setError(`“${file.name}” is empty.`);
+      return;
+    }
+    setText(content.slice(0, 4000));
+    setAnalysis(null);
+    setError(content.length > 4000 ? "Only the first 4,000 characters were loaded." : null);
+  }
 
   const loadCases = useCallback(async () => {
     try {
@@ -251,7 +269,24 @@ export default function CasesPage() {
             >
               Use sample request
             </Button>
+            <Button variant="secondary" onClick={() => requestFile.current?.click()}>
+              <FileUp size={15} aria-hidden />
+              Load from file
+            </Button>
+            <input
+              ref={requestFile}
+              type="file"
+              accept=".txt,text/plain"
+              aria-label="Load a request from a text file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void loadRequest(f);
+                e.target.value = "";
+              }}
+            />
           </div>
+          <SampleFiles section="intake" className="mt-4 border-t border-line pt-3" />
         </Card>
 
         <div className="space-y-5">

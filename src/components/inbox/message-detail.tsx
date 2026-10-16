@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AlertTriangle, FileText, Languages, ScanLine, Send } from "lucide-react";
+import { AlertTriangle, ExternalLink, FileText, Languages, ScanLine, Send } from "lucide-react";
 import { AISourceBadge, Button, Card, ErrorBanner, KeyValue, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
 import { formatDateTime, formatEnum } from "@/lib/format";
 
@@ -233,6 +233,16 @@ export function MessageDetailPanel({ id, onChanged }: { id: string; onChanged: (
                 ) : null}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {d.extraction ? <AISourceBadge source={d.extraction.aiSource} /> : null}
+                  {d.storagePath ? (
+                    <a
+                      href={`/api/documents/${d.id}/file`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+                    >
+                      <ExternalLink size={12} aria-hidden /> Open
+                    </a>
+                  ) : null}
                   {d.claim ? (
                     <Link href={`/claims/${d.claim.ref}`} className="text-xs font-medium text-blue-600 hover:underline">
                       Filed on {d.claim.ref}

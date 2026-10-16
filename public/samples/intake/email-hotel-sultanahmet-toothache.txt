@@ -1,0 +1,14 @@
+From: Front Office <frontoffice@sultanahmet-hotel-demo.example>
+To: assistance@demo-assistance.example
+Date: Fri, 16 Oct 2026 10:05:00 +0300
+Subject: Guest needs a dentist today
+
+Dear assistance team,
+
+Our guest in room 214 has had a severe toothache and a swollen cheek since yesterday evening, and asked us to contact his travel insurance. His name is Marco Bianchi and his policy number is POL-TR-100948.
+
+He would like an appointment with a dentist near the hotel in Sultanahmet today, ideally in the afternoon. He speaks Italian and some English.
+
+Kind regards,
+Front Office
+Sultanahmet Demo Hotel

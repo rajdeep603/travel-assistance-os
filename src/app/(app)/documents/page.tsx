@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
+import { SampleFiles } from "@/components/sample-files";
 import { formatEnum } from "@/lib/format";
 import { useQueryParam } from "@/lib/client/use-query-param";
 
@@ -23,7 +24,7 @@ import { useQueryParam } from "@/lib/client/use-query-param";
 function sampleLabel(filename: string): string {
   const base = filename.replace(/\.pdf$/i, "");
   const m = base.match(
-    /^(medical-report|hospital-invoice|discharge-summary|emergency-report|prescription)-(.+)$/
+    /^(medical-report|hospital-invoice|discharge-summary|emergency-report|prescription|cost-estimate)-(.+)$/
   );
   if (!m) return base.replace(/-/g, " ");
   const name = m[2]
@@ -63,6 +64,7 @@ interface Extraction {
 interface Doc {
   id: string;
   filename: string;
+  mimeType?: string;
   kind: string;
   status: string;
   storagePath: string | null;
@@ -238,15 +240,17 @@ export default function DocumentsPage() {
                   ))
                 )}
               </div>
+              <SampleFiles section="documents" className="mt-4 border-t border-line pt-3" />
             </div>
           </Card>
 
           <Card>
             <SectionTitle>Document viewer</SectionTitle>
-            {current?.storagePath?.startsWith("demo-documents/") ? (
+            {current?.storagePath && (current.mimeType === "application/pdf" || /\.pdf$/i.test(current.filename)) ? (
               <iframe
+                key={current.id}
                 title="Document preview"
-                src={`/${current.storagePath}`}
+                src={current.storagePath.startsWith("demo-") ? `/${current.storagePath}` : `/api/documents/${current.id}/file`}
                 className="mt-3 h-[430px] w-full rounded-lg border border-slate-200"
               />
             ) : current?.textContent ? (
