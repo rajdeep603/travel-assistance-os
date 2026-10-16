@@ -17,6 +17,7 @@ import {
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { SampleFiles } from "@/components/sample-files";
+import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
 import { formatEnum } from "@/lib/format";
 import { useQueryParam } from "@/lib/client/use-query-param";
 
@@ -74,7 +75,8 @@ interface Doc {
   ocr?: boolean;
   error: string | null;
   createdAt: string;
-  extraction: Extraction | null;
+  extraction: (Extraction & { documentNumber?: string | null }) | null;
+  billReview?: BillReview | null;
 }
 
 export default function DocumentsPage() {
@@ -355,6 +357,14 @@ export default function DocumentsPage() {
               </div>
             )}
           </Card>
+
+          {e && current?.billReview ? (
+            <BillReviewCard
+              review={current.billReview}
+              title={current.extraction?.documentNumber ?? current.filename}
+              onChanged={(r) => setCurrent((c) => (c ? { ...c, billReview: r } : c))}
+            />
+          ) : null}
 
           {e?.confidence != null ? (
             <Card className="animate-fade-up" style={{ animationDelay: "70ms" }}>

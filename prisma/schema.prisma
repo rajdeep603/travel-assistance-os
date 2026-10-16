@@ -142,6 +142,7 @@ enum CaseEventType {
   APPOINTMENT
   DOCUMENT
   CLAIM
+  BILL_REVIEW
 }
 
 model Patient {
@@ -189,6 +190,7 @@ model Case {
   inboundMessages  InboundMessage[]
   outboundMessages OutboundMessage[]
   guaranteeLetters GuaranteeLetter[]
+  billReviews      BillReview[]
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
@@ -250,14 +252,18 @@ model Claim {
   currency  String?
   summary   String?
   aiSource  String? // which provider wrote the summary: "claude" | "offline"
-  // Array of { severity: "error" | "ok" | "warning", message: string }
+  // Array of { severity: "error" | "ok" | "warning", message: string }.
+  // Travellers see these (voice agent, upload page): never put integrity signals here.
   issues    Json?
+  // Internal integrity signals (fraud, waste and abuse): Array of { code, level, reason }
+  signals   Json?
   history   Json? // Array of { at, action, note }
   patient   Patient     @relation(fields: [patientId], references: [id])
   patientId String
   case      Case?       @relation(fields: [caseId], references: [id])
   caseId    String?
   documents Document[]
+  billReviews BillReview[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -291,6 +297,7 @@ model Document {
   ocr         Boolean             @default(false)
   inboundMessage   InboundMessage? @relation(fields: [inboundMessageId], references: [id])
   inboundMessageId String?
+  billReview  BillReview?
   createdAt   DateTime            @default(now())
 
   @@index([claimId])
@@ -315,12 +322,18 @@ model DocumentExtraction {
   invoiceAmount   Decimal? @db.Decimal(12, 2)
   currency        String?
   policyReference String?
+  // Invoice, estimate or fatura number
+  documentNumber  String?
+  // Charge rows: Array of { code, description, quantity, unitPrice, amount }
+  lineItems       Json?
   summary         String?
   missingInfo     String[]
   confidence      Float?
   aiSource        String? // "claude" | "offline"
   raw             Json?
   createdAt       DateTime @default(now())
+
+  @@index([documentNumber])
 }
 
 model Conversation {
@@ -516,8 +529,52 @@ model GuaranteeLetter {
   sentAt           DateTime?
   acknowledgedAt   DateTime?
   decisionTrace    Json
+  billReviews      BillReview[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   @@index([caseId])
+}
+
+enum BillReviewStatus {
+  PROPOSED // the AI's recommendation, not yet decided
+  ACCEPTED // a person agreed: the recommended amount is what will be paid
+  WAIVED // a person decided to pay as billed
+}
+
+// Line-by-line review of a hospital invoice or cost estimate against the
+// reference tariff (src/lib/services/tariff.ts): billed vs recommended, with
+// a reason for every change. The rules propose; a person accepts or waives.
+model BillReview {
+  id                String           @id @default(cuid())
+  document          Document         @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId        String           @unique
+  case              Case?            @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  caseId            String?
+  claim             Claim?           @relation(fields: [claimId], references: [id], onDelete: SetNull)
+  claimId           String?
+  // The guarantee this bill answers (a final invoice) or that answers it (an estimate)
+  guaranteeLetter   GuaranteeLetter? @relation(fields: [guaranteeLetterId], references: [id], onDelete: SetNull)
+  guaranteeLetterId String?
+  kind              DocumentKind
+  hospital          String?
+  currency          String
+  billed            Decimal          @db.Decimal(12, 2)
+  recommended       Decimal          @db.Decimal(12, 2)
+  savings           Decimal          @db.Decimal(12, 2)
+  savingsEur        Decimal?         @db.Decimal(12, 2)
+  // Lines with billed/recommended, findings with reasons, stay basis
+  result            Json
+  ruleset           String
+  // Hash of the billed lines: a re-review keeps a person's decision while they are unchanged
+  inputHash         String
+  status            BillReviewStatus @default(PROPOSED)
+  decidedBy         String?
+  decidedAt         DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([caseId])
+  @@index([claimId])
+  @@index([createdAt])
 }

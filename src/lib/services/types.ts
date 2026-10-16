@@ -25,8 +25,21 @@ export interface MedicalExtraction {
 /** Which provider produced an AI result: the live model or the offline rules. */
 export type AISource = "claude" | "offline";
 
+/** One charge row of an invoice or cost estimate. */
+export interface InvoiceLine {
+  code: string | null;
+  description: string;
+  quantity: number | null;
+  unitPrice: number | null;
+  amount: number | null;
+}
+
 export interface MedicalExtractionResult {
   extraction: MedicalExtraction;
+  /** Invoice, estimate or fatura number. */
+  documentNumber?: string | null;
+  /** Charge rows of an invoice or estimate (never subtotal, VAT or total rows). */
+  lineItems?: InvoiceLine[];
   summary: string;
   missingInfo: string[];
   confidence: number;

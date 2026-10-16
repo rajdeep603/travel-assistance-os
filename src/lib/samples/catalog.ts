@@ -40,6 +40,7 @@ export const SAMPLE_KITS: SampleKit[] = [
       { path: doc("prescription-aylin-yilmaz.pdf"), title: "Prescription", note: "Two medicines, with directions" },
       { path: doc("medical-report-james-carter.pdf"), title: "Unsigned report", note: "James Carter · no signature or policy number to find" },
       { path: doc("cost-estimate-carlos-garcia.pdf"), title: "Cost estimate", note: "Carlos Garcia · knee surgery · open CASE-1015 first to prepare a guarantee" },
+      { path: doc("final-invoice-lena-koch.pdf"), title: "Overbilled invoice", note: "Lena Koch · 12,385 EUR · open CASE-1022 first to review it against the guarantee" },
       { path: inbound("epikriz-lena-koch.pdf"), title: "Turkish discharge summary", note: "Epikriz · translated to English" },
       { path: inbound("fax-medical-report-lena-koch.pdf"), title: "Handwritten fax", note: "Image only · read with OCR" },
     ],
@@ -78,6 +79,13 @@ export const SAMPLE_KITS: SampleKit[] = [
     ],
   },
   {
+    id: "claim-overbilled",
+    section: "claims",
+    title: "Overbilled final invoice",
+    description: "Lena Koch's October stay, billed above her guarantee LOG-0902. Bill review finds the overcharges line by line. Open CASE-1022 and add it there, or import the hospital's e-mail in the Inbox.",
+    files: [{ path: doc("final-invoice-lena-koch.pdf"), title: "Final invoice", note: "12,385 EUR · VIP suite, duplicate CT, an extra night" }],
+  },
+  {
     id: "inbox-emails",
     section: "inbox",
     title: "E-mails",
@@ -106,6 +114,12 @@ export const SAMPLE_KITS: SampleKit[] = [
         title: "Hospital asks for a guarantee",
         note: "Cost estimate attached · starts a Letter of Guarantee",
         email: { sample: "hospital-cost-estimate", sentAt: "2026-10-15T09:35:00+03:00" },
+      },
+      {
+        path: "samples/inbox/marmara-final-invoice-lena-koch.eml",
+        title: "Hospital bills above the guarantee",
+        note: "Final invoice for LOG-0902 · bill review brings it back inside",
+        email: { sample: "hospital-final-invoice", sentAt: "2026-10-15T17:10:00+03:00" },
       },
       {
         path: "samples/inbox/marco-bianchi-complaint.eml",

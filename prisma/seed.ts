@@ -14,6 +14,7 @@ import { addDays, formatPlainDate, utcToZoned, zonedToUtc, zonedToday } from "..
 import { getAgent } from "../src/lib/voice/agents/registry";
 import {
   APPOINTMENTS,
+  BILL_HISTORY,
   CASES,
   CLAIMS,
   GUARANTEE_LETTERS,
@@ -83,8 +84,9 @@ async function main() {
     const plan = POLICY_PLANS[pp.plan];
     const data = {
       plan: pp.plan,
-      validFrom: daysAgo(60),
-      validTo: daysAgo(-305),
+      // A fixed start before every sample's treatment date, so date checks don't drift as the seed ages.
+      validFrom: new Date("2026-08-01T00:00:00Z"),
+      validTo: new Date(Math.max(Date.parse("2027-07-31T23:59:59Z"), daysAgo(-305).getTime())),
       currency: "EUR",
       medicalLimit: plan.medicalLimit,
       medicalUsed: pp.medicalUsed,
@@ -240,6 +242,8 @@ async function main() {
       invoiceAmount: e.invoiceAmount,
       currency: e.currency,
       policyReference: e.policyReference,
+      documentNumber: result.documentNumber ?? null,
+      lineItems: result.lineItems?.length ? JSON.parse(JSON.stringify(result.lineItems)) : undefined,
       summary: result.summary,
       missingInfo: result.missingInfo,
       confidence: result.confidence,
@@ -255,6 +259,7 @@ async function main() {
   console.log(`  demo documents with extractions: ${demoDocumentIds.size}`);
 
   await seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDocumentIds });
+  await seedBillHistory({ patientIds, caseIds });
 
   // Seeded refs are fixed; move the ref sequences past them.
   await syncRefSequences(prisma);
@@ -296,6 +301,99 @@ async function timeline(
   const existing = await prisma.caseEvent.findFirst({ where: { caseId, type: e.type, title: e.title }, select: { id: true } });
   if (existing) await prisma.caseEvent.update({ where: { id: existing.id }, data });
   else await prisma.caseEvent.create({ data });
+}
+
+/** Invoices reviewed in recent weeks: the history behind the overview's savings. */
+async function seedBillHistory({ patientIds, caseIds }: Pick<SeedIds, "patientIds" | "caseIds">): Promise<void> {
+  const { reviewBill } = await import("../src/lib/services/bill-review");
+  const eur = (n: number) => `€${n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  for (const b of BILL_HISTORY) {
+    const kase = CASES.find((c) => c.ref === b.caseRef)!;
+    const person = PATIENTS.find((p) => p.ref === kase.patientRef)!;
+    const caseId = caseIds.get(b.caseRef)!;
+    const patientId = patientIds.get(kase.patientRef)!;
+    const lines = b.lines.map(([code, description, quantity, unitPrice]) => ({ code, description, quantity, unitPrice, amount: Math.round(quantity * unitPrice * 100) / 100 }));
+    const total = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+    const result = reviewBill({
+      kind: "HOSPITAL_INVOICE",
+      lines,
+      total,
+      currency: "EUR",
+      diagnosis: b.diagnosis,
+      admissionDate: b.admissionDate ?? null,
+      dischargeDate: b.dischargeDate ?? null,
+    });
+    const when = daysAgo(b.daysAgo);
+    const docData = {
+      filename: b.filename,
+      mimeType: "application/pdf",
+      sizeBytes: 0,
+      kind: "HOSPITAL_INVOICE" as const,
+      status: "PROCESSED" as const,
+      source: "EMAIL" as const,
+      caseId,
+      patientId,
+      createdAt: when,
+    };
+    const existing = await prisma.document.findFirst({ where: { filename: b.filename, caseId }, select: { id: true } });
+    const doc = existing ? await prisma.document.update({ where: { id: existing.id }, data: docData }) : await prisma.document.create({ data: docData });
+    const extraction = {
+      patientName: `${person.firstName} ${person.lastName}`,
+      hospital: b.hospital,
+      diagnosis: b.diagnosis,
+      symptoms: [],
+      procedures: [],
+      medications: [],
+      invoiceAmount: total,
+      currency: "EUR",
+      documentNumber: b.documentNumber,
+      lineItems: json(lines),
+      summary: `Itemised invoice ${b.documentNumber} from ${b.hospital}: ${eur(total)}.`,
+      missingInfo: [],
+      confidence: 0.92,
+      aiSource: "offline",
+    };
+    await prisma.documentExtraction.upsert({ where: { documentId: doc.id }, create: { documentId: doc.id, ...extraction }, update: extraction });
+    const decidedAt = b.status === "PROPOSED" ? null : later(when, 3 * 3600);
+    const review = {
+      caseId,
+      kind: "HOSPITAL_INVOICE" as const,
+      hospital: b.hospital,
+      currency: "EUR",
+      billed: result.billed,
+      recommended: result.recommended,
+      savings: result.savings,
+      savingsEur: result.savingsEur,
+      result: json({ ...result, guarantee: null }),
+      ruleset: result.ruleset,
+      inputHash: "seed",
+      status: b.status,
+      decidedBy: b.decidedBy ?? null,
+      decidedAt,
+      createdAt: when,
+    };
+    await prisma.billReview.upsert({ where: { documentId: doc.id }, create: { documentId: doc.id, ...review }, update: review });
+    await timeline(caseId, {
+      type: "BILL_REVIEW",
+      title: `Bill review: ${eur(result.savings)} above the reference tariff on ${b.documentNumber}`,
+      body: `Billed ${eur(result.billed)}, recommended ${eur(result.recommended)} (${result.findings.filter((f) => f.saving > 0).length} findings).`,
+      actor: "agent:bill-review",
+      at: later(when, 60),
+    });
+    if (decidedAt) {
+      await timeline(caseId, {
+        type: "BILL_REVIEW",
+        title:
+          b.status === "ACCEPTED"
+            ? `Bill review accepted on ${b.documentNumber}: pay ${eur(result.recommended)}, saving ${eur(result.savings)}`
+            : `Bill review waived on ${b.documentNumber}: pay as billed (${eur(result.billed)})`,
+        body: null,
+        actor: `operator:${b.decidedBy ?? "Claims Team"}`,
+        at: decidedAt,
+      });
+    }
+  }
+  console.log(`  bill reviews: ${BILL_HISTORY.length}`);
 }
 
 async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDocumentIds }: SeedIds): Promise<void> {

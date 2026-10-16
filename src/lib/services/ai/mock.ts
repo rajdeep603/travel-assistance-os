@@ -7,6 +7,7 @@ import type {
   ContextChunk,
   ConversationSummaryContext,
   DocumentFile,
+  InvoiceLine,
   MedicalExtraction,
   MedicalExtractionResult,
 } from "../types";
@@ -42,6 +43,19 @@ function grab(text: string, labels: string[]): string | null {
     }
   }
   return null;
+}
+
+const LINE_ROW = /^(\d{3}\.\d{3})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$/;
+const num = (s: string) => Number(s.replace(/,/g, ""));
+
+/** Charge rows of an itemised invoice or estimate: "520.030 Description 1 6,500.00 6,500.00". */
+export function parseLineItems(text: string): InvoiceLine[] {
+  const lines: InvoiceLine[] = [];
+  for (const raw of text.split("\n")) {
+    const m = raw.trim().match(LINE_ROW);
+    if (m) lines.push({ code: m[1], description: m[2], quantity: num(m[3]), unitPrice: num(m[4]), amount: num(m[5]) });
+  }
+  return lines;
 }
 
 function grabList(text: string, labels: string[]): string[] {
@@ -144,7 +158,8 @@ export class MockAIService implements AIService {
         ? `${parts.join(" ").replace(/\s+\./g, ".")}.`
         : "No structured medical information could be identified in this document.";
 
-    return { extraction, summary, missingInfo, confidence, source: "offline" };
+    const documentNumber = grab(text, ["Invoice No", "Invoice Number", "Estimate No", "Fatura No", "Proforma No"]);
+    return { extraction, documentNumber, lineItems: parseLineItems(text), summary, missingInfo, confidence, source: "offline" };
   }
 
   async analyzeAssistanceRequest(text: string): Promise<CaseIntakeAnalysis> {

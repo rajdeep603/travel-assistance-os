@@ -63,6 +63,16 @@ export const EMAIL_SAMPLES: EmailSample[] = [
     attachments: ["demo-inbound/cost-estimate-oliver-bennett.pdf"],
   },
   {
+    id: "hospital-final-invoice",
+    label: "Hospital bills the final invoice against a guarantee (overbilled)",
+    from: "Marmara Demo Heart Center Billing <billing@demo-heart.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "Final invoice MHC-INV-2026-1342 — Lena Koch (LOG-0902)",
+    body:
+      "Dear colleagues,\n\nPlease find attached the final invoice for your insured Lena Koch (policy POL-TR-100946), admitted 12–14 October, for direct settlement under Letter of Guarantee LOG-0902.\n\nThe total of EUR 12,385.00 exceeds the guarantee; please confirm the additional amount.\n\nBest regards,\nBilling Office",
+    attachments: ["demo-documents/final-invoice-lena-koch.pdf"],
+  },
+  {
     id: "complaint",
     label: "Upset traveller threatens legal action",
     from: "Marco Bianchi <marco.bianchi@example.com>",

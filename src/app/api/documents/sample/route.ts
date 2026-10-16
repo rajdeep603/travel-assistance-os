@@ -4,6 +4,7 @@ import { z } from "zod";
 import { json, serialize, withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
+import { reviewBills } from "@/lib/services/bill-review-service";
 import { processDocument } from "@/lib/services/document-extraction";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,8 @@ export const POST = withErrorHandling(async (req: Request) => {
     },
   });
 
-  const processed = await processDocument(doc.id, buffer);
+  await processDocument(doc.id, buffer);
+  await reviewBills([doc.id]);
+  const processed = await prisma.document.findUnique({ where: { id: doc.id }, include: { extraction: true, billReview: true } });
   return json({ document: serialize(processed) }, { status: 201 });
 });

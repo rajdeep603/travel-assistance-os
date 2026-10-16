@@ -40,6 +40,8 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
   const [error, setError] = useState<string | null>(null);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  // Approval above what the policy can still guarantee needs a reason.
+  const [overrides, setOverrides] = useState<Record<string, { message: string; reason: string }>>({});
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/guarantee-letters?caseId=${encodeURIComponent(caseId)}`);
@@ -62,6 +64,38 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
         setError(await readApiError(res, "That didn't work — please try again."));
         return;
       }
+      await load();
+      onChanged?.();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function approve(id: string) {
+    const key = `approve-${id}`;
+    setBusy(key);
+    setError(null);
+    try {
+      const reason = overrides[id]?.reason.trim();
+      const res = await fetch(`/api/guarantee-letters/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...(amounts[id] ? { amount: Number(amounts[id]) } : {}), ...(reason ? { reason } : {}) }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        if (body?.error?.code === "REASON_REQUIRED") {
+          setOverrides((o) => ({ ...o, [id]: { message: body.error.message, reason: o[id]?.reason ?? "" } }));
+        } else {
+          setError(body?.error?.message ?? "That didn't work — please try again.");
+        }
+        return;
+      }
+      setOverrides((o) => {
+        const next = { ...o };
+        delete next[id];
+        return next;
+      });
       await load();
       onChanged?.();
     } finally {
@@ -173,11 +207,10 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
                   />
                   <Button
                     busy={busy === `approve-${l.id}`}
-                    onClick={() =>
-                      void act(`approve-${l.id}`, `/api/guarantee-letters/${l.id}/approve`, amounts[l.id] ? { amount: Number(amounts[l.id]) } : {})
-                    }
+                    disabled={overrides[l.id] != null && overrides[l.id].reason.trim().length < 3}
+                    onClick={() => void approve(l.id)}
                   >
-                    Approve
+                    {overrides[l.id] ? "Approve with reason" : "Approve"}
                   </Button>
                   <input
                     aria-label={`Reason to decline ${l.ref}`}
@@ -195,6 +228,18 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
                     Decline
                   </Button>
                 </>
+              ) : null}
+              {l.status === "DRAFT" && overrides[l.id] ? (
+                <div className="w-full rounded-lg border border-warn/40 bg-warn/10 p-3">
+                  <p className="text-sm text-ink">{overrides[l.id].message}</p>
+                  <input
+                    aria-label={`Reason to approve ${l.ref} above the limit`}
+                    placeholder="Reason, e.g. senior desk approved a top-up"
+                    value={overrides[l.id].reason}
+                    onChange={(e) => setOverrides((o) => ({ ...o, [l.id]: { ...o[l.id], reason: e.target.value } }))}
+                    className="mt-2 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                  />
+                </div>
               ) : null}
               {l.status === "APPROVED" ? (
                 <Button busy={busy === `send-${l.id}`} onClick={() => void act(`send-${l.id}`, `/api/guarantee-letters/${l.id}/send`)}>

@@ -17,6 +17,9 @@ interface Trace {
     benefitLimitEur?: number | null;
     excessEur?: number;
     guaranteedEur?: number;
+    committedGuaranteesEur?: number;
+    notCoveredEur?: number;
+    reviewedEur?: number;
   };
 }
 
@@ -47,12 +50,24 @@ export function describeGuaranteeDecision(raw: unknown, flags: string[] = []): s
       estimate?.amount != null && estimate.currency && estimate.currency !== "EUR"
         ? ` (${formatMoney(estimate.amount, estimate.currency)})`
         : "";
-    steps.push(`The hospital's estimate is ${eur(c.estimateEur)}${original}.`);
-    const limits = [`remaining medical limit ${eur(c.remainingMedicalLimitEur ?? 0)}`];
+    if (c.notCoveredEur) {
+      steps.push(
+        `The hospital's estimate is ${eur(c.estimateEur + c.notCoveredEur)}${original}; ${eur(c.notCoveredEur)} of it is never covered (comfort items, duplicates), leaving ${eur(c.estimateEur)}.`
+      );
+    } else {
+      steps.push(`The hospital's estimate is ${eur(c.estimateEur)}${original}.`);
+    }
+    const committed = c.committedGuaranteesEur ? ` (after ${eur(c.committedGuaranteesEur)} already committed in open guarantees)` : "";
+    const limits = [`remaining medical limit ${eur(c.remainingMedicalLimitEur ?? 0)}${committed}`];
     if (c.benefitLimitEur != null) limits.push(`hospital benefit limit ${eur(c.benefitLimitEur)}`);
     steps.push(`Limits that apply: ${limits.join(", ")}.`);
     const excess = c.excessEur ? `, minus the ${eur(c.excessEur)} excess` : "";
     steps.push(`Guaranteed amount: the lower of the estimate and the limits${excess} = ${eur(c.guaranteedEur ?? 0)}.`);
+    if (c.reviewedEur != null) {
+      steps.push(
+        `Bill review prices the treatment at about ${eur(c.reviewedEur)} on the reference tariff. Before treatment that is advice only: the guarantee isn't cut on price, and the reviewed amount is the reserve.`
+      );
+    }
   }
 
   if (flags.length) {

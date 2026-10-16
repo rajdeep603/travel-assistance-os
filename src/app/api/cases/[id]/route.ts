@@ -12,7 +12,7 @@ async function findCase(idOrRef: string) {
       patient: true,
       appointments: { include: { provider: true } },
       claims: true,
-      documents: { include: { extraction: true } },
+      documents: { include: { extraction: true, billReview: true } },
       conversations: true,
       calls: { orderBy: { startedAt: "desc" }, select: { id: true, ref: true, channel: true, direction: true, agentProfile: true, status: true, startedAt: true, durationSec: true, summary: true } },
       events: { orderBy: { createdAt: "asc" } },

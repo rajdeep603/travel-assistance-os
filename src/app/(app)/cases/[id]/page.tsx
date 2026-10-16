@@ -20,6 +20,7 @@ import {
 import type { TimelineItem } from "@/components/ui";
 import { InterpreterCard } from "@/components/calls/interpreter-card";
 import { GuaranteeLettersCard } from "@/components/cases/guarantee-letters-card";
+import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
 import { PlaceCallCard } from "@/components/calls/place-call-card";
 import { formatActor, formatDateTime, formatEnum } from "@/lib/format";
 
@@ -56,7 +57,14 @@ interface CaseDetail {
     provider: { name: string; facility: string; district: string };
   }[];
   claims: { id: string; ref: string; status: string }[];
-  documents: { id: string; filename: string; kind: string; status: string }[];
+  documents: {
+    id: string;
+    filename: string;
+    kind: string;
+    status: string;
+    extraction: { documentNumber: string | null } | null;
+    billReview: BillReview | null;
+  }[];
   conversations: { id: string; channel: string; summary: string | null }[];
   calls: {
     id: string;
@@ -78,6 +86,7 @@ const EVENT_DOTS: Record<string, string> = {
   EMAIL: "bg-indigo-500",
   FAX: "bg-indigo-500",
   LETTER_OF_GUARANTEE: "bg-violet-500",
+  BILL_REVIEW: "bg-brand",
   STATUS: "bg-blue-500",
   DOCUMENT: "bg-indigo-400",
   CLAIM: "bg-indigo-500",
@@ -317,6 +326,17 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               )}
             </div>
           </Card>
+
+          {data.documents
+            .filter((d) => d.billReview && (d.billReview.savings > 0 || d.billReview.result.guarantee?.exceedsBy))
+            .map((d) => (
+              <BillReviewCard
+                key={d.billReview!.id}
+                review={d.billReview!}
+                title={d.extraction?.documentNumber ?? d.filename}
+                onChanged={() => void load()}
+              />
+            ))}
 
           <GuaranteeLettersCard caseId={data.id} onChanged={() => void load()} />
 

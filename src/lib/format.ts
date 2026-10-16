@@ -52,6 +52,16 @@ export function formatMoney(amount: number, currency: string | null): string {
   }
 }
 
+/** Money with cents, for invoices and bill review: "€4,802.50". */
+export function formatMoneyExact(amount: number, currency: string | null): string {
+  if (!currency) return amount.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  try {
+    return new Intl.NumberFormat("en-GB", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+  } catch {
+    return `${amount.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  }
+}
+
 /** "+905321234567" → "+90 ••• ••• 4567": callers are real people, screens are public. */
 export function maskPhone(phone: string | null | undefined): string | null {
   if (!phone) return null;

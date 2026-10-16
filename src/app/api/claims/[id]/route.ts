@@ -11,7 +11,7 @@ export const GET = withErrorHandling(
       include: {
         patient: true,
         case: true,
-        documents: { include: { extraction: true } },
+        documents: { include: { extraction: true, billReview: true } },
       },
     });
     if (!claim) throw notFound("Claim");

@@ -2,6 +2,7 @@ import type { Claim, Document, DocumentExtraction, Patient } from "@prisma/clien
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
 import { runAI } from "./ai";
+import { reviewBills } from "./bill-review-service";
 import { getNotificationService } from "./notification";
 import type { ClaimIssue } from "./types";
 
@@ -70,6 +71,8 @@ export async function reviewClaim(claimId: string): Promise<ClaimWithRelations> 
   if (!claim) throw notFound("Claim");
 
   const issues = checkCompleteness(claim);
+  // Bill review of the claim's invoices (kept off `issues`: travellers see those).
+  await reviewBills(claim.documents.filter((d) => d.kind === "HOSPITAL_INVOICE").map((d) => d.id));
   // Financial fields come from the invoice when there is one; the first
   // extraction is only a fallback (a medical report has no amount).
   const extractions = claim.documents

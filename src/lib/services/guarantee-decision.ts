@@ -8,7 +8,15 @@ import type { Benefit } from "./policy";
 // ---------------------------------------------------------------------------
 
 export interface GuaranteeInputs {
-  estimate: { amount: number; currency: string; diagnosis: string | null; treatment: string[]; admissionDate: string | null };
+  estimate: {
+    amount: number;
+    currency: string;
+    diagnosis: string | null;
+    treatment: string[];
+    admissionDate: string | null;
+    /** Bill review of the estimate: lines never covered (comfort items, duplicates) are taken off; the price review is advice. */
+    review?: { notCovered: number; recommended: number; ruleset: string } | null;
+  };
   policy: {
     number: string;
     plan: string;
@@ -17,6 +25,8 @@ export interface GuaranteeInputs {
     currency: string;
     medicalLimit: number;
     medicalUsed: number;
+    /** Open guarantees already issued on this policy, in the policy's currency. */
+    committed?: number;
     benefits: Benefit[];
   } | null;
   /** EUR amount up to which no human approval is needed. */
@@ -63,12 +73,14 @@ export function decideGuarantee(input: GuaranteeInputs): GuaranteeDecision {
   trace.benefit = benefit ?? null;
   if (!benefit?.covered) flags.push("Hospital admission is not covered by the plan");
 
-  const estimateEur = toEur(estimate.amount, estimate.currency);
+  const notCovered = Math.min(estimate.amount, Math.max(0, estimate.review?.notCovered ?? 0));
+  const estimateEur = toEur(estimate.amount - notCovered, estimate.currency);
   if (estimateEur == null) {
     flags.push(`No exchange rate for ${estimate.currency}`);
     return { guaranteedAmount: 0, excess: 0, conditions, flags, autoApprove: false, trace };
   }
-  const remainingEur = Math.max(0, toEur(policy.medicalLimit - policy.medicalUsed, policy.currency) ?? 0);
+  const committed = Math.max(0, policy.committed ?? 0);
+  const remainingEur = Math.max(0, toEur(policy.medicalLimit - policy.medicalUsed - committed, policy.currency) ?? 0);
   const benefitLimitEur = benefit?.limit != null ? (toEur(benefit.limit, policy.currency) ?? Infinity) : Infinity;
   const excessEur = toEur(benefit?.excess ?? 0, policy.currency) ?? 0;
   const capEur = Math.min(remainingEur, benefitLimitEur);
@@ -80,6 +92,12 @@ export function decideGuarantee(input: GuaranteeInputs): GuaranteeDecision {
     excessEur: round2(excessEur),
     guaranteedEur: round2(guaranteedEur),
     rule: "guaranteed = min(estimate, remaining limit, benefit limit) − excess",
+    // Present only when they apply, so older traces read the same.
+    ...(committed > 0 ? { committedGuaranteesEur: round2(toEur(committed, policy.currency) ?? 0) } : {}),
+    ...(notCovered > 0 ? { notCoveredEur: round2(toEur(notCovered, estimate.currency) ?? 0) } : {}),
+    ...(estimate.review && estimate.review.recommended < estimate.amount
+      ? { reviewedEur: round2(toEur(estimate.review.recommended, estimate.currency) ?? 0), reviewRuleset: estimate.review.ruleset }
+      : {}),
   };
   if (estimateEur > capEur) {
     flags.push("Estimate exceeds the remaining medical limit");

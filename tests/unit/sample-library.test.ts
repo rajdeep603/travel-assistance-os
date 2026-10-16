@@ -7,6 +7,7 @@ import { EMAIL_SAMPLES, sampleScanText } from "@/lib/intake/samples";
 import { looksLikeEml, parseEml } from "@/lib/intake/eml";
 import { extractTextFromFile } from "@/lib/services/pdf";
 import { MockAIService } from "@/lib/services/ai/mock";
+import { reviewBill } from "@/lib/services/bill-review";
 import { crc32, zip } from "@/lib/zip";
 
 // The downloadable sample library must stay readable by the offline model:
@@ -22,8 +23,8 @@ async function readPdf(rel: string) {
   const scanned = text.replace(/-- \d+ of \d+ --/g, "").replace(/[^a-z]/gi, "").length < 20;
   if (scanned) text = (await ai.readDocument({ buffer, mimeType: "application/pdf", filename: path.basename(rel) })).text;
   const kind = await ai.classifyDocument(text, path.basename(rel));
-  const { extraction } = await ai.extractMedicalDocument(text);
-  return { kind, scanned, e: extraction };
+  const { extraction, lineItems, documentNumber } = await ai.extractMedicalDocument(text);
+  return { kind, scanned, e: extraction, lineItems: lineItems ?? [], documentNumber };
 }
 
 describe("sample library", () => {
@@ -44,6 +45,7 @@ describe("sample library", () => {
     "demo-documents/discharge-summary-lena-koch.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Lena Koch", policy: "POL-TR-100946" },
     "demo-documents/hospital-invoice-lena-koch.pdf": { kind: "HOSPITAL_INVOICE", patient: "Lena Koch", policy: "POL-TR-100946", amount: [4060, "EUR"] },
     "demo-documents/cost-estimate-carlos-garcia.pdf": { kind: "COST_ESTIMATE", patient: "Carlos Garcia", policy: "POL-TR-100952", amount: [4200, "EUR"] },
+    "demo-documents/final-invoice-lena-koch.pdf": { kind: "HOSPITAL_INVOICE", patient: "Lena Koch", policy: "POL-TR-100946", amount: [12385, "EUR"] },
     "demo-inbound/cost-estimate-oliver-bennett.pdf": { kind: "COST_ESTIMATE", patient: "Oliver Bennett", policy: "POL-TR-100950", amount: [6850, "EUR"] },
     "demo-inbound/epikriz-lena-koch.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Lena Koch", policy: "POL-TR-100946" },
     "demo-inbound/fax-cost-estimate-oliver-bennett.pdf": { kind: "COST_ESTIMATE", patient: "Oliver Bennett", policy: "POL-TR-100950", amount: [6850, "EUR"], scanned: true },
@@ -68,6 +70,41 @@ describe("sample library", () => {
       for (const v of [e.patientName, e.hospital, e.doctor, e.diagnosis, e.admissionDate]) expect(v ?? "").not.toMatch(/:/);
     });
   }
+
+  // Every itemised bill reads line by line, and its lines add up to its total.
+  for (const [rel, want] of Object.entries(expected).filter(([, w]) => w.amount && !w.scanned)) {
+    it(`reads the lines of ${path.basename(rel)}`, async () => {
+      const { lineItems, documentNumber } = await readPdf(rel);
+      expect(lineItems.length).toBeGreaterThan(2);
+      expect(documentNumber).toMatch(/\d/);
+      const sum = lineItems.reduce((s, l) => s + (l.amount ?? 0), 0);
+      expect(Math.round(sum * 100) / 100).toBe(want.amount![0]);
+      for (const l of lineItems) expect(l.quantity! * l.unitPrice!).toBeCloseTo(l.amount!, 2);
+    });
+  }
+
+  it("finds nothing to cut on the clean samples, and the overcharges on the overbilled one", async () => {
+    const review = async (rel: string) => {
+      const { kind, e, lineItems } = await readPdf(rel);
+      return reviewBill({
+        kind: kind === "COST_ESTIMATE" ? "COST_ESTIMATE" : "HOSPITAL_INVOICE",
+        lines: lineItems,
+        total: e.invoiceAmount,
+        currency: e.currency ?? "EUR",
+        diagnosis: e.diagnosis,
+        admissionDate: e.admissionDate,
+        dischargeDate: e.dischargeDate,
+      });
+    };
+    for (const rel of Object.keys(expected).filter((r) => expected[r].amount && !expected[r].scanned && !r.includes("final-invoice"))) {
+      expect((await review(rel)).savings, rel).toBe(0);
+    }
+    const lena = await review("demo-documents/final-invoice-lena-koch.pdf");
+    expect([lena.billed, lena.recommended, lena.savings]).toEqual([12385, 7582.5, 4802.5]);
+    expect(lena.findings.filter((f) => f.saving > 0).map((f) => f.rule).sort()).toEqual(
+      ["DUPLICATE", "EXTRA_NIGHTS", "NON_MEDICAL", "NON_MEDICAL", "NON_MEDICAL", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE"]
+    );
+  });
 
   it("reads a renamed copy of a fax scan", () => {
     const buffer = read("demo-inbound/fax-cost-estimate-oliver-bennett.pdf");

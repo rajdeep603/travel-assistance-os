@@ -5,6 +5,7 @@ import { detectLanguage } from "@/lib/intake/language";
 import { processingErrorMessage } from "@/lib/uploads";
 import { getAIService, runAI } from "./ai";
 import { extractTextFromFile } from "./pdf";
+import type { MedicalExtractionResult } from "./types";
 
 /** pdf.js emits page markers even for image-only pages; a real text layer has words. */
 export function hasReadableText(text: string): boolean {
@@ -84,27 +85,7 @@ export async function processDocument(
   }
 }
 
-function toExtractionRow(result: {
-  extraction: {
-    patientName: string | null;
-    dateOfBirth: string | null;
-    hospital: string | null;
-    doctor: string | null;
-    diagnosis: string | null;
-    symptoms: string[];
-    admissionDate: string | null;
-    dischargeDate: string | null;
-    procedures: string[];
-    medications: string[];
-    invoiceAmount: number | null;
-    currency: string | null;
-    policyReference: string | null;
-  };
-  summary: string;
-  missingInfo: string[];
-  confidence: number;
-  source?: string;
-}) {
+export function toExtractionRow(result: MedicalExtractionResult) {
   const e = result.extraction;
   return {
     patientName: e.patientName,
@@ -120,6 +101,8 @@ function toExtractionRow(result: {
     invoiceAmount: e.invoiceAmount,
     currency: e.currency,
     policyReference: e.policyReference,
+    documentNumber: result.documentNumber ?? null,
+    lineItems: result.lineItems?.length ? JSON.parse(JSON.stringify(result.lineItems)) : undefined,
     summary: result.summary,
     missingInfo: result.missingInfo ?? [],
     confidence: result.confidence,

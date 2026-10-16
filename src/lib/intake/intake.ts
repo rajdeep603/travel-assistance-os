@@ -7,6 +7,7 @@ import { runAI } from "@/lib/services/ai";
 import { checkCompleteness, reviewClaim } from "@/lib/services/claims";
 import { processDocument } from "@/lib/services/document-extraction";
 import { emailAddress } from "@/lib/services/email";
+import { reviewBillForDocument } from "@/lib/services/bill-review-service";
 import { draftFromCostEstimate } from "@/lib/services/guarantee-letter";
 import { sendEmail } from "@/lib/services/outbox";
 import { processingErrorMessage, sniffType, storeUpload } from "@/lib/uploads";
@@ -174,6 +175,17 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
         await prisma.document.updateMany({ where: { id: { in: claimDocs.map((d) => d.id) } }, data: { claimId } });
         const reviewed = await reviewClaim(claimId);
         claimRef = reviewed.ref;
+      }
+      // Bill review: hospital invoices billed straight to us (direct billing) and claim invoices alike.
+      for (const invoice of processed.filter((d) => d.kind === "HOSPITAL_INVOICE")) {
+        try {
+          const review = await reviewBillForDocument(invoice.id);
+          if (review && Number(review.savings) > 0) {
+            actions.push(`Bill review found ${Number(review.savings).toLocaleString("en-GB", { minimumFractionDigits: 2 })} ${review.currency} above the reference tariff`);
+          }
+        } catch (err) {
+          notes.push(`Invoice "${invoice.filename}" could not be reviewed: ${processingErrorMessage(err)}`);
+        }
       }
       for (const estimate of processed.filter((d) => d.kind === "COST_ESTIMATE")) {
         try {

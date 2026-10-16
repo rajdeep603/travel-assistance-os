@@ -700,6 +700,80 @@ const lenaInvoice: SampleDoc = {
   ],
 };
 
+// The final bill for Lena's October stay, sent to the assistance company for
+// direct billing against LOG-0902 (EUR 11,850). Deliberately overbilled, the
+// way tourist-area invoices often are: inflated prices, a night more than the
+// stay, a duplicate CT, a VIP suite and comfort items. Bill review brings it
+// back inside the guarantee.
+const lenaFinalInvoice: SampleDoc = {
+  file: "final-invoice-lena-koch.pdf",
+  dir: "demo-documents",
+  lang: "en",
+  issuer: MARMARA_HEART,
+  title: "INVOICE",
+  subtitle: "Fatura · Final invoice, inpatient stay",
+  meta: [
+    ["Invoice No:", "MHC-INV-2026-1342"],
+    ["Invoice Date:", "2026-10-15"],
+    ["Guarantee:", "LOG-0902"],
+  ],
+  blocks: [
+    patient(LENA, [
+      ["Policy Number:", "POL-TR-100946"],
+      ["Payer:", `${BRAND.name} (direct billing)`],
+      ["Currency:", "EUR"],
+    ]),
+    {
+      type: "fields",
+      title: "Stay",
+      left: [
+        ["Hospital:", "Marmara Demo Heart Center"],
+        ["Attending Physician:", "Dr. Baran Ozturk"],
+        ["Diagnosis:", "Unstable angina (ICD-10 I20.0)"],
+      ],
+      right: [
+        ["Admission Date:", "2026-10-12"],
+        ["Discharge Date:", "2026-10-14"],
+        ["Room:", "CCU suite 4"],
+      ],
+      split: 0.6,
+      labelWidth: 100,
+    },
+    {
+      type: "table",
+      heading: "Itemised charges",
+      columns: MONEY,
+      rows: [
+        ["520.050", "Emergency cardiology assessment", "1", "1,250.00", "1,250.00"],
+        ["803.500", "Coronary angiography, diagnostic", "1", "3,400.00", "3,400.00"],
+        ["510.140", "Cardiology ward (per night)", "3", "720.00", "2,160.00"],
+        ["510.160", "VIP suite supplement (per night)", "2", "450.00", "900.00"],
+        ["803.410", "Coronary CT angiography", "1", "1,450.00", "1,450.00"],
+        ["803.410", "Coronary CT angiography", "1", "1,450.00", "1,450.00"],
+        ["901.220", "Laboratory: troponin series, lipids", "1", "380.00", "380.00"],
+        ["600.200", "Medication and consumables", "1", "320.00", "320.00"],
+        ["520.090", "Physician and anaesthesia fees", "1", "900.00", "900.00"],
+        ["950.900", "Telephone and television", "1", "85.00", "85.00"],
+        ["950.910", "Companion meals", "2", "45.00", "90.00"],
+      ],
+      totals: [
+        { label: "Subtotal:", value: "12,385.00" },
+        { label: "VAT included (KDV 10%):", value: "1,125.91" },
+        { label: "Total Amount Due:", value: "12,385.00 EUR", strong: true },
+      ],
+      note: "Direct billing under the Letter of Guarantee LOG-0902. Payment within 30 days; please quote the invoice number.",
+    },
+    {
+      type: "signature",
+      caption: "Billing office stamp",
+      name: "Billing Office",
+      role: "International Patient Center",
+      place: "İstanbul, 2026-10-15",
+      stamp: billingOffice(MARMARA_HEART),
+    },
+  ],
+};
+
 // --- Oliver Bennett: cost estimate before angiography (CASE-1024) ---
 
 const oliverEstimateBlocks: Block[] = [
@@ -984,6 +1058,7 @@ export const SAMPLE_DOCS: SampleDoc[] = [
   lenaEmergencyReport,
   lenaDischarge,
   lenaInvoice,
+  lenaFinalInvoice,
   carlosEstimate,
   oliverEstimate,
   oliverEstimateFax,

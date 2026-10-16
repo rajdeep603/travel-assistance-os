@@ -8,7 +8,7 @@ export const GET = withErrorHandling(
   async (_req: Request, { params }: { params: { id: string } }) => {
     const document = await prisma.document.findUnique({
       where: { id: params.id },
-      include: { extraction: true, patient: true, case: true, claim: true },
+      include: { extraction: true, patient: true, case: true, claim: true, billReview: true },
     });
     if (!document) throw notFound("Document");
     return json({ document: serialize(document) });

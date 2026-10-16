@@ -18,6 +18,7 @@ import {
   readApiError,
 } from "@/components/ui";
 import { Timeline } from "@/components/ui";
+import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
 import { formatDateTime, formatEnum, formatMoney } from "@/lib/format";
 
 interface Issue {
@@ -55,7 +56,9 @@ interface ClaimDetail {
       hospital: string | null;
       confidence: number | null;
       missingInfo: string[];
+      documentNumber: string | null;
     } | null;
+    billReview: BillReview | null;
   }[];
 }
 
@@ -283,6 +286,17 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
               </div>
             )}
           </Card>
+
+          {claim.documents
+            .filter((d) => d.billReview)
+            .map((d) => (
+              <BillReviewCard
+                key={d.billReview!.id}
+                review={d.billReview!}
+                title={d.extraction?.documentNumber ?? d.filename}
+                onChanged={() => void load()}
+              />
+            ))}
 
           {claim.history?.length ? (
             <Card>

@@ -1,10 +1,13 @@
 import type { GuaranteeLetter, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
-import { badRequest, conflict, notFound } from "@/lib/errors";
+import { ApiError, badRequest, conflict, notFound } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
 import { addDays, zonedToday } from "@/lib/time";
 import { storeUpload } from "@/lib/uploads";
+import { round2 } from "@/lib/fx";
+import { reviewBillForDocument, reviewResult } from "./bill-review-service";
+import { committedGuarantees, convert } from "./exposure";
 import { decideGuarantee } from "./guarantee-decision";
 import { renderGuaranteeLetter } from "./guarantee-pdf";
 import { sendEmail, sendFax } from "./outbox";
@@ -62,6 +65,11 @@ export async function draftFromCostEstimate(
   const kase = await prisma.case.findUniqueOrThrow({ where: { id: caseId }, include: { patient: { include: { policy: true } } } });
   const provider = await findProvider(ex.hospital, caseId, doc.inboundMessage?.fromAddress ?? null);
   const policy = kase.patient.policy;
+  // Bill review of the estimate: advice on price, but never-covered lines come off.
+  if (!doc.caseId) await prisma.document.update({ where: { id: documentId }, data: { caseId, patientId: kase.patientId } });
+  const reviewed = await reviewBillForDocument(documentId);
+  const review = reviewed ? reviewResult(reviewed) : null;
+  const committed = policy ? (await committedGuarantees(kase.patientId, policy.currency)).total : 0;
 
   const decision = decideGuarantee({
     estimate: {
@@ -70,6 +78,7 @@ export async function draftFromCostEstimate(
       diagnosis: ex.diagnosis,
       treatment: ex.procedures,
       admissionDate: ex.admissionDate,
+      review: review ? { notCovered: review.notCovered, recommended: review.recommended, ruleset: review.ruleset } : null,
     },
     policy: policy
       ? {
@@ -80,6 +89,7 @@ export async function draftFromCostEstimate(
           currency: policy.currency,
           medicalLimit: Number(policy.medicalLimit),
           medicalUsed: Number(policy.medicalUsed),
+          committed,
           benefits: policy.benefits as unknown as Benefit[],
         }
       : null,
@@ -118,6 +128,8 @@ export async function draftFromCostEstimate(
       actor: "agent:guarantee",
     },
   });
+  // Link the review to the letter that answers it.
+  if (reviewed) await reviewBillForDocument(documentId);
 
   if (decision.autoApprove) {
     const approved = await approveLetter(letter.id, "system:auto-approval");
@@ -126,8 +138,20 @@ export async function draftFromCostEstimate(
   return letter;
 }
 
-/** Approves a letter (optionally adjusting the amount) and generates its PDF. */
-export async function approveLetter(id: string, by: string, amount?: number): Promise<GuaranteeLetter> {
+/** What the policy can still guarantee for this letter's patient, in the letter's currency (null without a policy). */
+async function remainingForLetter(letter: { id: string; currency: string; case: { patientId: string; patient: { policy: { medicalLimit: Prisma.Decimal; medicalUsed: Prisma.Decimal; currency: string } | null } } }) {
+  const policy = letter.case.patient.policy;
+  if (!policy) return null;
+  const committed = await committedGuarantees(letter.case.patientId, policy.currency, { excludeLetterId: letter.id });
+  const left = Number(policy.medicalLimit) - Number(policy.medicalUsed) - committed.total;
+  return { amount: round2(Math.max(0, convert(left, policy.currency, letter.currency))), committed };
+}
+
+/**
+ * Approves a letter (optionally adjusting the amount) and generates its PDF.
+ * Above what the policy can still guarantee, the approver must say why.
+ */
+export async function approveLetter(id: string, by: string, amount?: number, reason?: string): Promise<GuaranteeLetter> {
   const letter = await prisma.guaranteeLetter.findUnique({
     where: { id },
     include: { case: { include: { patient: { include: { policy: true } } } }, provider: true },
@@ -137,6 +161,15 @@ export async function approveLetter(id: string, by: string, amount?: number): Pr
   const guaranteed = amount ?? Number(letter.guaranteedAmount);
   if (!(guaranteed > 0)) throw badRequest("The guaranteed amount must be greater than zero.");
   if (guaranteed > Number(letter.estimatedAmount)) throw badRequest("You can't guarantee more than the hospital's estimate.");
+  const remaining = await remainingForLetter(letter);
+  const override = remaining != null && guaranteed > remaining.amount + 0.005;
+  if (override && !reason?.trim()) {
+    throw new ApiError(
+      `${guaranteed.toLocaleString("en-GB")} ${letter.currency} is above what the policy can still guarantee (${remaining.amount.toLocaleString("en-GB")} ${letter.currency}${remaining.committed.letters.length ? `, after ${remaining.committed.letters.map((l) => l.ref).join(", ")}` : ""}). Give a reason to approve it anyway.`,
+      422,
+      "REASON_REQUIRED"
+    );
+  }
 
   const estimateDoc = letter.estimateDocumentId
     ? await prisma.document.findUnique({ where: { id: letter.estimateDocumentId }, include: { extraction: true } })
@@ -174,14 +207,31 @@ export async function approveLetter(id: string, by: string, amount?: number): Pr
   });
   const updated = await prisma.guaranteeLetter.update({
     where: { id },
-    data: { status: "APPROVED", approvedBy: by, guaranteedAmount: guaranteed, pdfDocumentId: pdfDoc.id },
+    data: {
+      status: "APPROVED",
+      approvedBy: by,
+      guaranteedAmount: guaranteed,
+      pdfDocumentId: pdfDoc.id,
+      ...(override
+        ? {
+            decisionTrace: {
+              ...(letter.decisionTrace as Prisma.JsonObject),
+              override: { amount: guaranteed, remaining: remaining!.amount, reason: reason!.trim(), by, at: new Date().toISOString() },
+            },
+          }
+        : {}),
+    },
   });
   await prisma.caseEvent.create({
     data: {
       caseId: letter.caseId,
       type: "LETTER_OF_GUARANTEE",
       title: `${letter.ref} approved: ${guaranteed.toLocaleString("en-GB")} ${letter.currency}`,
-      body: by.startsWith("system") ? "Approved automatically: within policy and the automatic approval limit." : `Approved by ${by}.`,
+      body: by.startsWith("system")
+        ? "Approved automatically: within policy and the automatic approval limit."
+        : override
+          ? `Approved by ${by} above what the policy can still guarantee (${remaining!.amount.toLocaleString("en-GB")} ${letter.currency}). Reason: ${reason!.trim()}`
+          : `Approved by ${by}.`,
       actor: actorOf(by),
     },
   });

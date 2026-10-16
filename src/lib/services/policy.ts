@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { committedGuarantees } from "./exposure";
 
 // ---------------------------------------------------------------------------
 // PolicyService: what a traveller's policy covers. Answers are computed from
@@ -114,6 +115,8 @@ export async function checkCoverage(input: {
   const code = input.benefit ? resolveBenefit(input.benefit) : null;
   const benefit = code ? (benefits.find((b) => b.code === code) ?? null) : null;
   const now = new Date();
+  // What's left after open guarantees, not just after what has been paid.
+  const committed = await committedGuarantees(policy.patient.id, policy.currency, { now });
   return {
     verified: true,
     policyNumber: policy.number,
@@ -122,7 +125,7 @@ export async function checkCoverage(input: {
     validOnToday: policy.validFrom <= now && now <= policy.validTo,
     validTo: policy.validTo.toISOString().slice(0, 10),
     currency: policy.currency,
-    medicalLimitRemaining: Number(policy.medicalLimit) - Number(policy.medicalUsed),
+    medicalLimitRemaining: Math.max(0, Number(policy.medicalLimit) - Number(policy.medicalUsed) - committed.total),
     benefit,
     ...(benefit ? {} : { otherBenefits: benefits.map((b) => ({ code: b.code, label: b.label, covered: b.covered })) }),
     caveat: CAVEAT,

@@ -36,6 +36,18 @@ export const MedicalExtractionResultSchema = z.object({
     currency: text().describe("ISO 4217 code, e.g. EUR, TRY, USD"),
     policyReference: text(),
   }),
+  documentNumber: text().describe("Invoice, estimate or fatura number, if the document has one"),
+  lineItems: z
+    .array(
+      z.object({
+        code: text().describe("Tariff or service code printed on the row"),
+        description: z.string(),
+        quantity: z.number().nullable(),
+        unitPrice: z.number().nullable().describe("Plain number, no separators"),
+        amount: z.number().nullable().describe("Plain number, no separators"),
+      })
+    )
+    .describe("One entry per charge row of an invoice or cost estimate, never subtotal, VAT or total rows; [] for other documents"),
   summary: z.string(),
   missingInfo: z.array(z.string()),
   confidence: z.number().describe("0 to 1"),

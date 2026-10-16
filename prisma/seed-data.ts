@@ -1310,3 +1310,105 @@ export const GUARANTEE_LETTERS: SeedLetter[] = [
     status: "DRAFT",
   },
 ];
+
+// --- Bill review history --------------------------------------------------------
+// Invoices reviewed in the last weeks (no file: the history behind the
+// overview's savings). Reviewed by the real rules at seed time; amounts EUR.
+
+export interface SeedBill {
+  documentNumber: string;
+  filename: string;
+  caseRef: string;
+  hospital: string;
+  diagnosis: string;
+  admissionDate?: string;
+  dischargeDate?: string;
+  daysAgo: number;
+  /** [code, description, quantity, unit price] */
+  lines: [string, string, number, number][];
+  status: "ACCEPTED" | "WAIVED" | "PROPOSED";
+  decidedBy?: string;
+}
+
+export const BILL_HISTORY: SeedBill[] = [
+  {
+    documentNumber: "BMC-INV-2026-7781",
+    filename: "invoice-beyoglu-demo-medical-center-irina-volkova.pdf",
+    caseRef: "CASE-1014",
+    hospital: "Beyoglu Demo Medical Center",
+    diagnosis: "Acute gastroenteritis",
+    daysAgo: 18,
+    lines: [
+      ["520.030", "Emergency department admission", 1, 420],
+      ["510.120", "Ward accommodation (per night)", 3, 380],
+      ["600.200", "Medication and consumables", 1, 260],
+      ["901.050", "Laboratory: basic panel", 1, 95],
+      ["901.050", "Laboratory: basic panel", 1, 95],
+      ["520.080", "Physician fees, internal medicine", 1, 380],
+      ["950.910", "Companion meals", 2, 30],
+    ],
+    status: "ACCEPTED",
+    decidedBy: "Senior Desk",
+  },
+  {
+    documentNumber: "TIC-2026-04122",
+    filename: "invoice-taksim-demo-international-clinic-oliver-bennett.pdf",
+    caseRef: "CASE-1013",
+    hospital: "Taksim Demo International Clinic",
+    diagnosis: "Dizziness and headache, cause under investigation",
+    daysAgo: 9,
+    lines: [
+      ["520.010", "Emergency consultation", 1, 240],
+      ["802.310", "MRI scan, head", 1, 780],
+      ["901.050", "Laboratory: basic panel", 1, 45],
+      ["520.020", "Specialist consultation, neurology", 1, 120],
+    ],
+    status: "ACCEPTED",
+    decidedBy: "Claims Team",
+  },
+  {
+    documentNumber: "BSM-INV-2026-0187",
+    filename: "invoice-besiktas-demo-sports-medicine-carlos-garcia.pdf",
+    caseRef: "CASE-1015",
+    hospital: "Besiktas Demo Sports Medicine",
+    diagnosis: "Knee sprain, suspected meniscus tear",
+    daysAgo: 6,
+    lines: [
+      ["520.010", "Emergency consultation", 1, 180],
+      ["801.230", "X-ray, knee (2 views)", 1, 210],
+      ["802.310", "MRI scan, knee", 1, 610],
+      ["950.120", "Knee brace and crutches", 1, 200],
+    ],
+    status: "ACCEPTED",
+    decidedBy: "Claims Team",
+  },
+  {
+    documentNumber: "KFP-2026-1093",
+    filename: "invoice-kadikoy-demo-family-practice-emma-van-dijk.pdf",
+    caseRef: "CASE-1012",
+    hospital: "Kadikoy Demo Family Practice",
+    diagnosis: "Allergic contact dermatitis",
+    daysAgo: 15,
+    lines: [
+      ["520.020", "Specialist consultation, dermatology", 1, 150],
+      ["600.100", "Medication", 1, 45],
+      ["950.930", "VIP lounge waiting fee", 1, 60],
+    ],
+    status: "ACCEPTED",
+    decidedBy: "Claims Team",
+  },
+  {
+    documentNumber: "KEI-2026-0558",
+    filename: "invoice-kadikoy-demo-eye-institute-siobhan-murphy.pdf",
+    caseRef: "CASE-1016",
+    hospital: "Kadikoy Demo Eye Institute",
+    diagnosis: "Contact lens related keratitis",
+    daysAgo: 2,
+    lines: [
+      ["520.020", "Specialist consultation, ophthalmology", 1, 190],
+      ["803.120", "Optical coherence tomography (OCT)", 1, 260],
+      ["600.100", "Medication", 1, 35],
+    ],
+    status: "PROPOSED",
+  },
+];
