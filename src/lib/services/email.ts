@@ -1,10 +1,16 @@
+import { createTransport, type Transporter } from "nodemailer";
 import { BRAND } from "@/lib/brand";
 import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
-// EmailService: outbound e-mail. Twilio SendGrid (v3 Mail Send) when
-// SENDGRID_API_KEY is set; otherwise the mock records messages in the outbox
-// so the whole flow still runs offline. One class per provider.
+// EmailService: outbound e-mail. Amazon SES over SMTP when SES_SMTP_* is set,
+// else Twilio SendGrid (v3 Mail Send) when SENDGRID_API_KEY is set; otherwise
+// the mock records messages in the outbox so the whole flow still runs
+// offline. One class per provider.
+//
+// A real provider never receives the demo's fictional addresses (the reserved
+// example domains): those stay simulated, so the seeded hospitals, vendors
+// and travellers never bounce against the sending reputation.
 // ---------------------------------------------------------------------------
 
 export interface EmailAttachment {
@@ -31,6 +37,58 @@ export interface EmailService {
 /** "Aylin Yilmaz <aylin@example.com>" → "aylin@example.com" */
 export function emailAddress(from: string): string {
   return (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
+}
+
+/** RFC 2606 and 6761 names: the demo's fictional people and hospitals use these. */
+const RESERVED_DOMAIN = /(^|\.)(example\.(com|net|org)|example|test|invalid|localhost)$/i;
+
+/** True for an address no real mailbox can have (aylin@demo-heart.example, x@example.com). */
+export function isReservedAddress(address: string): boolean {
+  const domain = emailAddress(address).split("@")[1] ?? "";
+  return !domain || RESERVED_DOMAIN.test(domain);
+}
+
+/**
+ * SES's id for the message, from its SMTP acceptance line ("250 Ok 0109019a…"):
+ * the id its bounce and complaint reports use. Null for any other relay.
+ */
+export function parseSesMessageId(response: string | undefined): string | null {
+  const match = /^250 Ok ([0-9a-z-]+)$/i.exec((response ?? "").trim());
+  return match ? match[1] : null;
+}
+
+class SesSmtpEmail implements EmailService {
+  readonly name = "ses";
+  readonly configured = true;
+  private readonly transporter: Transporter;
+
+  constructor(private readonly settings: NonNullable<typeof env.sesSmtp>) {
+    this.transporter = createTransport({
+      host: settings.host,
+      port: settings.port,
+      // 465 is implicit TLS; 587 and 2587 use STARTTLS.
+      secure: settings.port === 465,
+      auth: { user: settings.user, pass: settings.password },
+      tls: { rejectUnauthorized: true },
+      // Someone is waiting on the screen: fail in seconds, not minutes.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 30_000,
+    });
+  }
+
+  async send(message: EmailMessage) {
+    const info = await this.transporter.sendMail({
+      from: { name: this.settings.fromName || BRAND.name, address: this.settings.from },
+      to: emailAddress(message.to),
+      subject: message.subject,
+      text: message.text,
+      ...(message.inReplyTo ? { inReplyTo: message.inReplyTo, references: message.inReplyTo } : {}),
+      attachments: message.attachments?.map((a) => ({ filename: a.filename, content: a.content, contentType: a.type })),
+    });
+    if (info.rejected?.length) throw new Error(`SES refused the recipient ${emailAddress(message.to)}`);
+    return { id: parseSesMessageId(info.response) ?? info.messageId };
+  }
 }
 
 class SendGridEmail implements EmailService {
@@ -79,10 +137,20 @@ export class MockEmail implements EmailService {
 }
 
 let instance: EmailService | null = null;
+const simulated = new MockEmail();
 
 export function getEmailService(): EmailService {
-  if (!instance) instance = env.sendgridApiKey ? new SendGridEmail(env.sendgridApiKey) : new MockEmail();
+  if (!instance) {
+    const ses = env.sesSmtp;
+    instance = ses ? new SesSmtpEmail(ses) : env.sendgridApiKey ? new SendGridEmail(env.sendgridApiKey) : new MockEmail();
+  }
   return instance;
+}
+
+/** The service for one recipient: with a real provider, fictional addresses stay simulated. */
+export function emailServiceFor(to: string): EmailService {
+  const service = getEmailService();
+  return service.configured && isReservedAddress(to) ? simulated : service;
 }
 
 /** Test hook. */

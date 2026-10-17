@@ -131,13 +131,33 @@ test("the business case takes the AI's running cost off the saving", async ({ pa
   await expect(page.getByText(/after the AI's running costs\.$/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "What the AI costs to run" })).toBeVisible();
   await expect(page.getByRole("row", { name: /^Voice AI on calls 25,200 min × €0\.074/ })).toBeVisible();
-  await expect(page.getByRole("row", { name: /^Total a month €2,935$/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /^Cloud hosting Servers, database, storage and backups €120$/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /^Total a month €3,055$/ })).toBeVisible();
   // The prices are the visitor's to change, and come back with one click.
   await page.getByRole("button", { name: "Edit the prices" }).click();
   await page.getByRole("spinbutton", { name: "Voice AI, per minute (euros)" }).fill("0.1");
-  await expect(page.getByRole("row", { name: /^Total a month €3,590$/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /^Total a month €3,710$/ })).toBeVisible();
   await page.getByRole("button", { name: "Restore list prices" }).click();
-  await expect(page.getByRole("row", { name: /^Total a month €2,935$/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /^Total a month €3,055$/ })).toBeVisible();
+});
+
+test("the business case becomes a quotation to download or e-mail", async ({ page }) => {
+  await page.goto("/business-case");
+  await page.getByRole("textbox", { name: "Prepared for" }).fill("Example Assistance Ltd");
+  await page.getByRole("textbox", { name: "Service 1", exact: true }).fill("Setup and configuration");
+  await page.getByRole("spinbutton", { name: "Service 1 amount (euros)" }).fill("6000");
+  await page.getByRole("button", { name: "Add a service" }).click();
+  await page.getByRole("textbox", { name: "Service 2", exact: true }).fill("Team training");
+  await expect(page.getByText("2 services on the quotation")).toBeVisible();
+  await expect(page.getByText("Pays back within the first month")).toBeVisible();
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download quotation" }).click();
+  expect((await download).suggestedFilename()).toMatch(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{4}\.pdf$/);
+
+  // Without an e-mail provider the page says so, and offers the download instead.
+  await page.getByRole("button", { name: "E-mail quotation" }).click();
+  await expect(page.getByText(/E-mail isn't set up on this server yet/)).toBeVisible();
 });
 
 test("the floating AI assistant keeps the conversation and its history, with voice mode a click away", async ({ page }) => {

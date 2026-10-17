@@ -2,17 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ASSUMPTIONS,
   DEFAULT_INPUTS,
+  DEFAULT_COST_CONTAINMENT,
   DEFAULT_RUNNING_COST_PRICES,
+  EMPTY_QUOTE,
   PRESETS,
   buildSummary,
+  businessCaseReport,
   calculateBusinessCase,
+  calculateCostContainment,
+  calculateQuote,
   calculateRunningCost,
   formatDuration,
+  formatPayback,
   formatRate,
   headline,
   netHeadline,
+  quoteNumber,
   roughly,
+  withCostContainment,
+  withQuote,
   withRunningCost,
+  type BusinessCaseInput,
   type Assumptions,
   type BusinessCaseResult,
   type OperationInputs,
@@ -242,7 +252,7 @@ describe("AI running cost", () => {
   const result = calculateBusinessCase(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS);
   const running = calculateRunningCost(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES, result);
 
-  it("starts from the list prices, in euros at the demo rate", () => {
+  it("starts from the list prices, in euros at the demo rate, and a lean cloud", () => {
     // $0.08 a minute voice; $0.0085 + $0.0044 phone; $4 / $20 per million tokens.
     expect(DEFAULT_RUNNING_COST_PRICES).toEqual({
       voicePerMinute: 0.074,
@@ -252,6 +262,7 @@ describe("AI running cost", () => {
       perMessage: 0.092,
       perClaim: 0.125,
       perLetter: 0.059,
+      cloudPerMonth: 120,
     });
   });
 
@@ -267,13 +278,14 @@ describe("AI running cost", () => {
     expect(byItem.inbound.cost).toBeCloseTo(368);
     expect(byItem.claims.cost).toBeCloseTo(250);
     expect(byItem.letters.cost).toBeCloseTo(17.7);
+    expect(byItem.cloud).toMatchObject({ volume: 1, unit: "month", cost: 120 });
 
-    expect(running.monthlyCost).toBeCloseTo(2_934.9);
-    expect(running.annualCost).toBeCloseTo(35_218.8);
-    expect(running.costPerCase).toBeCloseTo(2_934.9 / 1_500);
-    expect(running.netMonthlySaving).toBeCloseTo(38_260 - 2_934.9);
-    expect(running.netAnnualSaving).toBeCloseTo((38_260 - 2_934.9) * 12);
-    expect(running.returnPerEuro).toBeCloseTo(38_260 / 2_934.9);
+    expect(running.monthlyCost).toBeCloseTo(3_054.9);
+    expect(running.annualCost).toBeCloseTo(36_658.8);
+    expect(running.costPerCase).toBeCloseTo(3_054.9 / 1_500);
+    expect(running.netMonthlySaving).toBeCloseTo(38_260 - 3_054.9);
+    expect(running.netAnnualSaving).toBeCloseTo((38_260 - 3_054.9) * 12);
+    expect(running.returnPerEuro).toBeCloseTo(38_260 / 3_054.9);
     expect(running.aiMinuteCost).toBeCloseTo(0.086);
     expect(running.agentMinuteCost).toBeCloseTo(0.5);
   });
@@ -284,12 +296,14 @@ describe("AI running cost", () => {
     expect(r.voiceMinutes).toBeCloseTo(6_000);
   });
 
-  it("costs nothing, and returns zeros, for an empty operation", () => {
+  it("charges only the cloud for an empty operation", () => {
     const r = calculateRunningCost(ZERO_INPUTS, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES);
-    // The price of a minute doesn't depend on the volumes; everything else does.
-    const { lines, aiMinuteCost, ...totals } = r;
-    expect(aiMinuteCost).toBeCloseTo(0.086);
-    for (const value of [...Object.values(totals), ...lines.map((l) => l.cost)]) expect(value).toBe(0);
+    expect(r.lines.filter((l) => l.cost > 0).map((l) => l.item)).toEqual(["cloud"]);
+    expect(r.monthlyCost).toBe(120);
+    expect(r.netMonthlySaving).toBe(-120);
+    expect(r.returnPerEuro).toBe(0);
+    const free = calculateRunningCost(ZERO_INPUTS, DEFAULT_ASSUMPTIONS, { ...DEFAULT_RUNNING_COST_PRICES, cloudPerMonth: 0 });
+    expect(free.monthlyCost).toBe(0);
   });
 
   it("treats blank and negative prices as zero", () => {
@@ -305,12 +319,12 @@ describe("AI running cost", () => {
 
   it("puts the net figure in the headline, or says when the AI isn't covered", () => {
     expect(netHeadline(result, running)).toBe(
-      "With these numbers, CareTrail would free about 1,275 agent hours a month — roughly 9.1 full-time staff, worth about €459,000 a year, or €424,000 after the AI's running costs."
+      "With these numbers, CareTrail would free about 1,275 agent hours a month — roughly 9.1 full-time staff, worth about €459,000 a year, or €422,000 after the AI's running costs."
     );
     const unpaid = calculateBusinessCase({ ...DEFAULT_INPUTS, costPerHour: 0 }, DEFAULT_ASSUMPTIONS);
     const costly = calculateRunningCost({ ...DEFAULT_INPUTS, costPerHour: 0 }, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES, unpaid);
     expect(costly.netAnnualSaving).toBeLessThan(0);
-    expect(netHeadline(unpaid, costly)).toMatch(/which doesn't cover the €35,200 a year the AI costs to run\.$/);
+    expect(netHeadline(unpaid, costly)).toMatch(/which doesn't cover the €36,700 a year the AI costs to run\.$/);
     const empty = calculateBusinessCase(ZERO_INPUTS, DEFAULT_ASSUMPTIONS);
     expect(netHeadline(empty, calculateRunningCost(ZERO_INPUTS, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES, empty))).toBe(headline(empty));
   });
@@ -320,8 +334,9 @@ describe("AI running cost", () => {
     const text = withRunningCost(labour, running);
     expect(text).toContain("- Voice AI on calls: 25,200 min × €0.074 = €1,865");
     expect(text).toContain("- Letters of Guarantee drafted: 300 × €0.059 = €18");
-    expect(text).toContain("- Total: €2,935 a month, €35,219 a year (€1.96 per case)");
-    expect(text).toContain("- Net saving after AI costs: €35,325 a month, €423,901 a year (€13 of agent time freed for every €1 of AI)");
+    expect(text).toContain("- Cloud hosting (servers, database, storage and backups): €120");
+    expect(text).toContain("- Total: €3,055 a month, €36,659 a year (€2.04 per case)");
+    expect(text).toContain("- Net saving after AI costs: €35,205 a month, €422,461 a year (€13 of agent time freed for every €1 of AI)");
     expect(text.split("\n").at(-1)).toBe(labour.split("\n").at(-1));
     expect(text).not.toMatch(/NaN|undefined|Claude|Grok|Twilio|xAI|Anthropic/);
   });
@@ -330,5 +345,74 @@ describe("AI running cost", () => {
     expect(formatRate(0.074)).toBe("€0.074");
     expect(formatRate(0.5)).toBe("€0.50");
     expect(formatRate(0.125)).toBe("€0.125");
+  });
+});
+
+describe("quotation", () => {
+  const input: BusinessCaseInput = {
+    operation: DEFAULT_INPUTS,
+    assumptions: DEFAULT_ASSUMPTIONS,
+    prices: DEFAULT_RUNNING_COST_PRICES,
+    costContainment: DEFAULT_COST_CONTAINMENT,
+    quote: {
+      preparedFor: "  Example Assistance Ltd ",
+      services: [
+        { description: "Setup and configuration", amount: 6_000 },
+        { description: "Team training", amount: 0 },
+        { description: "   ", amount: 900 },
+        { description: "Claims system integration", amount: Number.NaN },
+      ],
+    },
+  };
+  const report = businessCaseReport(input);
+
+  it("totals the one-time services, keeps included ones, and drops blank rows", () => {
+    expect(report.quote.preparedFor).toBe("Example Assistance Ltd");
+    expect(report.quote.services).toEqual([
+      { description: "Setup and configuration", amount: 6_000 },
+      { description: "Team training", amount: 0 },
+      { description: "Claims system integration", amount: 0 },
+    ]);
+    expect(report.quote.oneTimeTotal).toBe(6_000);
+    expect(report.quote.monthlyRunningCost).toBeCloseTo(3_054.9);
+    expect(report.quote.firstYearCost).toBeCloseTo(6_000 + 36_658.8);
+    expect(report.quote.paybackMonths).toBeCloseTo(6_000 / (38_260 - 3_054.9));
+  });
+
+  it("says how soon the net saving pays the one-time cost back", () => {
+    expect(formatPayback(0)).toBe("No one-time cost to pay back");
+    expect(formatPayback(0.17)).toBe("Pays back within the first month");
+    expect(formatPayback(2.44)).toBe("Pays back in 2.4 months");
+    expect(formatPayback(14.6)).toBe("Pays back in 15 months");
+    expect(formatPayback(null)).toBe("The net saving doesn't pay back the one-time cost");
+    const losing = calculateRunningCost({ ...DEFAULT_INPUTS, costPerHour: 0 }, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES);
+    expect(calculateQuote({ preparedFor: "", services: [{ description: "Setup", amount: 5_000 }] }, losing).paybackMonths).toBeNull();
+    expect(calculateQuote(EMPTY_QUOTE, losing).paybackMonths).toBe(0);
+  });
+
+  it("numbers the quotation by date and content", () => {
+    expect(quoteNumber(input, "2026-10-17")).toMatch(/^Q-20261017-[0-9A-F]{4}$/);
+    expect(quoteNumber(input, "2026-10-17")).toBe(quoteNumber({ ...input }, "2026-10-17"));
+    expect(quoteNumber(input, "2026-10-17")).not.toBe(quoteNumber({ ...input, quote: EMPTY_QUOTE }, "2026-10-17"));
+  });
+
+  it("puts who it's for and the services in the summary, closing line still last", () => {
+    const labour = buildSummary(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS, report.result);
+    expect(report.summary.split("\n")[1]).toBe("Prepared for Example Assistance Ltd");
+    expect(report.summary).toContain("- Setup and configuration: €6,000");
+    expect(report.summary).toContain("- Team training: included");
+    expect(report.summary).toContain("- Total one-time: €6,000");
+    expect(report.summary).toContain("- First year with running costs: €42,659. Pays back within the first month.");
+    expect(report.summary.split("\n").at(-1)).toBe(labour.split("\n").at(-1));
+    // Without services or a name, the summary is the business case alone.
+    const plain = businessCaseReport({ ...input, quote: EMPTY_QUOTE });
+    const expected = withCostContainment(
+      withRunningCost(labour, plain.running),
+      DEFAULT_COST_CONTAINMENT,
+      calculateCostContainment(DEFAULT_COST_CONTAINMENT)
+    );
+    expect(plain.summary).toBe(expected);
+    expect(withQuote(expected, plain.quote)).toBe(expected);
+    expect(plain.headline).toBe(netHeadline(plain.result, plain.running));
   });
 });

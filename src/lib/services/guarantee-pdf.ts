@@ -27,7 +27,8 @@ export interface LetterContent {
   approvedBy: string;
 }
 
-function fontPath(file: string): string | null {
+/** A font shipped with pdfjs-dist (Liberation Sans, SIL OFL), wherever node_modules ended up. */
+export function fontPath(file: string): string | null {
   const candidates = [
     path.join(process.cwd(), "node_modules", "pdfjs-dist", "standard_fonts", file),
     path.join(__dirname, "..", "node_modules", "pdfjs-dist", "standard_fonts", file),

@@ -1,6 +1,6 @@
 import type { OutboundMessage } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { getEmailService, type EmailAttachment } from "./email";
+import { emailServiceFor, type EmailAttachment } from "./email";
 import { getFaxService } from "./fax";
 
 // The outbox: every e-mail and fax the platform sends is recorded first,
@@ -17,7 +17,7 @@ interface Common {
 export async function sendEmail(
   input: Common & { to: string; subject: string; text: string; attachments?: EmailAttachment[]; threadId?: string }
 ): Promise<OutboundMessage> {
-  const email = getEmailService();
+  const email = emailServiceFor(input.to);
   const row = await prisma.outboundMessage.create({
     data: {
       channel: "EMAIL",

@@ -80,6 +80,20 @@ export const env = {
   get sendgridApiKey(): string {
     return process.env.SENDGRID_API_KEY ?? "";
   },
+  /**
+   * Amazon SES over SMTP, set up as in CareTrack. The user and password are SES
+   * SMTP credentials, not an IAM key pair; the region is in the host. All five
+   * must be set, or SES stays off.
+   */
+  get sesSmtp(): { host: string; port: number; user: string; password: string; from: string; fromName: string } | null {
+    const host = process.env.SES_SMTP_HOST ?? "";
+    const port = Number(process.env.SES_SMTP_PORT ?? "");
+    const user = process.env.SES_SMTP_USER ?? "";
+    const password = process.env.SES_SMTP_PASSWORD ?? "";
+    const from = process.env.SES_MAIL_FROM ?? "";
+    if (!host || !port || !user || !password || !from) return null;
+    return { host, port, user, password, from, fromName: process.env.SES_MAIL_FROM_NAME || "" };
+  },
   /** Sender for e-mail replies and Letters of Guarantee. */
   get emailFrom(): string {
     return process.env.EMAIL_FROM || "claims@demo-assistance.example";

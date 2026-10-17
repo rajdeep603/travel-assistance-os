@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Clock, Coins, Copy, Euro, FileCheck2, Moon, ReceiptText, RotateCcw } from "lucide-react";
-import { Button, Card, PageHeader, SectionTitle } from "@/components/ui";
+import { Check, ChevronDown, Clock, Coins, Copy, Download, Euro, FileCheck2, FileText, Mail, Moon, Plus, ReceiptText, RotateCcw, X } from "lucide-react";
+import { Button, Card, ErrorBanner, PageHeader, SectionTitle } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { formatMoney, formatMoneyExact } from "@/lib/format";
@@ -15,17 +15,15 @@ import {
   DISCLAIMER,
   PRESETS,
   PRESET_MEDICAL_SPEND,
-  buildSummary,
-  calculateBusinessCase,
-  calculateCostContainment,
-  calculateRunningCost,
-  withCostContainment,
-  withRunningCost,
+  QUOTE_VALID_DAYS,
+  businessCaseReport,
+  costBasis,
   formatCount,
   formatDuration,
+  formatPayback,
   formatRate,
-  netHeadline,
   type Assumptions,
+  type BusinessCaseInput,
   type CostContainmentInputs,
   type OperationInputs,
   type RunningCostPrices,
@@ -135,6 +133,10 @@ const PRICE_GROUPS: { title: string; fields: FieldSpec<keyof RunningCostPrices>[
       euroRate("perLetter", "Letter of Guarantee"),
     ],
   },
+  {
+    title: "Cloud",
+    fields: [{ key: "cloudPerMonth", label: "Cloud hosting a month", unit: "€", unitWords: "euros", min: 0, max: 1_000_000, step: 10 }],
+  },
 ];
 
 const ASSUMPTION_FIELDS = [
@@ -164,6 +166,18 @@ const ASSUMPTION_FIELDS = [
     "Read (with OCR for faxes), matched to the case and answered or filed without a person."
   ),
 ];
+
+/** A one-time service as typed: the amount stays text until it is sent. */
+interface ServiceDraft {
+  id: number;
+  description: string;
+  amount: string;
+}
+
+const MAX_SERVICES = 20;
+
+/** Hints for the starting rows: the kind of service a quotation carries, never a price. */
+const SERVICE_HINTS = ["e.g. Setup and configuration", "e.g. Integration with your claims system", "e.g. Team training"];
 
 function toDraft<T extends object>(values: T): Draft<T> {
   return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, String(v)])) as Draft<T>;
@@ -285,20 +299,44 @@ export default function BusinessCasePage() {
   const pricesPanel = useId();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [emailOpen, setEmailOpen] = useState(false);
+  /** Whether the server can send e-mail; null until asked. */
+  const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailState, setEmailState] = useState<"idle" | "sending" | "sent">("idle");
+  const [emailNote, setEmailNote] = useState<string | null>(null);
+  const emailId = useId();
+  const [preparedFor, setPreparedFor] = useState("");
+  const [services, setServices] = useState<ServiceDraft[]>(() => SERVICE_HINTS.map((_, i) => ({ id: i + 1, description: "", amount: "" })));
+  const nextServiceId = useRef(SERVICE_HINTS.length + 1);
+  const preparedForId = useId();
 
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   const inputs = useMemo(() => fromDraft<OperationInputs>(operation), [operation]);
   const assumptions = useMemo(() => fromDraft<Assumptions>(assumptionDraft), [assumptionDraft]);
-  const result = useMemo(() => calculateBusinessCase(inputs, assumptions), [inputs, assumptions]);
   const costInputs = useMemo(() => fromDraft<CostContainmentInputs>(costDraft), [costDraft]);
-  const cost = useMemo(() => calculateCostContainment(costInputs), [costInputs]);
   const prices = useMemo(() => fromDraft<RunningCostPrices>(priceDraft), [priceDraft]);
-  const running = useMemo(() => calculateRunningCost(inputs, assumptions, prices, result), [inputs, assumptions, prices, result]);
-  const summary = useMemo(
-    () => withCostContainment(withRunningCost(buildSummary(inputs, assumptions, result), running), costInputs, cost),
-    [inputs, assumptions, result, running, costInputs, cost]
+  const input: BusinessCaseInput = useMemo(
+    () => ({
+      operation: inputs,
+      assumptions,
+      prices,
+      costContainment: costInputs,
+      quote: { preparedFor, services: services.map((s) => ({ description: s.description, amount: Number(s.amount) })) },
+    }),
+    [inputs, assumptions, prices, costInputs, preparedFor, services]
   );
+  const report = useMemo(() => businessCaseReport(input), [input]);
+  const { result, running, cost, quote, summary } = report;
+
+  const updateService = (id: number, change: Partial<ServiceDraft>) =>
+    setServices((list) => list.map((s) => (s.id === id ? { ...s, ...change } : s)));
+  const addService = () => setServices((list) => [...list, { id: nextServiceId.current++, description: "", amount: "" }]);
+  const removeService = (id: number) =>
+    setServices((list) => (list.length > 1 ? list.filter((s) => s.id !== id) : [{ id: nextServiceId.current++, description: "", amount: "" }]));
 
   const activePreset = PRESETS.find((p) =>
     (Object.keys(p.inputs) as (keyof OperationInputs)[]).every((k) => inputs[k] === p.inputs[k])
@@ -321,6 +359,73 @@ export default function BusinessCasePage() {
     clearTimeout(copiedTimer.current);
     setCopyState(ok ? "copied" : "failed");
     if (ok) copiedTimer.current = setTimeout(() => setCopyState("idle"), 2500);
+  }
+
+  /** The API's own message for a failed request, or a plain fallback. */
+  async function failure(res: Response, fallback: string): Promise<string> {
+    const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+    return body?.error?.message ?? fallback;
+  }
+
+  async function downloadPdf() {
+    setPdfBusy(true);
+    setPdfError(null);
+    try {
+      const res = await fetch("/api/business-case/pdf", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error(await failure(res, "The quotation couldn't be made. Please try again."));
+      const name = res.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "quotation.pdf";
+      const url = URL.createObjectURL(await res.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "The quotation couldn't be made. Please try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function openEmail() {
+    setEmailOpen(true);
+    setEmailState("idle");
+    setEmailNote(null);
+    if (emailConfigured !== null) return;
+    try {
+      const res = await fetch("/api/business-case/email");
+      setEmailConfigured(res.ok ? Boolean(((await res.json()) as { configured?: boolean }).configured) : false);
+    } catch {
+      setEmailConfigured(false);
+    }
+  }
+
+  async function sendEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setEmailState("sending");
+    setEmailNote(null);
+    try {
+      const res = await fetch("/api/business-case/email", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ to: emailTo, input }),
+      });
+      if (!res.ok) {
+        if (res.status === 503) setEmailConfigured(false);
+        throw new Error(await failure(res, "The e-mail couldn't be sent. Please try again."));
+      }
+      setEmailState("sent");
+      setEmailNote(`Sent to ${emailTo.trim()}, with the quotation attached.`);
+    } catch (err) {
+      setEmailState("idle");
+      setEmailNote(err instanceof Error ? err.message : "The e-mail couldn't be sent. Please try again.");
+    }
   }
 
   const eur = (amount: number) => formatMoney(Math.round(amount), CURRENCY);
@@ -347,7 +452,7 @@ export default function BusinessCasePage() {
       value: running.netAnnualSaving,
       format: eurShort,
       label: "Net saving a year",
-      context: `${eur(result.annualSaving)} of agent time, less ${eur(running.annualCost)} to run the AI`,
+      context: `${eur(result.annualSaving)} of agent time, less ${eur(running.annualCost)} running cost`,
     },
     {
       icon: Moon,
@@ -373,16 +478,88 @@ export default function BusinessCasePage() {
         title="Business Case"
         subtitle={`What ${BRAND.name} would free up in your operation. Enter your own numbers — every result updates as you type.`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <span role="status" aria-live="polite" className="sr-only">
             {copyState === "copied" ? "Summary copied to the clipboard" : ""}
           </span>
-          <Button variant={copyState === "copied" ? "success" : "primary"} onClick={() => void copySummary()}>
+          <Button variant={copyState === "copied" ? "success" : "secondary"} onClick={() => void copySummary()}>
             {copyState === "copied" ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}
             {copyState === "copied" ? "Copied" : "Copy summary"}
           </Button>
+          <Button variant="secondary" busy={pdfBusy} onClick={() => void downloadPdf()}>
+            {pdfBusy ? null : <Download size={15} aria-hidden />}
+            Download quotation
+          </Button>
+          <Button onClick={() => void openEmail()}>
+            <Mail size={15} aria-hidden />
+            E-mail quotation
+          </Button>
         </div>
       </PageHeader>
+
+      {pdfError ? (
+        <div className="mb-5">
+          <ErrorBanner message={pdfError} />
+        </div>
+      ) : null}
+
+      {emailOpen ? (
+        <Card className="mb-5 animate-fade-up">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <SectionTitle>E-mail the quotation</SectionTitle>
+              <p className="mt-1 text-sm text-muted">The quotation goes as a PDF attachment, with the summary in the e-mail itself.</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setEmailOpen(false)}
+              className="rounded-md p-1.5 text-muted transition-colors duration-150 hover:bg-canvas hover:text-ink"
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </div>
+          {emailConfigured === false ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-warn/10 px-4 py-3">
+              <p className="min-w-0 flex-1 text-sm text-ink">
+                E-mail isn&apos;t set up on this server yet, so it can&apos;t send from here. Download the quotation and attach it to your own e-mail.
+              </p>
+              <Button variant="secondary" busy={pdfBusy} onClick={() => void downloadPdf()}>
+                {pdfBusy ? null : <Download size={15} aria-hidden />}
+                Download quotation
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={(e) => void sendEmail(e)} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <label htmlFor={emailId} className="text-sm font-medium text-slate-700">
+                  Send to
+                </label>
+                <input
+                  id={emailId}
+                  type="email"
+                  required
+                  autoComplete="off"
+                  placeholder="name@company.com"
+                  value={emailTo}
+                  onChange={(e) => {
+                    setEmailTo(e.target.value);
+                    if (emailState === "sent") setEmailState("idle");
+                  }}
+                  className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <Button type="submit" busy={emailState === "sending"} disabled={emailConfigured === null || emailState === "sent"}>
+                {emailState === "sent" ? <Check size={15} aria-hidden /> : null}
+                {emailState === "sent" ? "Sent" : "Send"}
+              </Button>
+            </form>
+          )}
+          <p role="status" aria-live="polite" className={`text-sm ${emailState === "sent" ? "mt-2 text-live" : emailNote ? "mt-2 text-red-700" : ""}`}>
+            {emailNote}
+          </p>
+        </Card>
+      ) : null}
 
       {copyState === "failed" ? (
         <Card className="mb-5 border-amber-200 bg-amber-50">
@@ -409,7 +586,7 @@ export default function BusinessCasePage() {
       <div className="animate-fade-up rounded-2xl bg-gradient-to-br from-blue-700 to-sky-600 p-6 text-white shadow-sm md:p-7">
         <p className="text-sm font-medium text-blue-100">Your business case</p>
         <p aria-live="polite" className="mt-1.5 max-w-4xl text-xl font-semibold leading-snug md:text-2xl">
-          {netHeadline(result, running)}
+          {report.headline}
         </p>
       </div>
 
@@ -431,7 +608,7 @@ export default function BusinessCasePage() {
       <Card className="mt-5">
         <SectionTitle>What the AI costs to run</SectionTitle>
         <p className="mt-1 text-sm text-muted">
-          Pay-as-you-go prices for the voice AI, its phone line and the document AI, at your volumes. The net saving above already takes it off.
+          Pay-as-you-go prices for the voice AI, its phone line and the document AI at your volumes, plus the cloud it runs on. The net saving above already takes it off.
         </p>
         <div className="mt-3 grid gap-5 lg:grid-cols-5">
           <div className="lg:col-span-3">
@@ -449,8 +626,7 @@ export default function BusinessCasePage() {
                     <th scope="row" className="py-2.5 pr-3 text-left font-normal">
                       <span className="block font-medium text-ink">{l.label}</span>
                       <span className="block tabular-nums text-muted">
-                        {formatCount(l.volume)}
-                        {l.unit === "min" ? " min" : ""} × {formatRate(l.price)}
+                        {costBasis(l)}
                         {l.item === "voice" && running.callsHandedOver > 0
                           ? ` · ${formatCount(running.callsClosed)} calls closed by the AI, ${formatCount(running.callsHandedOver)} handed to a person after ${formatCount(running.handoverMinutes, Number.isInteger(running.handoverMinutes) ? 0 : 1)} min`
                           : ""}
@@ -564,6 +740,112 @@ export default function BusinessCasePage() {
               </div>
             </div>
           ) : null}
+        </div>
+      </Card>
+
+      <Card className="mt-5">
+        <SectionTitle>Quotation</SectionTitle>
+        <p className="mt-1 text-sm text-muted">
+          The PDF is a quotation from {BRAND.poweredBy}, valid for {QUOTE_VALID_DAYS} days: the one-time services you add here, the running cost above, and what it returns.
+        </p>
+        <div className="mt-3 grid gap-5 lg:grid-cols-5">
+          <div className="min-w-0 space-y-4 lg:col-span-3">
+            <div>
+              <label htmlFor={preparedForId} className="text-sm font-medium text-slate-700">
+                Prepared for
+              </label>
+              <input
+                id={preparedForId}
+                type="text"
+                maxLength={120}
+                autoComplete="off"
+                placeholder="The visitor's company or name"
+                value={preparedFor}
+                onChange={(e) => setPreparedFor(e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+            <fieldset className="min-w-0">
+              <legend className="text-sm font-medium text-slate-700">One-time services</legend>
+              <ul className="mt-1.5 space-y-2">
+                {services.map((s, i) => (
+                  <li key={s.id} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      maxLength={160}
+                      autoComplete="off"
+                      aria-label={`Service ${i + 1}`}
+                      placeholder={SERVICE_HINTS[i] ?? "Service"}
+                      value={s.description}
+                      onChange={(e) => updateService(s.id, { description: e.target.value })}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                    <div className="flex w-32 shrink-0 rounded-lg transition-shadow focus-within:ring-2 focus-within:ring-blue-100 sm:w-40">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={100}
+                        aria-label={`Service ${i + 1} amount (euros)`}
+                        placeholder="0"
+                        value={s.amount}
+                        onChange={(e) => updateService(s.id, { amount: e.target.value })}
+                        className="w-full min-w-0 rounded-l-lg border border-slate-300 bg-white px-3 py-2 text-right text-base font-medium tabular-nums text-slate-900 focus:border-blue-500 focus:outline-none"
+                      />
+                      <span aria-hidden className="flex shrink-0 items-center rounded-r-lg border border-l-0 border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
+                        €
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Remove service ${i + 1}`}
+                      onClick={() => removeService(s.id)}
+                      className="shrink-0 rounded-md p-2 text-muted transition-colors duration-150 hover:bg-canvas hover:text-ink"
+                    >
+                      <X size={16} aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                <button
+                  type="button"
+                  onClick={addService}
+                  disabled={services.length >= MAX_SERVICES}
+                  className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand transition-colors duration-150 hover:text-brand-deep disabled:cursor-not-allowed disabled:text-muted"
+                >
+                  <Plus size={15} aria-hidden />
+                  Add a service
+                </button>
+                <p className="text-sm text-muted">Leave the amount empty to show a service as included.</p>
+              </div>
+            </fieldset>
+          </div>
+
+          <div className="flex flex-col justify-center gap-5 rounded-xl bg-canvas p-5 lg:col-span-2">
+            <div>
+              <FileText size={20} aria-hidden className="text-brand" />
+              <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-ink 2xl:text-4xl">
+                <CountUp value={quote.oneTimeTotal} format={eurShort} durationMs={500} />
+              </p>
+              <p className="mt-1 text-sm font-semibold text-ink">One-time services</p>
+              <p className="mt-0.5 text-sm text-muted">
+                {quote.services.length ? `${quote.services.length} ${quote.services.length === 1 ? "service" : "services"} on the quotation` : "None added yet"}
+              </p>
+            </div>
+            <dl className="space-y-2 text-sm">
+              {[
+                { label: "Running cost a month", value: eur(quote.monthlyRunningCost) },
+                { label: "First year in total", value: eur(quote.firstYearCost) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="font-semibold tabular-nums text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="border-t border-line pt-4 text-sm font-semibold text-brand">{formatPayback(quote.paybackMonths)}</p>
+          </div>
         </div>
       </Card>
 
@@ -725,7 +1007,7 @@ export default function BusinessCasePage() {
               </p>
             </Card>
             <p className="px-1 text-sm text-slate-500">
-              {DISCLAIMER} — not a quote. {BRAND.name} · {POWERED_BY}
+              {DISCLAIMER}. {BRAND.name} · {POWERED_BY}
             </p>
           </div>
         </div>

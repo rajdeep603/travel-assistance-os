@@ -385,7 +385,10 @@ export function withCostContainment(summary: string, inputs: CostContainmentInpu
 // - phone line: Twilio, US local number, $0.0085 a minute inbound plus
 //   $0.0044 for the audio stream to the voice AI;
 // - document AI: Claude Opus 5.5, $4 per million tokens read and $20 per
-//   million written, at the token counts below.
+//   million written, at the token counts below;
+// - cloud hosting: a lean production setup in one region (two small app
+//   servers, a managed database, storage and backups, about $130 a month),
+//   kept on the low side on purpose.
 // The page and the summary never name the vendors. Every price is editable,
 // so a presenter can put in the visitor's own quote. The platform licence is
 // not part of it.
@@ -422,6 +425,8 @@ export interface RunningCostPrices {
   perMessage: number;
   perClaim: number;
   perLetter: number;
+  /** Servers, database, storage and backups, a month. */
+  cloudPerMonth: number;
 }
 
 export const DEFAULT_RUNNING_COST_PRICES: RunningCostPrices = {
@@ -432,17 +437,18 @@ export const DEFAULT_RUNNING_COST_PRICES: RunningCostPrices = {
   perMessage: modelEur(TOKENS_PER_ITEM.message),
   perClaim: modelEur(TOKENS_PER_ITEM.claim),
   perLetter: modelEur(TOKENS_PER_ITEM.letter),
+  cloudPerMonth: 120,
 };
 
-export type CostItem = "voice" | "phone" | "notes" | "inbound" | "claims" | "letters";
+export type CostItem = "voice" | "phone" | "notes" | "inbound" | "claims" | "letters" | "cloud";
 
 export interface CostLine {
   item: CostItem;
   label: string;
-  /** Minutes or items a month. */
+  /** Minutes or items a month; 1 for a monthly charge. */
   volume: number;
-  unit: "min" | "item";
-  /** EUR per minute or item. */
+  unit: "min" | "item" | "month";
+  /** EUR per minute, item or month. */
   price: number;
   /** EUR a month. */
   cost: number;
@@ -500,6 +506,7 @@ export function calculateRunningCost(
     line("inbound", "E-mails & faxes read", amount(inputs.monthlyInbound), "item", prices.perMessage),
     line("claims", "Claims checked", amount(inputs.monthlyClaims), "item", prices.perClaim),
     line("letters", "Letters of Guarantee drafted", amount(inputs.monthlyLetters), "item", prices.perLetter),
+    line("cloud", "Cloud hosting", 1, "month", prices.cloudPerMonth),
   ];
 
   const monthlyCost = lines.reduce((sum, l) => sum + l.cost, 0);
@@ -519,6 +526,12 @@ export function calculateRunningCost(
     aiMinuteCost: amount(prices.voicePerMinute) + amount(prices.phonePerMinute),
     agentMinuteCost: amount(inputs.costPerHour) / 60,
   };
+}
+
+/** How a line's cost is worked out: "25,200 min × €0.074", "4,000 × €0.092". */
+export function costBasis(line: CostLine): string {
+  if (line.unit === "month") return "Servers, database, storage and backups";
+  return `${formatCount(line.volume)}${line.unit === "min" ? " min" : ""} × ${formatRate(line.price)}`;
 }
 
 /** €0.074, €0.12: per-minute and per-item prices, to the tenth of a cent. */
@@ -547,8 +560,8 @@ export function withRunningCost(summary: string, running: RunningCostResult): st
   return [
     ...lines,
     "AI running cost (per month, pay-as-you-go)",
-    ...running.lines.map(
-      (l) => `- ${l.label}: ${formatCount(l.volume)}${l.unit === "min" ? " min" : ""} × ${formatRate(l.price)} = ${eur(l.cost)}`
+    ...running.lines.map((l) =>
+      l.unit === "month" ? `- ${l.label} (${costBasis(l).toLowerCase()}): ${eur(l.cost)}` : `- ${l.label}: ${costBasis(l)} = ${eur(l.cost)}`
     ),
     `- Total: ${eur(running.monthlyCost)} a month, ${eur(running.annualCost)} a year${
       running.costPerCase > 0 ? ` (${formatMoneyExact(running.costPerCase, CURRENCY)} per case)` : ""
@@ -557,4 +570,129 @@ export function withRunningCost(summary: string, running: RunningCostResult): st
     "",
     closing,
   ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Quotation: what Sthiram charges once (the services the presenter adds, such
+// as setup or integration), the monthly running cost above, and how soon the
+// net saving pays the one-time part back.
+// ---------------------------------------------------------------------------
+
+export interface ServiceItem {
+  description: string;
+  /** EUR, once; 0 shows the service as included. */
+  amount: number;
+}
+
+export interface QuoteDetails {
+  /** The visitor's company or name. */
+  preparedFor: string;
+  services: ServiceItem[];
+}
+
+export const EMPTY_QUOTE: QuoteDetails = { preparedFor: "", services: [] };
+
+/** How long a quotation holds. */
+export const QUOTE_VALID_DAYS = 30;
+
+export interface QuoteResult {
+  preparedFor: string;
+  /** The services with a description, in the order entered. */
+  services: ServiceItem[];
+  oneTimeTotal: number;
+  monthlyRunningCost: number;
+  /** One-time services plus twelve months of running cost. */
+  firstYearCost: number;
+  /** Months of net saving that recover the one-time cost: 0 with nothing to recover, null when the saving never does. */
+  paybackMonths: number | null;
+}
+
+export function calculateQuote(quote: QuoteDetails, running: RunningCostResult): QuoteResult {
+  const services = quote.services
+    .map((s) => ({ description: s.description.trim(), amount: amount(s.amount) }))
+    .filter((s) => s.description);
+  const oneTimeTotal = services.reduce((sum, s) => sum + s.amount, 0);
+  return {
+    preparedFor: quote.preparedFor.trim(),
+    services,
+    oneTimeTotal,
+    monthlyRunningCost: running.monthlyCost,
+    firstYearCost: oneTimeTotal + running.annualCost,
+    paybackMonths: oneTimeTotal === 0 ? 0 : running.netMonthlySaving > 0 ? oneTimeTotal / running.netMonthlySaving : null,
+  };
+}
+
+/** "Pays back in 1.4 months", for the page, the PDF and the summary alike. */
+export function formatPayback(months: number | null): string {
+  if (months === null) return "The net saving doesn't pay back the one-time cost";
+  if (months === 0) return "No one-time cost to pay back";
+  if (months <= 1) return "Pays back within the first month";
+  return `Pays back in ${formatCount(months, months < 10 ? 1 : 0)} months`;
+}
+
+/**
+ * "Q-20261017-3FA2": the date and a short hash of everything quoted, so the
+ * same numbers give the same reference whether downloaded or e-mailed.
+ */
+export function quoteNumber(input: BusinessCaseInput, date: string): string {
+  let hash = 0x811c9dc5;
+  for (const ch of JSON.stringify(input)) {
+    hash ^= ch.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `Q-${date.replace(/-/g, "")}-${(hash & 0xffff).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** The copied summary with the quotation: who it is for after the title, the services before the closing line. */
+export function withQuote(summary: string, quote: QuoteResult): string {
+  const lines = summary.split("\n");
+  if (quote.preparedFor) lines.splice(1, 0, `Prepared for ${quote.preparedFor}`);
+  if (!quote.services.length) return lines.join("\n");
+  const closing = lines.pop() ?? "";
+  const eur = (v: number) => formatMoney(Math.round(v), CURRENCY);
+  return [
+    ...lines,
+    "One-time services",
+    ...quote.services.map((s) => `- ${s.description}: ${s.amount > 0 ? eur(s.amount) : "included"}`),
+    `- Total one-time: ${eur(quote.oneTimeTotal)}`,
+    `- First year with running costs: ${eur(quote.firstYearCost)}. ${formatPayback(quote.paybackMonths)}.`,
+    "",
+    closing,
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// The whole business case from what the presenter entered: the page, the PDF
+// and the e-mail all build from this, so they never disagree.
+// ---------------------------------------------------------------------------
+
+export interface BusinessCaseInput {
+  operation: OperationInputs;
+  assumptions: Assumptions;
+  prices: RunningCostPrices;
+  costContainment: CostContainmentInputs;
+  quote: QuoteDetails;
+}
+
+export interface BusinessCaseReport {
+  input: BusinessCaseInput;
+  result: BusinessCaseResult;
+  running: RunningCostResult;
+  cost: CostContainmentResult;
+  quote: QuoteResult;
+  headline: string;
+  /** Plain text, as copied and as the body of the e-mail. */
+  summary: string;
+}
+
+export function businessCaseReport(input: BusinessCaseInput): BusinessCaseReport {
+  const result = calculateBusinessCase(input.operation, input.assumptions);
+  const running = calculateRunningCost(input.operation, input.assumptions, input.prices, result);
+  const cost = calculateCostContainment(input.costContainment);
+  const quote = calculateQuote(input.quote, running);
+  const summary = withQuote(
+    withCostContainment(withRunningCost(buildSummary(input.operation, input.assumptions, result), running), input.costContainment, cost),
+    quote
+  );
+  return { input, result, running, cost, quote, headline: netHeadline(result, running), summary };
 }
