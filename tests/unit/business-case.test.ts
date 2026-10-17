@@ -17,7 +17,11 @@ import {
   formatRate,
   headline,
   netHeadline,
+  quoteBasis,
+  quoteMeta,
   quoteNumber,
+  quoteTerms,
+  returnFacts,
   roughly,
   withCostContainment,
   withQuote,
@@ -355,7 +359,10 @@ describe("quotation", () => {
     prices: DEFAULT_RUNNING_COST_PRICES,
     costContainment: DEFAULT_COST_CONTAINMENT,
     quote: {
-      preparedFor: "  Example Assistance Ltd ",
+      customerName: " Aylin Kaya ",
+      companyName: "  Example Assistance Ltd ",
+      email: "aylin@assistance-company.com",
+      phone: "",
       services: [
         { description: "Setup and configuration", amount: 6_000 },
         { description: "Team training", amount: 0 },
@@ -367,7 +374,7 @@ describe("quotation", () => {
   const report = businessCaseReport(input);
 
   it("totals the one-time services, keeps included ones, and drops blank rows", () => {
-    expect(report.quote.preparedFor).toBe("Example Assistance Ltd");
+    expect(report.quote).toMatchObject({ customerName: "Aylin Kaya", companyName: "Example Assistance Ltd", preparedFor: "Aylin Kaya, Example Assistance Ltd" });
     expect(report.quote.services).toEqual([
       { description: "Setup and configuration", amount: 6_000 },
       { description: "Team training", amount: 0 },
@@ -386,19 +393,20 @@ describe("quotation", () => {
     expect(formatPayback(14.6)).toBe("Pays back in 15 months");
     expect(formatPayback(null)).toBe("The net saving doesn't pay back the one-time cost");
     const losing = calculateRunningCost({ ...DEFAULT_INPUTS, costPerHour: 0 }, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES);
-    expect(calculateQuote({ preparedFor: "", services: [{ description: "Setup", amount: 5_000 }] }, losing).paybackMonths).toBeNull();
+    expect(calculateQuote({ ...EMPTY_QUOTE, services: [{ description: "Setup", amount: 5_000 }] }, losing).paybackMonths).toBeNull();
     expect(calculateQuote(EMPTY_QUOTE, losing).paybackMonths).toBe(0);
   });
 
   it("numbers the quotation by date and content", () => {
-    expect(quoteNumber(input, "2026-10-17")).toMatch(/^Q-20261017-[0-9A-F]{4}$/);
+    expect(quoteNumber(input, "2026-10-17")).toMatch(/^Q-20261017-[0-9A-F]{6}$/);
     expect(quoteNumber(input, "2026-10-17")).toBe(quoteNumber({ ...input }, "2026-10-17"));
     expect(quoteNumber(input, "2026-10-17")).not.toBe(quoteNumber({ ...input, quote: EMPTY_QUOTE }, "2026-10-17"));
   });
 
   it("puts who it's for and the services in the summary, closing line still last", () => {
     const labour = buildSummary(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS, report.result);
-    expect(report.summary.split("\n")[1]).toBe("Prepared for Example Assistance Ltd");
+    expect(report.summary.split("\n")[1]).toBe("Prepared for Aylin Kaya, Example Assistance Ltd");
+    expect(report.summary).toContain("Service charges (one-time)");
     expect(report.summary).toContain("- Setup and configuration: €6,000");
     expect(report.summary).toContain("- Team training: included");
     expect(report.summary).toContain("- Total one-time: €6,000");
@@ -414,5 +422,20 @@ describe("quotation", () => {
     expect(plain.summary).toBe(expected);
     expect(withQuote(expected, plain.quote)).toBe(expected);
     expect(plain.headline).toBe(netHeadline(plain.result, plain.running));
+  });
+
+  it("dates the quotation and spells out its terms, basis and return the same way everywhere", () => {
+    const meta = quoteMeta(input, "2026-10-17");
+    expect(meta).toEqual({ number: quoteNumber(input, "2026-10-17"), date: "2026-10-17", validUntil: "2026-11-16" });
+    expect(quoteMeta(input, "2026-10-17", "Q-KEPT").number).toBe("Q-KEPT");
+    expect(quoteTerms(meta)).toContain("Service charges are fixed until 16 November 2026.");
+    const basis = Object.fromEntries(quoteBasis(report));
+    expect(basis["Inbound calls a month"]).toBe("6,000 (35% outside office hours, 6 min each)");
+    expect(basis["Cloud hosting"]).toBe("€120 a month");
+    expect(returnFacts(report.running)).toEqual([
+      "€13 of agent time freed for every €1 it costs to run.",
+      "€2.04 running cost per assistance case.",
+      "A minute on the phone: €0.086 with the voice AI, €0.50 with an agent.",
+    ]);
   });
 });

@@ -9,6 +9,7 @@
 import { BRAND, POWERED_BY } from "./brand";
 import { formatMoney, formatMoneyExact } from "./format";
 import { DEMO_FX_TO_EUR } from "./fx";
+import { addDays, formatPlainDate } from "./time";
 
 export const CURRENCY = "EUR";
 
@@ -573,9 +574,9 @@ export function withRunningCost(summary: string, running: RunningCostResult): st
 }
 
 // ---------------------------------------------------------------------------
-// Quotation: what Sthiram charges once (the services the presenter adds, such
-// as setup or integration), the monthly running cost above, and how soon the
-// net saving pays the one-time part back.
+// Quotation: the services at the running cost above, Sthiram's own one-time
+// service charges (setup, integration, training…), who it is for, and how
+// soon the net saving pays the one-time part back.
 // ---------------------------------------------------------------------------
 
 export interface ServiceItem {
@@ -585,17 +586,25 @@ export interface ServiceItem {
 }
 
 export interface QuoteDetails {
-  /** The visitor's company or name. */
-  preparedFor: string;
+  customerName: string;
+  companyName: string;
+  email: string;
+  phone: string;
+  /** Sthiram's one-time service charges. */
   services: ServiceItem[];
 }
 
-export const EMPTY_QUOTE: QuoteDetails = { preparedFor: "", services: [] };
+export const EMPTY_QUOTE: QuoteDetails = { customerName: "", companyName: "", email: "", phone: "", services: [] };
 
 /** How long a quotation holds. */
 export const QUOTE_VALID_DAYS = 30;
 
 export interface QuoteResult {
+  customerName: string;
+  companyName: string;
+  email: string;
+  phone: string;
+  /** "Aylin Kaya, Anatolia Assist": the customer and the company, whichever are given. */
   preparedFor: string;
   /** The services with a description, in the order entered. */
   services: ServiceItem[];
@@ -612,8 +621,14 @@ export function calculateQuote(quote: QuoteDetails, running: RunningCostResult):
     .map((s) => ({ description: s.description.trim(), amount: amount(s.amount) }))
     .filter((s) => s.description);
   const oneTimeTotal = services.reduce((sum, s) => sum + s.amount, 0);
+  const customerName = quote.customerName.trim();
+  const companyName = quote.companyName.trim();
   return {
-    preparedFor: quote.preparedFor.trim(),
+    customerName,
+    companyName,
+    email: quote.email.trim(),
+    phone: quote.phone.trim(),
+    preparedFor: [customerName, companyName].filter(Boolean).join(", "),
     services,
     oneTimeTotal,
     monthlyRunningCost: running.monthlyCost,
@@ -631,8 +646,9 @@ export function formatPayback(months: number | null): string {
 }
 
 /**
- * "Q-20261017-3FA2": the date and a short hash of everything quoted, so the
- * same numbers give the same reference whether downloaded or e-mailed.
+ * "Q-20261017-3FA2C1": the date and a short hash of everything quoted, so the
+ * same quotation has the same number whether previewed, downloaded, e-mailed
+ * or submitted as a lead.
  */
 export function quoteNumber(input: BusinessCaseInput, date: string): string {
   let hash = 0x811c9dc5;
@@ -640,7 +656,7 @@ export function quoteNumber(input: BusinessCaseInput, date: string): string {
     hash ^= ch.charCodeAt(0);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
-  return `Q-${date.replace(/-/g, "")}-${(hash & 0xffff).toString(16).toUpperCase().padStart(4, "0")}`;
+  return `Q-${date.replace(/-/g, "")}-${(hash & 0xffffff).toString(16).toUpperCase().padStart(6, "0")}`;
 }
 
 /** The copied summary with the quotation: who it is for after the title, the services before the closing line. */
@@ -652,7 +668,7 @@ export function withQuote(summary: string, quote: QuoteResult): string {
   const eur = (v: number) => formatMoney(Math.round(v), CURRENCY);
   return [
     ...lines,
-    "One-time services",
+    "Service charges (one-time)",
     ...quote.services.map((s) => `- ${s.description}: ${s.amount > 0 ? eur(s.amount) : "included"}`),
     `- Total one-time: ${eur(quote.oneTimeTotal)}`,
     `- First year with running costs: ${eur(quote.firstYearCost)}. ${formatPayback(quote.paybackMonths)}.`,
@@ -695,4 +711,85 @@ export function businessCaseReport(input: BusinessCaseInput): BusinessCaseReport
     quote
   );
   return { input, result, running, cost, quote, headline: netHeadline(result, running), summary };
+}
+
+// ---------------------------------------------------------------------------
+// The quotation's own wording, shared by the on-screen preview and the PDF so
+// the two always say the same thing.
+// ---------------------------------------------------------------------------
+
+export interface QuoteMeta {
+  /** "Q-20261017-3FA2C1" */
+  number: string;
+  /** YYYY-MM-DD */
+  date: string;
+  validUntil: string;
+}
+
+export function quoteMeta(input: BusinessCaseInput, date: string, number = quoteNumber(input, date)): QuoteMeta {
+  return { number, date, validUntil: addDays(date, QUOTE_VALID_DAYS) };
+}
+
+/** "17 October 2026" */
+export const longDate = (date: string) => formatPlainDate(date, { day: "numeric", month: "long", year: "numeric" });
+
+const quoteEur = (n: number) => formatMoney(Math.round(n), CURRENCY);
+const quotePct = (n: number) => `${formatCount(share(n) * 100)}%`;
+const quoteNum = (n: number, decimals = 0) => formatCount(amount(n), decimals);
+/** 6 → "6", 1.5 → "1.5": minutes as they were typed. */
+const quoteMins = (n: number) => quoteNum(n, Number.isInteger(n) ? 0 : 1);
+
+export function quoteTerms(meta: QuoteMeta): string[] {
+  return [
+    "Prices are in euros. Taxes are not included.",
+    `Service charges are fixed until ${longDate(meta.validUntil)}.`,
+    "Running costs are estimates at the volumes shown, billed on actual use.",
+    "Savings are estimates based on the assumptions shown, for discussion.",
+  ];
+}
+
+/** One line under the return figures: the return per euro, per case and per minute. */
+export function returnFacts(running: RunningCostResult): string[] {
+  return [
+    running.returnPerEuro > 0 ? `${quoteEur(running.returnPerEuro)} of agent time freed for every €1 it costs to run.` : null,
+    running.costPerCase > 0 ? `${formatMoneyExact(running.costPerCase, CURRENCY)} running cost per assistance case.` : null,
+    running.agentMinuteCost > 0
+      ? `A minute on the phone: ${formatRate(running.aiMinuteCost)} with the voice AI, ${formatRate(running.agentMinuteCost)} with an agent.`
+      : null,
+  ].filter((f): f is string => f !== null);
+}
+
+/** "What this is based on": every number the quotation was worked out from. */
+export function quoteBasis(report: BusinessCaseReport): [string, string][] {
+  const { input, result, running } = report;
+  const op = input.operation;
+  const a = input.assumptions;
+  const p = input.prices;
+  return [
+    ["Assistance cases a month", quoteNum(op.monthlyCases)],
+    ["Inbound calls a month", `${quoteNum(op.monthlyCalls)} (${quotePct(op.afterHoursCallPct)} outside office hours, ${quoteMins(op.callMinutes)} min each)`],
+    ["E-mails & faxes a month", `${quoteNum(op.monthlyInbound)} (${quoteMins(op.inboundMinutes)} min each)`],
+    ["Claims a month", `${quoteNum(op.monthlyClaims)} (${quoteMins(op.claimReviewMinutes)} min review each)`],
+    ["Letters of Guarantee a month", `${quoteNum(op.monthlyLetters)} (${formatDuration(result.letterMinutesToday)} each today)`],
+    ["Team", `${quoteEur(amount(op.costPerHour))} loaded cost an hour; ${quoteNum(op.productiveHoursPerMonth)} productive hours per agent a month`],
+    ["Calls the AI handles end to end", quotePct(a.aiHandledCallPct)],
+    ["Time saved on calls a person still takes", quotePct(a.assistedCallTimeSavedPct)],
+    ["Claim review time saved", quotePct(a.claimTimeSavedPct)],
+    ["Letter of Guarantee preparation time saved", quotePct(a.letterTimeSavedPct)],
+    ["E-mails & faxes handled automatically", quotePct(a.inboundAutomatedPct)],
+    ["Voice AI and phone line", `${formatRate(amount(p.voicePerMinute))} and ${formatRate(amount(p.phonePerMinute))} a minute; ${quoteMins(running.handoverMinutes)} min on a call handed to a person`],
+    [
+      "Document AI",
+      `${formatRate(amount(p.perCallNote))} a call note, ${formatRate(amount(p.perMessage))} an e-mail or fax, ${formatRate(amount(p.perClaim))} a claim, ${formatRate(amount(p.perLetter))} a letter`,
+    ],
+    ["Cloud hosting", `${quoteEur(amount(p.cloudPerMonth))} a month`],
+  ];
+}
+
+/** The payback sentence under the quotation's totals. */
+export function paybackLine(report: BusinessCaseReport): string {
+  const { quote, running } = report;
+  return running.netMonthlySaving > 0
+    ? `${formatPayback(quote.paybackMonths)}, from a net saving of ${quoteEur(running.netMonthlySaving)} a month.`
+    : `${formatPayback(quote.paybackMonths)}.`;
 }

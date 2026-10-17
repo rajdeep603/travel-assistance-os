@@ -8,6 +8,7 @@ import {
   Calculator,
   FileText,
   FolderKanban,
+  Handshake,
   Home,
   Menu,
   MessageSquareText,
@@ -22,6 +23,7 @@ import {
 export const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/business-case", label: "Business Case", icon: Calculator },
+  { href: "/leads", label: "Leads", icon: Handshake },
   { href: "/documents", label: "Medical Document AI", icon: FileText },
   { href: "/cases", label: "AI Case Manager", icon: FolderKanban },
   { href: "/claims", label: "Claims Automation", icon: ReceiptText },

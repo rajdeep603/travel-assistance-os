@@ -2,18 +2,19 @@ import { z } from "zod";
 import type { OutboundMessage } from "@prisma/client";
 import { BRAND } from "@/lib/brand";
 import {
-  QUOTE_VALID_DAYS,
+  EMPTY_QUOTE,
   DEFAULT_ASSUMPTIONS,
   DEFAULT_COST_CONTAINMENT,
   DEFAULT_INPUTS,
   DEFAULT_RUNNING_COST_PRICES,
   businessCaseReport,
+  quoteMeta,
   quoteNumber,
   type BusinessCaseInput,
   type BusinessCaseReport,
 } from "@/lib/business-case";
 import { ApiError, badRequest, serviceUnavailable } from "@/lib/errors";
-import { addDays, zonedToday } from "@/lib/time";
+import { zonedToday } from "@/lib/time";
 import { quotationPdfName, renderQuotationPdf } from "./business-case-pdf";
 import { getEmailService, isReservedAddress } from "./email";
 import { sendEmail } from "./outbox";
@@ -38,19 +39,27 @@ export const BusinessCaseInputSchema = z.object({
   costContainment: numbers(DEFAULT_COST_CONTAINMENT),
   quote: z
     .object({
-      preparedFor: z.string().trim().max(120).default(""),
+      customerName: z.string().trim().max(120).default(""),
+      companyName: z.string().trim().max(120).default(""),
+      email: z.union([z.literal(""), z.string().trim().email().max(200)]).default(""),
+      phone: z.string().trim().max(40).default(""),
       services: z.array(z.object({ description: z.string().trim().max(160), amount: num })).max(20).default([]),
     })
-    .default({ preparedFor: "", services: [] }),
+    .default(EMPTY_QUOTE),
 });
 
+/**
+ * The quotation PDF. A saved lead passes its own number and date, so the PDF
+ * downloaded later matches the one first given to the customer.
+ */
 export async function businessCasePdf(
-  input: BusinessCaseInput
+  input: BusinessCaseInput,
+  fixed?: { number: string; date: string }
 ): Promise<{ pdf: Buffer; filename: string; number: string; report: BusinessCaseReport }> {
-  const date = zonedToday();
-  const number = quoteNumber(input, date);
+  const date = fixed?.date ?? zonedToday();
+  const number = fixed?.number ?? quoteNumber(input, date);
   const report = businessCaseReport(input);
-  const pdf = await renderQuotationPdf(report, { number, date, validUntil: addDays(date, QUOTE_VALID_DAYS) });
+  const pdf = await renderQuotationPdf(report, quoteMeta(input, date, number));
   return { pdf, filename: quotationPdfName(number), number, report };
 }
 

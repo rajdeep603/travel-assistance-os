@@ -26,7 +26,7 @@ const input = {
   assumptions: DEFAULT_ASSUMPTIONS,
   prices: DEFAULT_RUNNING_COST_PRICES,
   costContainment: DEFAULT_COST_CONTAINMENT,
-  quote: { preparedFor: "Assistance Company", services: [{ description: "Setup and configuration", amount: 6_000 }] },
+  quote: { customerName: "Aylin Kaya", companyName: "Assistance Company", email: "", phone: "", services: [{ description: "Setup and configuration", amount: 6_000 }] },
 };
 
 afterEach(() => setEmailService(null));
@@ -44,12 +44,12 @@ describe("e-mailing the quotation", () => {
     expect(sent).toMatchObject({ status: "SENT", channel: "EMAIL", toAddress: TO, provider: "real-test", automatic: false, approvedBy: "presenter" });
 
     const [message] = provider.sent;
-    expect(message.subject).toMatch(/^CareTrail quotation Q-\d{8}-[0-9A-F]{4}$/);
-    expect(message.text).toContain("Prepared for Assistance Company");
+    expect(message.subject).toMatch(/^CareTrail quotation Q-\d{8}-[0-9A-F]{6}$/);
+    expect(message.text).toContain("Prepared for Aylin Kaya, Assistance Company");
     expect(message.text).toContain("- Setup and configuration: €6,000");
     expect(message.attachments).toHaveLength(1);
     expect(message.attachments![0]).toMatchObject({ type: "application/pdf" });
-    expect(message.attachments![0].filename).toMatch(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{4}\.pdf$/);
+    expect(message.attachments![0].filename).toMatch(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{6}\.pdf$/);
     expect(message.attachments![0].content.subarray(0, 5).toString()).toBe("%PDF-");
   });
 

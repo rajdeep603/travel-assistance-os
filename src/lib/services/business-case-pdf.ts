@@ -7,27 +7,23 @@ import {
   costBasis,
   formatCount,
   formatDuration,
-  formatPayback,
-  formatRate,
+  longDate,
+  paybackLine,
+  quoteBasis,
+  quoteTerms,
+  returnFacts,
   type BusinessCaseReport,
+  type QuoteMeta,
 } from "@/lib/business-case";
-import { formatMoney, formatMoneyExact } from "@/lib/format";
-import { formatPlainDate } from "@/lib/time";
+import { formatMoney } from "@/lib/format";
 import { fontPath } from "./guarantee-pdf";
 
 // ---------------------------------------------------------------------------
 // The business case as a quotation from Sthiram, to download or e-mail: the
-// one-time services the presenter added, the monthly running cost, and what
-// it returns, with the same figures as the page (one BusinessCaseReport).
+// services at their monthly running cost, the one-time service charges the
+// presenter added, and what it returns: the same figures as the page and the
+// on-screen preview (one BusinessCaseReport).
 // ---------------------------------------------------------------------------
-
-export interface QuoteMeta {
-  /** "Q-20261017-3FA2" */
-  number: string;
-  /** YYYY-MM-DD */
-  date: string;
-  validUntil: string;
-}
 
 const C = {
   ink: "#0f172a",
@@ -43,9 +39,6 @@ const LOGO = { file: "sthiram-logo.png", width: 256, height: 62 };
 const eur = (n: number) => formatMoney(Math.round(n), CURRENCY);
 const pct = (n: number) => `${formatCount(Math.min(100, Math.max(0, Number.isFinite(n) ? n : 0)))}%`;
 const num = (n: number, decimals = 0) => formatCount(Number.isFinite(n) && n > 0 ? n : 0, decimals);
-/** 6 → "6", 1.5 → "1.5": minutes as they were typed. */
-const mins = (n: number) => num(n, Number.isInteger(n) ? 0 : 1);
-const longDate = (date: string) => formatPlainDate(date, { day: "numeric", month: "long", year: "numeric" });
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 /** "sthiram-caretrail-quotation-Q-20261017-3FA2.pdf" */
@@ -109,7 +102,12 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       doc.font(B).fontSize(11).fillColor(C.ink).text(name, x, 134, { width: half });
       if (detail) doc.font(R).fontSize(9).fillColor(C.muted).text(detail, x, doc.y + 1, { width: half });
     };
-    party(left, "Prepared for", quote.preparedFor || "Your organisation");
+    party(
+      left,
+      "Prepared for",
+      quote.companyName || quote.customerName || "Your organisation",
+      [quote.companyName ? quote.customerName : "", quote.email, quote.phone].filter(Boolean).join(" · ") || undefined
+    );
     party(left + half + 16, "From", BRAND.poweredBy, `${BRAND.name} · ${BRAND.tagline}`);
     doc.y = 178;
 
@@ -118,8 +116,8 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
     doc.roundedRect(left, boxY, width, 70, 6).fill(C.canvas);
     const third = width / 3;
     [
-      { label: "One-time services", value: eur(quote.oneTimeTotal), note: quote.services.length ? `${quote.services.length} ${quote.services.length === 1 ? "item" : "items"}` : "none quoted" },
-      { label: "Running cost a month", value: eur(quote.monthlyRunningCost), note: "estimate, billed on use" },
+      { label: "Services a month", value: eur(quote.monthlyRunningCost), note: "estimate, billed on use" },
+      { label: "Service charges, one-time", value: eur(quote.oneTimeTotal), note: quote.services.length ? `${quote.services.length} ${quote.services.length === 1 ? "item" : "items"}` : "none quoted" },
       { label: "First year in total", value: eur(quote.firstYearCost), note: "one-time plus 12 months" },
     ].forEach((f, i) => {
       const x = left + i * third + 14;
@@ -128,11 +126,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       doc.font(R).fontSize(8).fillColor(C.muted).text(f.note, x, boxY + 49, { width: third - 28 });
     });
     doc.y = boxY + 80;
-    const payback =
-      running.netMonthlySaving > 0
-        ? `${formatPayback(quote.paybackMonths)}, from a net saving of ${eur(running.netMonthlySaving)} a month.`
-        : `${formatPayback(quote.paybackMonths)}.`;
-    doc.font(B).fontSize(10.5).fillColor(C.accent).text(payback, left, doc.y, { width });
+    doc.font(B).fontSize(10.5).fillColor(C.accent).text(paybackLine(report), left, doc.y, { width });
     doc.moveDown(1.4);
 
     /** A section title, kept on the same page as the first `keep` points of what follows. */
@@ -164,7 +158,18 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       doc.y += 10;
     };
 
-    heading("One-time services", "Fixed for the validity of this quotation");
+    heading("Services, a month", "Pay-as-you-go at your volumes, billed on actual use: the voice AI, its phone line, the document AI and the cloud it runs on");
+    table(
+      [
+        { title: "Service", width: 170 },
+        { title: "Basis", width: width - 170 - 90 },
+        { title: "A month", width: 90, align: "right" },
+      ],
+      running.lines.map((l) => [l.label, costBasis(l), eur(l.cost)]),
+      ["Total a month", `${eur(running.annualCost)} a year`, eur(running.monthlyCost)]
+    );
+
+    heading("Service charges", "One-time, fixed for the validity of this quotation");
     if (quote.services.length) {
       table(
         [
@@ -176,20 +181,9 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
         ["", "Total one-time", eur(quote.oneTimeTotal)]
       );
     } else {
-      doc.font(R).fontSize(9.5).fillColor(C.muted).text("No one-time services in this quotation.", left, doc.y + 2, { width });
+      doc.font(R).fontSize(9.5).fillColor(C.muted).text("No one-time service charges in this quotation.", left, doc.y + 2, { width });
       doc.moveDown(1.6);
     }
-
-    heading("Running cost a month", "Pay-as-you-go estimate at your volumes, billed on actual use: the voice AI, its phone line, the document AI and the cloud it runs on");
-    table(
-      [
-        { title: "Item", width: 170 },
-        { title: "Basis", width: width - 170 - 90 },
-        { title: "A month", width: 90, align: "right" },
-      ],
-      running.lines.map((l) => [l.label, costBasis(l), eur(l.cost)]),
-      ["Total a month", `${eur(running.annualCost)} a year`, eur(running.monthlyCost)]
-    );
 
     heading("Terms", undefined, 90);
     doc
@@ -197,12 +191,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       .fontSize(9)
       .fillColor(C.ink)
       .list(
-        [
-          "Prices are in euros. Taxes are not included.",
-          `One-time services are fixed until ${longDate(meta.validUntil)}.`,
-          "Running costs are estimates at the volumes shown, billed on actual use.",
-          "Savings are estimates based on the assumptions shown, for discussion.",
-        ],
+        quoteTerms(meta),
         left,
         doc.y + 2,
         { width, bulletRadius: 1.6, textIndent: 10, paragraphGap: 3 }
@@ -229,13 +218,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       doc.font(R).fontSize(8).fillColor(C.muted).text(t.note, x + 10, tileY + 48, { width: tileW - 20 });
     });
     doc.y = tileY + 66 + 10;
-    const facts = [
-      running.returnPerEuro > 0 ? `${eur(running.returnPerEuro)} of agent time freed for every €1 it costs to run.` : null,
-      running.costPerCase > 0 ? `${formatMoneyExact(running.costPerCase, CURRENCY)} running cost per assistance case.` : null,
-      running.agentMinuteCost > 0
-        ? `A minute on the phone: ${formatRate(running.aiMinuteCost)} with the voice AI, ${formatRate(running.agentMinuteCost)} with an agent.`
-        : null,
-    ].filter(Boolean);
+    const facts = returnFacts(running);
     if (facts.length) doc.font(R).fontSize(9.5).fillColor(C.ink).text(facts.join(" "), left, doc.y, { width });
     doc.moveDown(1.2);
 
@@ -274,25 +257,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
     }
 
     heading("What this is based on", undefined, 120);
-    const basis: [string, string][] = [
-        ["Assistance cases a month", num(op.monthlyCases)],
-        ["Inbound calls a month", `${num(op.monthlyCalls)} (${pct(op.afterHoursCallPct)} outside office hours, ${mins(op.callMinutes)} min each)`],
-        ["E-mails & faxes a month", `${num(op.monthlyInbound)} (${mins(op.inboundMinutes)} min each)`],
-        ["Claims a month", `${num(op.monthlyClaims)} (${mins(op.claimReviewMinutes)} min review each)`],
-        ["Letters of Guarantee a month", `${num(op.monthlyLetters)} (${formatDuration(result.letterMinutesToday)} each today)`],
-        ["Team", `${eur(op.costPerHour)} loaded cost an hour; ${num(op.productiveHoursPerMonth)} productive hours per agent a month`],
-        ["Calls the AI handles end to end", pct(input.assumptions.aiHandledCallPct)],
-        ["Time saved on calls a person still takes", pct(input.assumptions.assistedCallTimeSavedPct)],
-        ["Claim review time saved", pct(input.assumptions.claimTimeSavedPct)],
-        ["Letter of Guarantee preparation time saved", pct(input.assumptions.letterTimeSavedPct)],
-        ["E-mails & faxes handled automatically", pct(input.assumptions.inboundAutomatedPct)],
-        ["Voice AI and phone line", `${formatRate(input.prices.voicePerMinute)} and ${formatRate(input.prices.phonePerMinute)} a minute; ${mins(running.handoverMinutes)} min on a call handed to a person`],
-        [
-          "Document AI",
-          `${formatRate(input.prices.perCallNote)} a call note, ${formatRate(input.prices.perMessage)} an e-mail or fax, ${formatRate(input.prices.perClaim)} a claim, ${formatRate(input.prices.perLetter)} a letter`,
-        ],
-        ["Cloud hosting", `${eur(input.prices.cloudPerMonth)} a month`],
-    ];
+    const basis = quoteBasis(report);
     const colW = (width - 20) / 2;
     for (let r = 0; r < basis.length; r += 2) {
       const pair = basis.slice(r, r + 2);

@@ -67,6 +67,9 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 | `MoneyCard` | `src/components/cases/money-card.tsx` | money on a case: estimated → guaranteed → invoiced → after review → paid, plus the policy limit bar |
 | `IntegrityCard` | `src/components/integrity-card.tsx` | internal fraud, waste and abuse signals on a claim, with "Refer to the fraud team" |
 | `SampleFiles` | `src/components/sample-files.tsx` | the collapsed "Sample files to download" panel beside an upload; kits come from `src/lib/samples/catalog.ts` |
+| `QuotationPreview` | `src/components/quotation/quotation-preview.tsx` | the quotation as an A4 page (Sthiram letterhead, services, service charges, terms, return, basis); same wording as the PDF via the shared helpers in `src/lib/business-case.ts` |
+| `QuotationWorkspace` | `src/components/quotation/quotation-workspace.tsx` | "Generate quotation": customer and service charges beside the live preview; print, download, e-mail, submit as a lead |
+| `printElement` | `src/lib/client/print.ts` | prints one element through a hidden frame with the page's styles; use `print:` variants on the element for paper |
 | `JourneyRoute` | `src/components/dashboard/journey-route.tsx` | the dashboard's signature: the assistance journey as a route map on the stage, a live count at each stop; draws once on load (across on desktop, down on phones) |
 | `MoneyPanel`, `NeedsPerson`, `StatusMix` | `src/components/dashboard/` | medical spend (identified vs accepted bar, saving ring, committed guarantees); decisions waiting, each linked to its record; a status distribution as one segmented bar with a legend |
 

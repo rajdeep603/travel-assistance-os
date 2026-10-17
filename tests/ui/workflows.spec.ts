@@ -141,23 +141,50 @@ test("the business case takes the AI's running cost off the saving", async ({ pa
   await expect(page.getByRole("row", { name: /^Total a month €3,055$/ })).toBeVisible();
 });
 
-test("the business case becomes a quotation to download or e-mail", async ({ page }) => {
+test("a quotation is generated, previewed, downloaded and submitted as a lead", async ({ page }) => {
   await page.goto("/business-case");
-  await page.getByRole("textbox", { name: "Prepared for" }).fill("Example Assistance Ltd");
-  await page.getByRole("textbox", { name: "Service 1", exact: true }).fill("Setup and configuration");
-  await page.getByRole("spinbutton", { name: "Service 1 amount (euros)" }).fill("6000");
-  await page.getByRole("button", { name: "Add a service" }).click();
-  await page.getByRole("textbox", { name: "Service 2", exact: true }).fill("Team training");
-  await expect(page.getByText("2 services on the quotation")).toBeVisible();
-  await expect(page.getByText("Pays back within the first month")).toBeVisible();
+  await page.getByRole("button", { name: "Generate quotation" }).click();
+  const dialog = page.getByRole("dialog", { name: "Generate quotation" });
+
+  // A lead needs to know who it is.
+  await dialog.getByRole("button", { name: "Submit as lead" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Enter the customer's name and company");
+
+  await dialog.getByRole("textbox", { name: /Customer name/ }).fill("Aylin Kaya");
+  await dialog.getByRole("textbox", { name: /Company name/ }).fill("Playwright Assistance");
+  await dialog.getByRole("textbox", { name: "Service charge 1", exact: true }).fill("Setup and configuration");
+  await dialog.getByRole("spinbutton", { name: "Service charge 1 amount (euros)" }).fill("6000");
+
+  // The preview is the quotation: the services, then our service charges.
+  const preview = dialog.getByRole("article", { name: /^Quotation Q-\d{8}-[0-9A-F]{6}$/ });
+  await expect(preview.getByText("Playwright Assistance")).toBeVisible();
+  await expect(preview.getByRole("row", { name: /^Cloud hosting/ })).toBeVisible();
+  await expect(preview.getByRole("row", { name: /Setup and configuration €6,000/ })).toBeVisible();
 
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download quotation" }).click();
-  expect((await download).suggestedFilename()).toMatch(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{4}\.pdf$/);
+  await dialog.getByRole("button", { name: "Download PDF" }).click();
+  expect((await download).suggestedFilename()).toMatch(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{6}\.pdf$/);
 
-  // Without an e-mail provider the page says so, and offers the download instead.
-  await page.getByRole("button", { name: "E-mail quotation" }).click();
-  await expect(page.getByText(/E-mail isn't set up on this server yet/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Submit as lead" }).click();
+  await expect(dialog.getByText(/Playwright Assistance is now in Leads as LEAD-\d+/)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Submitted" })).toBeDisabled();
+  await dialog.getByRole("link", { name: /^Open LEAD-\d+$/ }).click();
+
+  // The lead keeps the quotation, and moves along.
+  await expect(page.getByRole("heading", { name: "Playwright Assistance" })).toBeVisible();
+  await expect(page.getByRole("article", { name: /^Quotation Q-/ })).toBeVisible();
+  await page.getByRole("button", { name: "Contacted" }).click();
+  await expect(page.getByRole("button", { name: "Contacted" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("link", { name: "All leads" }).click();
+  const row = page.getByRole("link", { name: /Playwright Assistance/ });
+  await expect(row).toContainText("Contacted");
+
+  // Leads are real people's details: they can be deleted for good.
+  await row.click();
+  await page.getByRole("button", { name: "Delete lead" }).click();
+  await page.getByRole("button", { name: "Delete lead" }).click();
+  await expect(page).toHaveURL(/\/leads$/);
+  await expect(page.getByRole("link", { name: /Playwright Assistance/ })).toHaveCount(0);
 });
 
 test("the floating AI assistant keeps the conversation and its history, with voice mode a click away", async ({ page }) => {

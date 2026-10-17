@@ -14,7 +14,13 @@ describe("the quotation PDF", () => {
   it("is a two-page quotation from Sthiram with the services, running cost and return", async () => {
     const { pdf, filename, number } = await businessCasePdf({
       ...base,
-      quote: { preparedFor: "Example Assistance Ltd", services: [{ description: "Setup and configuration", amount: 6_000 }, { description: "Team training", amount: 0 }] },
+      quote: {
+        customerName: "Aylin Kaya",
+        companyName: "Example Assistance Ltd",
+        email: "aylin@assistance-company.com",
+        phone: "+90 532 000 00 00",
+        services: [{ description: "Setup and configuration", amount: 6_000 }, { description: "Team training", amount: 0 }],
+      },
     });
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     expect(filename).toBe(`sthiram-caretrail-quotation-${number}.pdf`);
@@ -23,7 +29,9 @@ describe("the quotation PDF", () => {
       "Quotation",
       `No. ${number}`,
       "Valid until",
-      "Prepared for Example Assistance Ltd",
+      "Prepared for Example Assistance Ltd Aylin Kaya · aylin@assistance-company.com · +90 532 000 00 00",
+      "Services, a month",
+      "Service charges",
       "Setup and configuration €6,000",
       "Team training Included",
       "Total one-time €6,000",
@@ -43,7 +51,7 @@ describe("the quotation PDF", () => {
   it("says so when no one-time services are quoted", async () => {
     const { pdf } = await businessCasePdf({ ...base, quote: EMPTY_QUOTE });
     const text = (await extractTextFromFile(pdf, "application/pdf")).replace(/\s+/g, " ");
-    expect(text).toContain("No one-time services in this quotation.");
+    expect(text).toContain("No one-time service charges in this quotation.");
     expect(text).toContain("Prepared for Your organisation");
   });
 

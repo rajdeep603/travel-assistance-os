@@ -109,6 +109,10 @@ const STATUS_STYLES: Record<string, string> = {
   NO_ANSWER: "bg-slate-100 text-slate-600 border-slate-200",
   BUSY: "bg-slate-100 text-slate-600 border-slate-200",
   CANCELED: "bg-slate-100 text-slate-600 border-slate-200",
+  // leads
+  CONTACTED: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  WON: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  LOST: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
 export function StatusBadge({ value }: { value: string }) {
@@ -137,6 +141,9 @@ export const STATUS_DOTS: Record<string, string> = {
   APPROVED: "bg-emerald-500",
   REJECTED: "bg-red-500",
   PAID: "bg-emerald-500",
+  CONTACTED: "bg-indigo-500",
+  WON: "bg-emerald-500",
+  LOST: "bg-slate-400",
 };
 
 type ButtonVariant = "primary" | "secondary" | "danger" | "success";
