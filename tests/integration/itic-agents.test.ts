@@ -151,9 +151,10 @@ describe("bill negotiation", () => {
     const review = (await reviewToNegotiate(caseId))!;
     expect(Number(review.agreedAmount)).toBe(8600);
     expect(review.agreement).toMatchObject({ outcome: "AGREED", holdHarmless: true, contact: "Ayşe Demir", callRef: "CALL-TEST" });
+    // Accepting it counts the saving at the agreed amount (other bills on the case aside).
+    const before = (await caseMoney(caseId))!.savingsAccepted;
     await decideBillReview(review.id, "ACCEPTED", "test");
-    const money = (await caseMoney(caseId))!;
-    expect(money.savingsAccepted).toBe(12385 - 8600);
+    expect((await caseMoney(caseId))!.savingsAccepted - before).toBeCloseTo(12385 - 8600, 2);
   });
 });
 
@@ -211,6 +212,19 @@ describe("e-mail: status and guarantee enquiries", () => {
 });
 
 describe("voice sessions", () => {
+  // The session API needs voice configured; CI has no keys of its own.
+  const saved = { XAI_API_KEY: process.env.XAI_API_KEY, GATEWAY_SECRET: process.env.GATEWAY_SECRET };
+  beforeAll(() => {
+    process.env.XAI_API_KEY ||= "test-xai-key";
+    process.env.GATEWAY_SECRET ||= "test-gateway-secret-0123456789abcdef";
+  });
+  afterAll(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
   it("rehearses an outbound agent in the browser with its brief and language", async () => {
     const { POST } = await import("@/app/api/voice/session/route");
     const kase = await prisma.case.findUniqueOrThrow({ where: { ref: "CASE-1022" } });
