@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Globe, Headset, PhoneIncoming, PhoneOutgoing, Settings2 } from "lucide-react";
+import { CallScripts } from "@/components/calls/call-scripts";
 import { LiveBoard } from "@/components/calls/live-board";
 import { Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatusBadge } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
@@ -84,14 +85,18 @@ export default function CallsPage() {
           <SectionTitle>24/7 AI assistance hotline</SectionTitle>
           {config?.hotlineNumber ? (
             <>
-              <p className="mt-3 flex items-center gap-3 text-3xl font-semibold tracking-tight text-slate-900">
-                <Headset size={30} className="text-blue-600" aria-hidden />
+              <a
+                href={`tel:${config.hotlineNumber}`}
+                className="mt-3 flex items-center gap-3 whitespace-nowrap text-[1.7rem] font-semibold tracking-tight text-ink hover:text-brand xl:text-3xl"
+              >
+                <Headset size={30} className="shrink-0 text-brand" aria-hidden />
                 {displayNumber(config.hotlineNumber)}
-              </p>
+              </a>
               <p className="mt-2 text-sm text-slate-600">
-                Call now: emergencies, coverage questions (“Is my flight delay covered?”), appointments, case and claim status.
+                Call now: emergencies, coverage questions (“Is my flight delay covered?”), appointments, case and claim status. Hospitals use the
+                same number.
               </p>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-muted">
                 Warm transfer: doctor {config.transferTargets.doctor ? "on call" : "not configured"} · case manager{" "}
                 {config.transferTargets.caseManager ? "on call" : "not configured"}
               </p>
@@ -104,6 +109,7 @@ export default function CallsPage() {
                 : "Loading…"}
             </p>
           )}
+          <CallScripts doctorOnCall={config?.transferTargets.doctor ?? true} rehearse={config?.voiceConfigured ?? false} />
         </Card>
 
         <Card className="lg:col-span-2">

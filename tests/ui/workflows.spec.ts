@@ -156,3 +156,17 @@ test("the floating AI assistant keeps the conversation and its history, with voi
   await expect(page.getByText("Who is it assigned to?")).toBeVisible();
   await expect(page.getByRole("button", { name: "Open the AI assistant" })).toHaveCount(0);
 });
+
+test("the Call Center gives the presenter scripts to read on a hotline call", async ({ page }) => {
+  await page.goto("/calls");
+  await expect(page.getByRole("heading", { name: "Call scripts" })).toBeVisible();
+  // The first script is open: your lines, and what the agent should say back.
+  await expect(page.getByText(/My policy number is POL-TR-100945/)).toBeVisible();
+  await expect(page.getByText(/Covered: €100, two full 6-hour blocks/)).toBeVisible();
+  // One open at a time.
+  await page.getByRole("button", { name: /Hospital: has the guarantee been issued/ }).click();
+  await expect(page.getByText(/Has the guarantee of payment been issued for our patient Lena Koch/)).toBeVisible();
+  await expect(page.getByText(/My policy number is POL-TR-100945/)).toBeHidden();
+  await page.getByRole("button", { name: /Emergency/ }).click();
+  await expect(page.getByText(/chest pain and he's struggling to breathe/)).toBeVisible();
+});
