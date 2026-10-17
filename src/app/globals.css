@@ -262,7 +262,38 @@ body {
   animation: draw-stroke 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* The dashboard's journey route draws itself once, left to right (top to bottom on phones). */
+@keyframes route-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes route-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.animate-route-x {
+  transform-origin: left center;
+  animation: route-x 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-route-y {
+  transform-origin: center top;
+  animation: route-y 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .animate-route-x,
+  .animate-route-y,
   .animate-fade-up,
   .animate-typing-dot,
   .animate-bar-grow,

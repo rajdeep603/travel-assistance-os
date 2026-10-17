@@ -11,7 +11,7 @@ CareTrail is demoed from a presenter laptop at a trade-show booth, so every scre
 
 - **Light workspace, dark stage.**
   - The operator workspace is light (`bg-canvas`, cards on `bg-surface`) because it stays readable under bright hall lighting.
-  - The **stage** (`bg-stage`, deep navy) is used only where the AI is live: the sidebar, the voice agent stage, live call cards and the sign-in panel.
+  - The **stage** (`bg-stage`, deep navy) is used only where the AI is live: the sidebar, the voice agent stage, live call cards, the sign-in panel, and the dashboard hero (the live journey route and its outcome figures).
   - Don't add dark mode to other pages ad hoc.
 - **Colour tokens.**
   - Every colour role is a CSS variable in `src/app/globals.css` (`--c-*`, space-separated RGB), mapped to Tailwind in `tailwind.config.ts`.
@@ -67,6 +67,15 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 | `MoneyCard` | `src/components/cases/money-card.tsx` | money on a case: estimated → guaranteed → invoiced → after review → paid, plus the policy limit bar |
 | `IntegrityCard` | `src/components/integrity-card.tsx` | internal fraud, waste and abuse signals on a claim, with "Refer to the fraud team" |
 | `SampleFiles` | `src/components/sample-files.tsx` | the collapsed "Sample files to download" panel beside an upload; kits come from `src/lib/samples/catalog.ts` |
+| `JourneyRoute` | `src/components/dashboard/journey-route.tsx` | the dashboard's signature: the assistance journey as a route map on the stage, a live count at each stop; draws once on load (across on desktop, down on phones) |
+| `MoneyPanel`, `NeedsPerson`, `StatusMix` | `src/components/dashboard/` | medical spend (identified vs accepted bar, saving ring, committed guarantees); decisions waiting, each linked to its record; a status distribution as one segmented bar with a legend |
+
+## Dashboard layout
+
+- Order is the buyer's order: the hero (journey route and four outcomes) first, then money with "Needs a person" beside it, then caseload and claims, then the modules.
+- No empty cells. Rows in a grid stretch to equal height, and grids get a column count that the items fill exactly: 8 modules in 4 columns, legends in 3 columns for six statuses and 4 for eight.
+- Module colours say where a module sits on the journey: teal (`live`) for talking (voice, calls, assistant), sky (`brand-2`) for reading (inbox, documents), cobalt (`brand`) for acting (cases, providers, claims). Never random pastels.
+- Whole cards are links; don't add "Open" buttons inside them.
 
 ## Things to avoid
 

@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
  * call starts or ends (the call monitor socket) and every `intervalMs` for
  * everything else (e-mails, faxes, letters).
  */
-export function LiveRefresh({ intervalMs = 30_000 }: { intervalMs?: number }) {
+export function LiveRefresh({ intervalMs = 30_000, tone = "light" }: { intervalMs?: number; tone?: "light" | "stage" }) {
   const router = useRouter();
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
@@ -48,10 +48,10 @@ export function LiveRefresh({ intervalMs = 30_000 }: { intervalMs?: number }) {
   }, [router, intervalMs]);
 
   return (
-    <span className="inline-flex items-center gap-2 text-xs font-medium text-emerald-700" aria-live="off">
+    <span className={`inline-flex items-center gap-2 text-xs font-medium tabular-nums ${tone === "stage" ? "text-live" : "text-emerald-700"}`} aria-live="off">
       <span className="relative flex h-2 w-2" aria-hidden>
-        <span className="animate-live-ping absolute inset-0 rounded-full bg-emerald-500" />
-        <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
+        <span className={`animate-live-ping absolute inset-0 rounded-full ${tone === "stage" ? "bg-live" : "bg-emerald-500"}`} />
+        <span className={`relative h-2 w-2 rounded-full ${tone === "stage" ? "bg-live" : "bg-emerald-500"}`} />
       </span>
       Live{updatedAt ? ` · updated ${updatedAt}` : ""}
     </span>

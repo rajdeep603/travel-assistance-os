@@ -11,6 +11,12 @@ test("dashboard shows the outcomes and every module", async ({ page }) => {
   for (const outcome of ["of calls handled end-to-end by AI", "from cost estimate to Letter of Guarantee", "languages served"]) {
     await expect(page.getByText(outcome)).toBeVisible();
   }
+  // The journey route links each step to its module; decisions open the record to decide on.
+  const route = page.getByRole("list", { name: "The assistance journey" });
+  await expect(route.getByRole("listitem")).toHaveCount(9);
+  await expect(page.getByRole("heading", { name: "Needs a person" })).toBeVisible();
+  await route.getByRole("link", { name: /Claim/ }).click();
+  await expect(page).toHaveURL(/\/claims$/);
 });
 
 test("request → AI case → book a provider for that case", async ({ page }) => {

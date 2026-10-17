@@ -1,523 +1,291 @@
 import Link from "next/link";
 import {
-  ArrowRight,
-  BadgeCheck,
-  Bot,
-  CalendarCheck,
   Calculator,
-  FileCheck2,
   FileText,
   FolderKanban,
   Headset,
   Inbox,
-  Languages,
-  MailCheck,
   MessageSquareText,
   Mic,
-  Percent,
+  PhoneCall,
+  Plane,
   ReceiptText,
-  ScanText,
   ShieldCheck,
+  Sparkles,
   Stethoscope,
-  Timer,
+  UsersRound,
+  type LucideIcon,
 } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { Card, STATUS_DOTS, SectionTitle } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
+import { JourneyRoute, type RouteStop } from "@/components/dashboard/journey-route";
+import { MoneyPanel } from "@/components/dashboard/money-panel";
+import { NeedsPerson, type Decision } from "@/components/dashboard/needs-person";
+import { StatusMix } from "@/components/dashboard/status-mix";
 import { LiveRefresh } from "@/components/live-refresh";
 import { BRAND, POWERED_BY } from "@/lib/brand";
-import { formatEnum } from "@/lib/format";
 import { formatShortDuration, getOutcomes, type Outcomes } from "@/lib/services/outcomes";
-import { getMoneyOutcomes, type MoneyOutcomes } from "@/lib/services/exposure";
+import { getMoneyOutcomes } from "@/lib/services/exposure";
 
 export const dynamic = "force-dynamic";
 
-const MODULES = [
-  {
-    href: "/documents",
-    icon: FileText,
-    title: "Medical Document AI",
-    description: "Reads medical reports, invoices and discharge summaries in any language and extracts what the case needs.",
-    tag: null,
-  },
-  {
-    href: "/cases",
-    icon: FolderKanban,
-    title: "AI Case Manager",
-    description: "Turns a call, e-mail or message into a prioritised case: urgency, location and next steps.",
-    tag: null,
-  },
-  {
-    href: "/claims",
-    icon: ReceiptText,
-    title: "Claims Automation",
-    description: "Checks claim packs for completeness and flags issues, so handlers only make the decision.",
-    tag: null,
-  },
-  {
-    href: "/providers",
-    icon: Stethoscope,
-    title: "Provider Search",
-    description: "Finds the right doctor nearby by specialty, language and availability, and books the visit.",
-    tag: null,
-  },
-  {
-    href: "/assistant",
-    icon: MessageSquareText,
-    title: "Internal AI Assistant",
-    description: "Answers staff questions about procedures, cases and providers, with sources.",
-    tag: null,
-  },
-  {
-    href: "/voice",
-    icon: Mic,
-    title: "Voice Agent",
-    description: "Talks with travellers in their language, finds a doctor and books the appointment.",
-    tag: "Voice",
-  },
-  {
-    href: "/calls",
-    icon: Headset,
-    title: "AI Call Center",
-    description: "Phone agents answer every call and place outbound calls — triage, coverage, bookings, hospitals in Turkish.",
-    tag: "Phone",
-  },
-  {
-    href: "/inbox",
-    icon: Inbox,
-    title: "E-mail & Fax Automation",
-    description: "Read claims and faxes (OCR), match the case, reply automatically and issue Letters of Guarantee.",
-    tag: "Intake",
-  },
+/** Where each module sits on the journey decides its colour: talking (teal), reading (sky), acting (cobalt). */
+const TONES = {
+  talk: "bg-live/15 text-teal-700 group-hover:bg-live group-hover:text-white",
+  read: "bg-brand-2/15 text-sky-700 group-hover:bg-brand-2 group-hover:text-white",
+  act: "bg-brand/15 text-brand group-hover:bg-brand group-hover:text-white",
+} as const;
+
+const MODULES: { href: string; icon: LucideIcon; title: string; description: string; tone: keyof typeof TONES; tag?: string }[] = [
+  { href: "/voice", icon: Mic, title: "Voice Agents", description: "Talks with travellers and hospitals in their language, finds a doctor and books the visit.", tone: "talk", tag: "Voice" },
+  { href: "/calls", icon: Headset, title: "AI Call Center", description: "Answers every call and places outbound ones: triage, coverage, bookings, hospitals in Turkish.", tone: "talk", tag: "Phone" },
+  { href: "/inbox", icon: Inbox, title: "E-mail & Fax Automation", description: "Reads e-mails and faxes, matches the case, replies and issues Letters of Guarantee.", tone: "read", tag: "Intake" },
+  { href: "/documents", icon: FileText, title: "Medical Document AI", description: "Reads reports, invoices and discharge summaries in any language and extracts what the case needs.", tone: "read" },
+  { href: "/cases", icon: FolderKanban, title: "AI Case Manager", description: "Turns a call, e-mail or message into a prioritised case with urgency, place and next steps.", tone: "act" },
+  { href: "/providers", icon: Stethoscope, title: "Provider Search", description: "Finds the right doctor nearby by specialty, language and availability, and books the visit.", tone: "act" },
+  { href: "/claims", icon: ReceiptText, title: "Claims Automation", description: "Checks claim packs and hospital bills, so handlers only make the decision.", tone: "act" },
+  { href: "/assistant", icon: MessageSquareText, title: "Internal AI Assistant", description: "Answers the team about procedures, cases and providers, typed or out loud, with sources.", tone: "talk" },
 ];
 
-const STORY: { step: string; href: string | null }[] = [
-  { step: "Customer", href: null },
-  { step: "Phone / Email / Fax", href: "/calls" },
-  { step: "AI Understanding", href: "/cases" },
-  { step: "Case Creation", href: "/cases" },
-  { step: "Medical Documents", href: "/documents" },
-  { step: "Letter of Guarantee", href: "/cases/CASE-1024" },
-  { step: "Provider Search", href: "/providers" },
-  { step: "Appointment", href: "/providers" },
-  { step: "Claims", href: "/claims" },
-  { step: "Human Operations", href: null },
-];
+const CASE_STATUS_ORDER = ["NEW", "IN_PROGRESS", "PENDING_INFO", "ESCALATED", "RESOLVED", "CLOSED"];
+const CLAIM_STATUS_ORDER = ["SUBMITTED", "PROCESSING", "NEEDS_REVIEW", "INFO_REQUESTED", "ESCALATED", "APPROVED", "REJECTED", "PAID"];
+const OPEN_CASE = ["NEW", "IN_PROGRESS", "PENDING_INFO", "ESCALATED"];
+const CLAIM_IN_REVIEW = ["SUBMITTED", "PROCESSING", "NEEDS_REVIEW", "INFO_REQUESTED", "ESCALATED"];
 
-const CASE_STATUS_ORDER = [
-  "NEW",
-  "IN_PROGRESS",
-  "PENDING_INFO",
-  "ESCALATED",
-  "RESOLVED",
-  "CLOSED",
-];
-const CLAIM_STATUS_ORDER = [
-  "SUBMITTED",
-  "PROCESSING",
-  "NEEDS_REVIEW",
-  "INFO_REQUESTED",
-  "ESCALATED",
-  "APPROVED",
-  "REJECTED",
-  "PAID",
-];
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 async function getStats() {
   try {
     const now = new Date();
-    const [
-      casesByStatus,
-      claimsByStatus,
-      providers,
-      upcomingAppointments,
-      documentsProcessed,
-      confidenceAgg,
-      outcomes,
-    ] = await Promise.all([
-      prisma.case.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.claim.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.provider.findMany({ select: { specialty: true, languages: true } }),
-      prisma.appointment.count({
-        where: { scheduledAt: { gte: now }, status: { in: ["PENDING", "CONFIRMED"] } },
-      }),
-      prisma.document.count({ where: { status: "PROCESSED" } }),
-      prisma.documentExtraction.aggregate({ _avg: { confidence: true } }),
-      getOutcomes(30),
-    ]);
-    const money = await getMoneyOutcomes(30);
-
-    const caseCounts = Object.fromEntries(
-      casesByStatus.map((g) => [g.status, g._count._all])
-    ) as Record<string, number>;
-    const claimCounts = Object.fromEntries(
-      claimsByStatus.map((g) => [g.status, g._count._all])
-    ) as Record<string, number>;
-
-    const openCases = CASE_STATUS_ORDER.filter(
-      (s) => s !== "RESOLVED" && s !== "CLOSED"
-    ).reduce((sum, s) => sum + (caseCounts[s] ?? 0), 0);
-    const claimsInReview =
-      (claimCounts.SUBMITTED ?? 0) +
-      (claimCounts.PROCESSING ?? 0) +
-      (claimCounts.NEEDS_REVIEW ?? 0) +
-      (claimCounts.INFO_REQUESTED ?? 0) +
-      (claimCounts.ESCALATED ?? 0);
-
+    const [casesByStatus, claimsByStatus, upcomingAppointments, documentsProcessed, draftLetters, proposedReview, escalatedCase, outcomes, money] =
+      await Promise.all([
+        prisma.case.groupBy({ by: ["status"], _count: { _all: true } }),
+        prisma.claim.groupBy({ by: ["status"], _count: { _all: true } }),
+        prisma.appointment.count({ where: { scheduledAt: { gte: now }, status: { in: ["PENDING", "CONFIRMED"] } } }),
+        prisma.document.count({ where: { status: "PROCESSED" } }),
+        prisma.guaranteeLetter.findMany({ where: { status: "DRAFT" }, orderBy: { createdAt: "desc" }, select: { caseId: true } }),
+        prisma.billReview.findFirst({
+          where: { status: "PROPOSED" },
+          orderBy: { createdAt: "desc" },
+          select: { caseId: true, claim: { select: { ref: true } } },
+        }),
+        prisma.case.findFirst({ where: { status: "ESCALATED" }, orderBy: { updatedAt: "desc" }, select: { id: true } }),
+        getOutcomes(30),
+        getMoneyOutcomes(30),
+      ]);
+    const caseCounts = Object.fromEntries(casesByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
+    const claimCounts = Object.fromEntries(claimsByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
+    const sum = (counts: Record<string, number>, keys: string[]) => keys.reduce((total, k) => total + (counts[k] ?? 0), 0);
+    // Each decision opens the record to decide on when there is one.
+    const reviewHref = proposedReview?.caseId ? `/cases/${proposedReview.caseId}` : proposedReview?.claim ? `/claims/${proposedReview.claim.ref}` : "/claims";
+    const decisions: Decision[] = [
+      { count: money.awaitingDecision, label: plural(money.awaitingDecision, "hospital bill review to accept", "hospital bill reviews to accept"), href: reviewHref },
+      {
+        count: draftLetters.length,
+        label: plural(draftLetters.length, "guarantee letter to approve", "guarantee letters to approve"),
+        href: draftLetters[0] ? `/cases/${draftLetters[0].caseId}` : "/cases",
+      },
+      { count: claimCounts.NEEDS_REVIEW ?? 0, label: plural(claimCounts.NEEDS_REVIEW ?? 0, "claim to review", "claims to review"), href: "/claims" },
+      { count: caseCounts.ESCALATED ?? 0, label: plural(caseCounts.ESCALATED ?? 0, "escalated case", "escalated cases"), href: escalatedCase ? `/cases/${escalatedCase.id}` : "/cases" },
+      {
+        count: caseCounts.PENDING_INFO ?? 0,
+        label: plural(caseCounts.PENDING_INFO ?? 0, "case waiting for information", "cases waiting for information"),
+        href: "/cases",
+      },
+    ];
     return {
-      money,
       caseCounts,
       claimCounts,
-      openCases,
-      claimsInReview,
-      providerCount: providers.length,
-      specialtyCount: new Set(providers.map((p) => p.specialty)).size,
-      languageCount: new Set(providers.flatMap((p) => p.languages)).size,
+      openCases: sum(caseCounts, OPEN_CASE),
+      claimsInReview: sum(claimCounts, CLAIM_IN_REVIEW),
       upcomingAppointments,
       documentsProcessed,
-      avgConfidence: confidenceAgg._avg.confidence,
+      decisions,
+      reviewHref,
       outcomes,
+      money,
     };
   } catch {
     return null;
   }
 }
 
-function StatusBars({
-  counts,
-  order,
-}: {
-  counts: Record<string, number>;
-  order: string[];
-}) {
-  const rows = order
-    .map((status) => ({ status, count: counts[status] ?? 0 }))
-    .filter((r) => r.count > 0);
-  const max = Math.max(1, ...rows.map((r) => r.count));
-  if (rows.length === 0) {
-    return <p className="mt-3 text-sm text-slate-400">No records yet.</p>;
-  }
-  return (
-    <div className="mt-3 space-y-2.5">
-      {rows.map(({ status, count }, i) => (
-        <div key={status} className="grid grid-cols-[8.5rem_1fr_2rem] items-center gap-2">
-          <span className="flex items-center gap-1.5 truncate text-xs font-medium text-slate-600">
-            <span
-              className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOTS[status] ?? "bg-slate-400"}`}
-              aria-hidden
-            />
-            {formatEnum(status)}
-          </span>
-          <div className="h-3 overflow-hidden rounded-r bg-slate-100">
-            <div
-              className="animate-bar-grow h-full rounded-r bg-blue-600"
-              style={{ width: `${(count / max) * 100}%`, animationDelay: `${i * 70}ms` }}
-            />
-          </div>
-          <span className="text-right text-xs font-semibold tabular-nums text-slate-700">
-            {count}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
+type Stats = NonNullable<Awaited<ReturnType<typeof getStats>>>;
+
+function routeStops(s: Stats): RouteStop[] {
+  const o = s.outcomes;
+  return [
+    { label: "Traveller", icon: Plane, detail: `${o.languages.length || "Any"} languages served`, kind: "end" },
+    { label: "Call, e-mail or fax", icon: PhoneCall, detail: `${o.calls.ended} calls, ${o.inbox.received} messages`, href: "/calls" },
+    { label: "AI triage", icon: Sparkles, detail: "Urgency, place, language", href: "/voice", kind: "ai" },
+    { label: "Case", icon: FolderKanban, detail: `${s.openCases} open`, href: "/cases" },
+    { label: "Medical documents", icon: FileText, detail: `${s.documentsProcessed} read by AI`, href: "/documents" },
+    { label: "Guarantee of payment", icon: ShieldCheck, detail: `${o.letters.sent} sent to hospitals`, href: "/inbox" },
+    { label: "Doctor booked", icon: Stethoscope, detail: `${s.upcomingAppointments} upcoming`, href: "/providers" },
+    { label: "Claim", icon: ReceiptText, detail: `${s.claimsInReview} in review`, href: "/claims" },
+    { label: "Your team", icon: UsersRound, detail: "Decides, with the work done", kind: "end" },
+  ];
 }
 
 const percent = (share: number | null) => (share == null ? null : Math.round(share * 100));
 
-/** Six outcome figures, each with the evidence behind it. */
-function OutcomeGrid({ outcomes: o }: { outcomes: Outcomes }) {
+/** The four outcomes a buyer asks about, under the route. */
+function OutcomeStrip({ outcomes: o }: { outcomes: Outcomes }) {
   const aiShare = percent(o.calls.aiShare);
   const inboxShare = percent(o.inbox.automatedShare);
-  const cards: { icon: typeof Bot; accent: string; value: React.ReactNode; label: string; context: string }[] = [
+  const items: { value: React.ReactNode; label: string; context: string }[] = [
     {
-      icon: Bot,
-      accent: "bg-sky-50 text-sky-600",
       value: aiShare == null ? "—" : <><CountUp value={aiShare} />%</>,
       label: "of calls handled end-to-end by AI",
-      context: o.calls.ended ? `${o.calls.byAi} of ${o.calls.ended} calls · ${o.calls.transferred} handed to a person` : "No calls yet",
+      context: o.calls.ended ? `${o.calls.byAi} of ${o.calls.ended} calls; ${o.calls.transferred} handed to a person` : "No calls yet",
     },
     {
-      icon: Timer,
-      accent: "bg-emerald-50 text-emerald-600",
       value: o.calls.answerSeconds == null ? "Instant" : formatShortDuration(o.calls.answerSeconds),
       label: "to answer a call, day or night",
       context: "Every call is picked up by AI; no queue",
     },
     {
-      icon: MailCheck,
-      accent: "bg-indigo-50 text-indigo-600",
       value: inboxShare == null ? "—" : <><CountUp value={inboxShare} />%</>,
       label: "of e-mails & faxes handled automatically",
-      context:
-        o.inbox.replyMinutes != null
-          ? `Median reply in ${formatShortDuration(o.inbox.replyMinutes * 60)} · ${o.inbox.received} received`
-          : `${o.inbox.automated} of ${o.inbox.received} received`,
+      context: o.inbox.replyMinutes != null ? `Median reply in ${formatShortDuration(o.inbox.replyMinutes * 60)}` : `${o.inbox.automated} of ${o.inbox.received} received`,
     },
     {
-      icon: FileCheck2,
-      accent: "bg-violet-50 text-violet-600",
       value: o.letters.turnaroundMinutes == null ? "—" : formatShortDuration(o.letters.turnaroundMinutes * 60),
       label: "from cost estimate to Letter of Guarantee",
-      context: `${o.letters.sent} ${o.letters.sent === 1 ? "letter" : "letters"} sent to hospitals`,
-    },
-    {
-      icon: ScanText,
-      accent: "bg-amber-50 text-amber-600",
-      value: <CountUp value={o.documents.read} />,
-      label: "medical documents read by AI",
-      context: "Reports, invoices, discharge summaries and handwritten faxes",
-    },
-    {
-      icon: Languages,
-      accent: "bg-rose-50 text-rose-600",
-      value: <CountUp value={o.languages.length} />,
-      label: "languages served",
-      context: o.languages.slice(0, 5).join(", ") + (o.languages.length > 5 ? "…" : ""),
+      context: "Read, decided by the rules, faxed back",
     },
   ];
   return (
-    <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {cards.map(({ icon: Icon, accent, value, label, context }, i) => (
-        <Card key={label} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
-          <div className="flex items-start gap-4">
-            <div className={`inline-flex shrink-0 rounded-xl p-2.5 ${accent}`}>
-              <Icon size={22} aria-hidden />
-            </div>
-            <div className="min-w-0">
-              <p className="text-4xl font-semibold tracking-tight text-slate-900">{value}</p>
-              <p className="mt-1 text-sm font-medium text-slate-700">{label}</p>
-              <p className="mt-1 text-xs text-slate-500">{context}</p>
-            </div>
-          </div>
-        </Card>
+    <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-t border-stage-line pt-6 md:grid-cols-4 md:gap-x-0 md:divide-x md:divide-stage-line">
+      {items.map((item) => (
+        <div key={item.label} className="min-w-0 md:px-6 md:first:pl-0 md:last:pr-0">
+          <p className="text-3xl font-semibold tracking-tight tabular-nums text-white md:text-4xl">{item.value}</p>
+          <p className="mt-1 text-sm font-medium leading-snug text-stage-ink">{item.label}</p>
+          <p className="mt-0.5 text-xs leading-snug text-stage-muted">{item.context}</p>
+        </div>
       ))}
     </div>
   );
 }
 
-/** What bill review found and what is committed: the figures a claims director asks for first. */
-function MoneyGrid({ money: m }: { money: MoneyOutcomes }) {
-  const share = m.averageSavingShare == null ? null : Math.round(m.averageSavingShare * 100);
-  const cards = [
-    {
-      icon: ReceiptText,
-      value: <CountUp value={m.savingsIdentifiedEur} currency="EUR" />,
-      label: "found above the reference tariff",
-      context: `On ${m.billsReviewed} hospital ${m.billsReviewed === 1 ? "bill" : "bills"} reviewed line by line`,
-    },
-    {
-      icon: BadgeCheck,
-      value: <CountUp value={m.savingsAcceptedEur} currency="EUR" />,
-      label: "saved, accepted by a person",
-      context: m.awaitingDecision ? `${m.awaitingDecision} ${m.awaitingDecision === 1 ? "review awaits" : "reviews await"} a decision` : "Nothing awaiting a decision",
-    },
-    {
-      icon: Percent,
-      value: share == null ? "—" : <><CountUp value={share} />%</>,
-      label: "average saving on reviewed bills",
-      context: "Overcharges, extra nights, duplicates and comfort items",
-    },
-    {
-      icon: ShieldCheck,
-      value: <CountUp value={m.openGuarantees.eur} currency="EUR" />,
-      label: "committed in open guarantees",
-      context: `${m.openGuarantees.count} ${m.openGuarantees.count === 1 ? "letter" : "letters"} on open cases, counted against each policy's limit`,
-    },
-  ];
+function Hero({ stats }: { stats: Stats | null }) {
   return (
-    <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {cards.map(({ icon: Icon, value, label, context }, i) => (
-        <Card key={label} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
-          <Icon size={20} aria-hidden className="text-brand" />
-          <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-ink">{value}</p>
-          <p className="mt-1 text-sm font-medium text-ink">{label}</p>
-          <p className="mt-1 text-xs text-muted">{context}</p>
-        </Card>
-      ))}
-    </div>
+    <section
+      aria-labelledby="hero-title"
+      className="relative overflow-hidden rounded-3xl bg-stage px-5 py-6 text-stage-ink shadow-lg shadow-stage/20 md:px-8 md:py-7"
+    >
+      {/* A faint map grid: the route is drawn on it. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.35] [background-image:radial-gradient(rgb(var(--c-stage-line))_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]"
+      />
+      <div className="relative">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h1 id="hero-title" className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
+              {BRAND.name}
+            </h1>
+            <p className="mt-1 text-lg font-medium text-brand-2 md:text-xl">{BRAND.tagline}</p>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-stage-muted md:text-base">
+              One journey from the first call to the settled claim. AI prepares every step; people stay in charge of care decisions.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-3 lg:items-end">
+            <LiveRefresh tone="stage" />
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/voice"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-brand-deep focus-visible:outline-brand-2"
+              >
+                <Mic size={16} aria-hidden />
+                Talk to a voice agent
+              </Link>
+              <Link
+                href="/business-case"
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-stage-ink ring-1 ring-stage-line transition-colors duration-150 hover:bg-stage-raised focus-visible:outline-brand-2"
+              >
+                <Calculator size={16} aria-hidden />
+                Your business case
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {stats ? (
+          <>
+            <div className="mt-7">
+              <JourneyRoute stops={routeStops(stats)} />
+            </div>
+            <div className="mt-7">
+              <OutcomeStrip outcomes={stats.outcomes} />
+            </div>
+          </>
+        ) : (
+          <p className="mt-6 rounded-xl bg-stage-raised px-4 py-3 text-sm text-stage-ink ring-1 ring-stage-line">
+            Live figures are temporarily unavailable. They come back as soon as the database answers again.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ModuleGrid() {
+  return (
+    <section aria-labelledby="modules-title">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="modules-title" className="text-base font-semibold text-ink">
+          Every module, live
+        </h2>
+        <p className="text-xs text-muted">
+          Press <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] font-medium text-ink">⌘K</kbd> to jump to any record or agent
+        </p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {MODULES.map(({ href, icon: Icon, title, description, tone, tag }) => (
+          <Link
+            key={href}
+            href={href}
+            className="group flex flex-col rounded-2xl border border-line bg-surface p-5 transition-[border-color,box-shadow] duration-150 hover:border-brand/40 hover:shadow-md focus-visible:outline-brand"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <span className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors duration-150 ${TONES[tone]}`}>
+                <Icon size={20} aria-hidden />
+              </span>
+              {tag ? <span className="rounded-full bg-canvas px-2.5 py-0.5 text-[11px] font-medium text-muted">{tag}</span> : null}
+            </div>
+            <h3 className="mt-4 text-[15px] font-semibold text-ink transition-colors duration-150 group-hover:text-brand">{title}</h3>
+            <p className="mt-1 text-sm leading-relaxed text-muted">{description}</p>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
 export default async function DashboardPage() {
   const stats = await getStats();
-
-  const kpis = stats
-    ? [
-        {
-          icon: FolderKanban,
-          accent: "bg-blue-50 text-blue-600",
-          value: stats.openCases,
-          label: "Open cases",
-          context: "being worked right now",
-        },
-        {
-          icon: ReceiptText,
-          accent: "bg-amber-50 text-amber-600",
-          value: stats.claimsInReview,
-          label: "Claims in review",
-          context: "AI-checked, human-decided",
-        },
-        {
-          icon: CalendarCheck,
-          accent: "bg-emerald-50 text-emerald-600",
-          value: stats.upcomingAppointments,
-          label: "Upcoming appointments",
-          context: "booked by AI + web",
-        },
-      ]
-    : [];
-
   return (
-    <div className="mx-auto max-w-7xl">
-      {/* Hero: the pitch and the end-to-end journey, above the fold. */}
-      <div className="animate-fade-up">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 md:text-4xl">
-              {BRAND.name}
-              <span className="ml-3 bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text align-middle text-lg font-medium text-transparent md:text-xl">
-                {BRAND.tagline}
-              </span>
-            </h1>
-            <p className="mt-2 max-w-2xl text-base text-slate-500">
-              One journey from the first call to the settled claim: AI prepares every
-              step, people stay in charge of care decisions.
-            </p>
-            <p className="mt-1 text-xs font-medium text-muted">{POWERED_BY}</p>
-          </div>
-          <LiveRefresh />
-        </div>
+    <div className="mx-auto max-w-7xl space-y-5">
+      <Hero stats={stats} />
 
-        <div className="mt-5 flex flex-wrap items-center gap-y-2">
-          {STORY.map(({ step, href }, i) => {
-            const endpoint = i === 0 || i === STORY.length - 1;
-            const pill = (
-              <span
-                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors md:text-sm ${
-                  endpoint
-                    ? "bg-slate-900 text-white"
-                    : href
-                      ? "border border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-400 hover:bg-blue-100"
-                      : "bg-slate-200 text-slate-700"
-                }`}
-              >
-                {step}
-              </span>
-            );
-            return (
-              <span key={step} className="flex items-center">
-                {href ? <Link href={href}>{pill}</Link> : pill}
-                {i < STORY.length - 1 ? (
-                  <ArrowRight size={14} className="mx-1 shrink-0 text-slate-400" aria-hidden />
-                ) : null}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* What the AI did, from the records; then today's workload. */}
       {stats ? (
         <>
-          <SectionTitle className="mt-8">What the AI did · last {stats.outcomes.days} days</SectionTitle>
-          <OutcomeGrid outcomes={stats.outcomes} />
-          <SectionTitle className="mt-8">Medical spend under control · last {stats.money.days} days</SectionTitle>
-          <MoneyGrid money={stats.money} />
-          <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {kpis.map(({ icon: Icon, accent, value, label, context }, i) => (
-              <Card key={label} className="animate-fade-up py-4" style={{ animationDelay: `${i * 60}ms` }}>
-                <div className="flex items-center gap-3">
-                  <div className={`inline-flex rounded-lg p-2 ${accent}`}>
-                    <Icon size={18} aria-hidden />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-semibold tracking-tight text-slate-900">
-                      <CountUp value={value} />
-                    </p>
-                    <p className="text-sm font-medium text-slate-600">{label}</p>
-                  </div>
-                </div>
-                <p className="mt-1.5 text-xs text-slate-500">{context}</p>
-              </Card>
-            ))}
-            <Link
-              href="/business-case"
-              className="group block rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-            >
-              <Card interactive className="h-full border-blue-200 bg-gradient-to-br from-blue-600 to-sky-500 py-4 text-white">
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex rounded-lg bg-white/15 p-2">
-                    <Calculator size={18} aria-hidden />
-                  </div>
-                  <p className="text-base font-semibold">Your business case</p>
-                </div>
-                <p className="mt-1.5 text-sm text-blue-50">
-                  Hours and cost {BRAND.name} saves in your operation
-                  <ArrowRight size={14} className="ml-1 inline transition-transform group-hover:translate-x-0.5" aria-hidden />
-                </p>
-              </Card>
-            </Link>
+          <div className="grid gap-5 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <MoneyPanel money={stats.money} href={stats.reviewHref} />
+            </div>
+            <NeedsPerson decisions={stats.decisions} />
+          </div>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <StatusMix title="Caseload" noun="cases" counts={stats.caseCounts} order={CASE_STATUS_ORDER} href="/cases" columns={3} />
+            <StatusMix title="Claims pipeline" noun="claims" counts={stats.claimCounts} order={CLAIM_STATUS_ORDER} href="/claims" columns={4} />
           </div>
         </>
-      ) : (
-        <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Live figures are temporarily unavailable. They come back as soon as the
-          database answers again.
-        </div>
-      )}
-
-      {stats ? (
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <Card>
-            <SectionTitle>Caseload by status</SectionTitle>
-            <StatusBars counts={stats.caseCounts} order={CASE_STATUS_ORDER} />
-          </Card>
-          <Card>
-            <SectionTitle>Claims pipeline</SectionTitle>
-            <StatusBars counts={stats.claimCounts} order={CLAIM_STATUS_ORDER} />
-          </Card>
-        </div>
       ) : null}
 
-      <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {MODULES.map(({ href, icon: Icon, title, description, tag }, i) => (
-          <Link
-            key={href}
-            href={href}
-            className="group block rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-          >
-          <Card
-            interactive
-            className="flex h-full animate-fade-up flex-col transition-all group-hover:-translate-y-0.5 group-hover:shadow-lg"
-            style={{ animationDelay: `${i * 60}ms` }}
-          >
-            <div className="flex items-start justify-between">
-              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-sky-50 p-2.5 text-blue-600 transition-transform group-hover:scale-105">
-                <Icon size={22} aria-hidden />
-              </div>
-              {tag ? (
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-500">
-                  {tag}
-                </span>
-              ) : null}
-            </div>
-            <h2 className="mt-4 text-base font-semibold text-slate-900">{title}</h2>
-            <p className="mt-1 flex-1 text-sm leading-relaxed text-slate-500">
-              {description}
-            </p>
-            <span className="mt-4 inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors group-hover:bg-blue-700">
-              Open
-              <ArrowRight
-                size={15}
-                aria-hidden
-                className="transition-transform group-hover:translate-x-0.5"
-              />
-            </span>
-          </Card>
-          </Link>
-        ))}
-      </div>
+      <ModuleGrid />
+      <p className="pb-2 text-center text-xs text-muted">{POWERED_BY}</p>
     </div>
   );
 }

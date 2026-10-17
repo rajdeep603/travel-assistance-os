@@ -40,7 +40,7 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
             <div className="flex items-center gap-2">
               <OperatorMenu />
               <PresentToggle />
-              <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 md:text-xs">
+              <span className="whitespace-nowrap rounded-full border border-warn/40 bg-warn/10 px-2.5 py-1 text-[11px] font-semibold text-amber-800 md:px-3 md:text-xs">
                 Fictional data
               </span>
             </div>
