@@ -1,29 +1,34 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, Clock, Copy, Euro, FileCheck2, Moon, ReceiptText, RotateCcw } from "lucide-react";
+import { Check, ChevronDown, Clock, Coins, Copy, Euro, FileCheck2, Moon, ReceiptText, RotateCcw } from "lucide-react";
 import { Button, Card, PageHeader, SectionTitle } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
 import { BRAND, POWERED_BY } from "@/lib/brand";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatMoneyExact } from "@/lib/format";
 import {
   CURRENCY,
   DEFAULT_ASSUMPTIONS,
   DEFAULT_COST_CONTAINMENT,
   DEFAULT_INPUTS,
+  DEFAULT_RUNNING_COST_PRICES,
   DISCLAIMER,
   PRESETS,
   PRESET_MEDICAL_SPEND,
   buildSummary,
   calculateBusinessCase,
   calculateCostContainment,
+  calculateRunningCost,
   withCostContainment,
+  withRunningCost,
   formatCount,
   formatDuration,
-  headline,
+  formatRate,
+  netHeadline,
   type Assumptions,
   type CostContainmentInputs,
   type OperationInputs,
+  type RunningCostPrices,
 } from "@/lib/business-case";
 
 // The presenter types the visitor's own numbers; every result recomputes on
@@ -100,6 +105,36 @@ const COST_FIELDS: FieldSpec<keyof CostContainmentInputs>[] = [
   { key: "annualMedicalSpend", label: "Medical spend abroad a year", unit: "€", unitWords: "euros", min: 0, max: 10_000_000_000, step: 100_000 },
   { key: "reviewedPct", label: "Bills reviewed line by line", unit: "%", unitWords: "percent", min: 0, max: 100, step: 5 },
   { key: "savingPct", label: "Average saving on a reviewed bill", unit: "%", unitWords: "percent", min: 0, max: 60, step: 1 },
+];
+
+const euroRate = (key: keyof RunningCostPrices, label: string, max = 10): FieldSpec<keyof RunningCostPrices> => ({
+  key,
+  label,
+  unit: "€",
+  unitWords: "euros",
+  min: 0,
+  max,
+  step: 0.001,
+});
+
+const PRICE_GROUPS: { title: string; fields: FieldSpec<keyof RunningCostPrices>[] }[] = [
+  {
+    title: "Voice",
+    fields: [
+      euroRate("voicePerMinute", "Voice AI, per minute"),
+      euroRate("phonePerMinute", "Phone line, per minute"),
+      { key: "handoverMinutes", label: "AI time on a call it hands over", unit: "min", unitWords: "minutes", min: 0, max: 60, step: 0.5 },
+    ],
+  },
+  {
+    title: "Document AI, per item",
+    fields: [
+      euroRate("perCallNote", "Call note"),
+      euroRate("perMessage", "E-mail or fax"),
+      euroRate("perClaim", "Claim"),
+      euroRate("perLetter", "Letter of Guarantee"),
+    ],
+  },
 ];
 
 const ASSUMPTION_FIELDS = [
@@ -245,6 +280,9 @@ export default function BusinessCasePage() {
   const [operation, setOperation] = useState(() => toDraft(DEFAULT_INPUTS));
   const [assumptionDraft, setAssumptionDraft] = useState(() => toDraft(DEFAULT_ASSUMPTIONS));
   const [costDraft, setCostDraft] = useState(() => toDraft(DEFAULT_COST_CONTAINMENT));
+  const [priceDraft, setPriceDraft] = useState(() => toDraft(DEFAULT_RUNNING_COST_PRICES));
+  const [pricesOpen, setPricesOpen] = useState(false);
+  const pricesPanel = useId();
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -255,9 +293,11 @@ export default function BusinessCasePage() {
   const result = useMemo(() => calculateBusinessCase(inputs, assumptions), [inputs, assumptions]);
   const costInputs = useMemo(() => fromDraft<CostContainmentInputs>(costDraft), [costDraft]);
   const cost = useMemo(() => calculateCostContainment(costInputs), [costInputs]);
+  const prices = useMemo(() => fromDraft<RunningCostPrices>(priceDraft), [priceDraft]);
+  const running = useMemo(() => calculateRunningCost(inputs, assumptions, prices, result), [inputs, assumptions, prices, result]);
   const summary = useMemo(
-    () => withCostContainment(buildSummary(inputs, assumptions, result), costInputs, cost),
-    [inputs, assumptions, result, costInputs, cost]
+    () => withCostContainment(withRunningCost(buildSummary(inputs, assumptions, result), running), costInputs, cost),
+    [inputs, assumptions, result, running, costInputs, cost]
   );
 
   const activePreset = PRESETS.find((p) =>
@@ -265,6 +305,9 @@ export default function BusinessCasePage() {
   )?.id;
   const assumptionsAreDefault = (Object.keys(DEFAULT_ASSUMPTIONS) as (keyof Assumptions)[]).every(
     (k) => assumptions[k] === DEFAULT_ASSUMPTIONS[k]
+  );
+  const pricesAreDefault = (Object.keys(DEFAULT_RUNNING_COST_PRICES) as (keyof RunningCostPrices)[]).every(
+    (k) => prices[k] === DEFAULT_RUNNING_COST_PRICES[k]
   );
 
   async function copySummary() {
@@ -301,13 +344,10 @@ export default function BusinessCasePage() {
     {
       icon: Euro,
       accent: "bg-emerald-50 text-emerald-600",
-      value: result.annualSaving,
+      value: running.netAnnualSaving,
       format: eurShort,
-      label: "Cost saved a year",
-      context:
-        result.savingPerCase > 0
-          ? `${eur(result.monthlySaving)} a month · ${eur(result.savingPerCase)} per case`
-          : `${eur(result.monthlySaving)} a month`,
+      label: "Net saving a year",
+      context: `${eur(result.annualSaving)} of agent time, less ${eur(running.annualCost)} to run the AI`,
     },
     {
       icon: Moon,
@@ -369,7 +409,7 @@ export default function BusinessCasePage() {
       <div className="animate-fade-up rounded-2xl bg-gradient-to-br from-blue-700 to-sky-600 p-6 text-white shadow-sm md:p-7">
         <p className="text-sm font-medium text-blue-100">Your business case</p>
         <p aria-live="polite" className="mt-1.5 max-w-4xl text-xl font-semibold leading-snug md:text-2xl">
-          {headline(result)}
+          {netHeadline(result, running)}
         </p>
       </div>
 
@@ -387,6 +427,145 @@ export default function BusinessCasePage() {
           </Card>
         ))}
       </div>
+
+      <Card className="mt-5">
+        <SectionTitle>What the AI costs to run</SectionTitle>
+        <p className="mt-1 text-sm text-muted">
+          Pay-as-you-go prices for the voice AI, its phone line and the document AI, at your volumes. The net saving above already takes it off.
+        </p>
+        <div className="mt-3 grid gap-5 lg:grid-cols-5">
+          <div className="lg:col-span-3">
+            <table className="w-full text-sm">
+              <caption className="sr-only">AI running cost per month, by item</caption>
+              <thead>
+                <tr className="border-b border-line text-left text-muted">
+                  <th scope="col" className="py-2 pr-3 font-medium">Item</th>
+                  <th scope="col" className="py-2 text-right font-medium">A month</th>
+                </tr>
+              </thead>
+              <tbody>
+                {running.lines.map((l) => (
+                  <tr key={l.item} className="border-b border-line/70">
+                    <th scope="row" className="py-2.5 pr-3 text-left font-normal">
+                      <span className="block font-medium text-ink">{l.label}</span>
+                      <span className="block tabular-nums text-muted">
+                        {formatCount(l.volume)}
+                        {l.unit === "min" ? " min" : ""} × {formatRate(l.price)}
+                        {l.item === "voice" && running.callsHandedOver > 0
+                          ? ` · ${formatCount(running.callsClosed)} calls closed by the AI, ${formatCount(running.callsHandedOver)} handed to a person after ${formatCount(running.handoverMinutes, Number.isInteger(running.handoverMinutes) ? 0 : 1)} min`
+                          : ""}
+                      </span>
+                    </th>
+                    <td className="py-2.5 text-right tabular-nums text-ink">{eur(l.cost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="text-base font-semibold text-ink">
+                  <th scope="row" className="pb-1 pr-3 pt-3 text-left">
+                    Total a month
+                  </th>
+                  <td className="pb-1 pt-3 text-right tabular-nums">{eur(running.monthlyCost)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div className="flex flex-col justify-center gap-6 rounded-xl bg-canvas p-5 lg:col-span-2">
+            <div>
+              <Coins size={20} aria-hidden className="text-brand" />
+              <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-ink 2xl:text-4xl">
+                <CountUp value={running.annualCost} format={eurShort} durationMs={500} />
+              </p>
+              <p className="mt-1 text-sm font-semibold text-ink">AI running cost a year</p>
+              <p className="mt-0.5 text-sm text-muted">
+                {eur(running.monthlyCost)} a month
+                {running.costPerCase > 0 ? ` · ${formatMoneyExact(running.costPerCase, CURRENCY)} per case` : ""}
+              </p>
+            </div>
+
+            {/* What the AI frees against what it costs, on one scale. */}
+            <dl className="space-y-3 text-sm">
+              {[
+                { label: "Agent time freed", value: result.monthlySaving, bar: "bg-brand" },
+                { label: "AI running cost", value: running.monthlyCost, bar: "bg-muted/60" },
+              ].map(({ label, value, bar }) => (
+                <div key={label}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-muted">{label}, a month</dt>
+                    <dd className="font-semibold tabular-nums text-ink">{eur(value)}</dd>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-line/70" aria-hidden>
+                    <div
+                      className={`h-full rounded-full transition-[width] duration-300 ease-smooth ${bar}`}
+                      style={{ width: `${(value / Math.max(result.monthlySaving, running.monthlyCost, 1)) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </dl>
+
+            <div className="border-t border-line pt-4">
+              {running.returnPerEuro > 0 ? (
+                <p className="text-sm text-ink">
+                  <span className="text-2xl font-semibold tabular-nums text-brand">{eur(running.returnPerEuro)}</span> of agent time freed for every €1 the AI costs
+                </p>
+              ) : null}
+              {running.agentMinuteCost > 0 ? (
+                <p className="mt-1 text-sm text-muted">
+                  A minute on the phone: {formatRate(running.aiMinuteCost)} with the voice AI, {formatRate(running.agentMinuteCost)} with an agent.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 border-t border-line pt-3">
+          <button
+            type="button"
+            aria-expanded={pricesOpen}
+            aria-controls={pricesPanel}
+            onClick={() => setPricesOpen((o) => !o)}
+            className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand transition-colors duration-150 hover:text-brand-deep"
+          >
+            Edit the prices
+            <ChevronDown size={15} aria-hidden className={`transition-transform duration-150 ${pricesOpen ? "rotate-180" : ""}`} />
+          </button>
+          {pricesOpen ? (
+            <div id={pricesPanel} className="mt-3 animate-fade-up space-y-4 rounded-lg border border-line bg-canvas p-4">
+              {PRICE_GROUPS.map((group) => (
+                <fieldset key={group.title}>
+                  <legend className="text-sm font-semibold text-ink">{group.title}</legend>
+                  <div className={`mt-1 grid items-end gap-3 ${group.fields.length > 3 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
+                    {group.fields.map((spec) => (
+                      <NumberField
+                        key={spec.key}
+                        spec={spec}
+                        value={priceDraft[spec.key]}
+                        onChange={(v) => setPriceDraft((d) => ({ ...d, [spec.key]: v }))}
+                        onBlur={() => setPriceDraft((d) => ({ ...d, [spec.key]: settle(d[spec.key], spec) }))}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <p className="max-w-prose text-sm text-muted">
+                  List prices of the voice AI, the phone carrier and the language model behind this demo (October 2026, $1 = €0.92). Document AI is priced from the text each step reads and writes. The platform licence is not included.
+                </p>
+                <Button
+                  variant="secondary"
+                  disabled={pricesAreDefault}
+                  onClick={() => setPriceDraft(toDraft(DEFAULT_RUNNING_COST_PRICES))}
+                  className="px-3 py-1.5"
+                >
+                  <RotateCcw size={14} aria-hidden />
+                  Restore list prices
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
 
       <Card className="mt-5">
         <div className="grid gap-5 lg:grid-cols-5">
@@ -418,7 +597,7 @@ export default function BusinessCasePage() {
             <p className="mt-1 text-sm font-semibold text-ink">Medical spend saved a year</p>
             <p className="mt-0.5 text-sm text-muted">
               {eur(cost.monthlySaving)} a month, on {eurShort(cost.reviewedSpend)} of reviewed bills.
-              {result.annualSaving > 0 ? ` With the operating savings: ${eurShort(cost.annualSaving + result.annualSaving)} a year.` : ""}
+              {result.annualSaving > 0 ? ` With the operating savings, after AI costs: ${eurShort(cost.annualSaving + running.netAnnualSaving)} a year.` : ""}
             </p>
           </div>
         </div>

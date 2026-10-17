@@ -126,6 +126,20 @@ test("the business case recalculates from the visitor's own numbers", async ({ p
   await expect(page.getByRole("button", { name: "Large insurer" })).toHaveAttribute("aria-pressed", "true");
 });
 
+test("the business case takes the AI's running cost off the saving", async ({ page }) => {
+  await page.goto("/business-case");
+  await expect(page.getByText(/after the AI's running costs\.$/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What the AI costs to run" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /^Voice AI on calls 25,200 min × €0\.074/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /^Total a month €2,935$/ })).toBeVisible();
+  // The prices are the visitor's to change, and come back with one click.
+  await page.getByRole("button", { name: "Edit the prices" }).click();
+  await page.getByRole("spinbutton", { name: "Voice AI, per minute (euros)" }).fill("0.1");
+  await expect(page.getByRole("row", { name: /^Total a month €3,590$/ })).toBeVisible();
+  await page.getByRole("button", { name: "Restore list prices" }).click();
+  await expect(page.getByRole("row", { name: /^Total a month €2,935$/ })).toBeVisible();
+});
+
 test("the floating AI assistant keeps the conversation and its history, with voice mode a click away", async ({ page }) => {
   await page.goto("/cases");
   await page.getByRole("button", { name: "Open the AI assistant" }).click();

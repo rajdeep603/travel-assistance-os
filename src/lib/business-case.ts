@@ -7,7 +7,8 @@
 // ---------------------------------------------------------------------------
 
 import { BRAND, POWERED_BY } from "./brand";
-import { formatMoney } from "./format";
+import { formatMoney, formatMoneyExact } from "./format";
+import { DEMO_FX_TO_EUR } from "./fx";
 
 export const CURRENCY = "EUR";
 
@@ -371,6 +372,188 @@ export function withCostContainment(summary: string, inputs: CostContainmentInpu
     `- Bills reviewed line by line: ${pct(inputs.reviewedPct)} (${eur(result.reviewedSpend)})`,
     `- Average saving on a reviewed bill: ${pct(inputs.savingPct)}`,
     `- Medical spend saved: ${eur(result.annualSaving)} a year (${eur(result.monthlySaving)} a month)`,
+    "",
+    closing,
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Running cost: what the AI itself costs a month at pay-as-you-go prices, so
+// the labour saving can be shown net of it. The defaults are the list prices
+// behind this demo in October 2026, at the demo rate of $1 = €0.92:
+// - voice AI: xAI Grok Voice 3.0, speech to speech, $0.08 a minute;
+// - phone line: Twilio, US local number, $0.0085 a minute inbound plus
+//   $0.0044 for the audio stream to the voice AI;
+// - document AI: Claude Opus 5.5, $4 per million tokens read and $20 per
+//   million written, at the token counts below.
+// The page and the summary never name the vendors. Every price is editable,
+// so a presenter can put in the visitor's own quote. The platform licence is
+// not part of it.
+// ---------------------------------------------------------------------------
+
+const USD_TO_EUR = DEMO_FX_TO_EUR.USD;
+const MODEL_USD_PER_MILLION = { read: 4, written: 20 };
+
+/** Tokens read and written for one item, from the AI calls each workflow makes. */
+const TOKENS_PER_ITEM = {
+  // Read (OCR for a scan), classify, extract the attachment, analyse the request, translate the reply.
+  message: { read: 10_000, written: 3_000 },
+  // Read, classify and extract about three documents, then summarise the claim.
+  claim: { read: 14_000, written: 4_000 },
+  // Read and extract the cost estimate; the decision itself is rules, not AI.
+  letter: { read: 6_000, written: 2_000 },
+  // The transcript in, the case note out.
+  callNote: { read: 3_000, written: 600 },
+};
+
+const toThousandths = (n: number) => Math.round(n * 1000) / 1000;
+const modelEur = ({ read, written }: { read: number; written: number }) =>
+  toThousandths(((read * MODEL_USD_PER_MILLION.read + written * MODEL_USD_PER_MILLION.written) / 1_000_000) * USD_TO_EUR);
+
+/** What the AI costs per use, EUR. */
+export interface RunningCostPrices {
+  /** Voice AI, a minute it is on a call. */
+  voicePerMinute: number;
+  /** The phone line while the voice AI is on the call: the inbound minute and the audio stream. */
+  phonePerMinute: number;
+  /** Minutes the voice AI spends on a call it hands to a person: triage, then a warm transfer. */
+  handoverMinutes: number;
+  perCallNote: number;
+  perMessage: number;
+  perClaim: number;
+  perLetter: number;
+}
+
+export const DEFAULT_RUNNING_COST_PRICES: RunningCostPrices = {
+  voicePerMinute: toThousandths(0.08 * USD_TO_EUR),
+  phonePerMinute: toThousandths((0.0085 + 0.0044) * USD_TO_EUR),
+  handoverMinutes: 1.5,
+  perCallNote: modelEur(TOKENS_PER_ITEM.callNote),
+  perMessage: modelEur(TOKENS_PER_ITEM.message),
+  perClaim: modelEur(TOKENS_PER_ITEM.claim),
+  perLetter: modelEur(TOKENS_PER_ITEM.letter),
+};
+
+export type CostItem = "voice" | "phone" | "notes" | "inbound" | "claims" | "letters";
+
+export interface CostLine {
+  item: CostItem;
+  label: string;
+  /** Minutes or items a month. */
+  volume: number;
+  unit: "min" | "item";
+  /** EUR per minute or item. */
+  price: number;
+  /** EUR a month. */
+  cost: number;
+}
+
+export interface RunningCostResult {
+  lines: CostLine[];
+  /** Calls a month the AI closes itself, and calls it hands to a person. */
+  callsClosed: number;
+  callsHandedOver: number;
+  /** Minutes the voice AI spends on a call it hands over (no longer than the call). */
+  handoverMinutes: number;
+  /** Minutes a month the voice AI is on a call. */
+  voiceMinutes: number;
+  monthlyCost: number;
+  annualCost: number;
+  /** Monthly cost spread over the assistance cases; 0 without cases. */
+  costPerCase: number;
+  /** The labour saving less the running cost; negative when the AI costs more than it frees. */
+  netMonthlySaving: number;
+  netAnnualSaving: number;
+  /** Euros of agent time freed for every euro the AI costs; 0 when it costs nothing. */
+  returnPerEuro: number;
+  /** A minute on the phone: the voice AI and its line, against an agent at the loaded hourly cost. */
+  aiMinuteCost: number;
+  agentMinuteCost: number;
+}
+
+export function calculateRunningCost(
+  inputs: OperationInputs,
+  assumptions: Assumptions,
+  prices: RunningCostPrices,
+  result: BusinessCaseResult = calculateBusinessCase(inputs, assumptions)
+): RunningCostResult {
+  // The voice AI answers every call: it stays on the ones it closes and hands the rest over after triage.
+  const calls = amount(inputs.monthlyCalls);
+  const callMinutes = amount(inputs.callMinutes);
+  const callsClosed = calls * share(assumptions.aiHandledCallPct);
+  const callsHandedOver = calls - callsClosed;
+  const handoverMinutes = Math.min(callMinutes, amount(prices.handoverMinutes));
+  const voiceMinutes = callsClosed * callMinutes + callsHandedOver * handoverMinutes;
+
+  const line = (item: CostItem, label: string, volume: number, unit: CostLine["unit"], price: number): CostLine => ({
+    item,
+    label,
+    volume,
+    unit,
+    price: amount(price),
+    cost: volume * amount(price),
+  });
+  const lines = [
+    line("voice", "Voice AI on calls", voiceMinutes, "min", prices.voicePerMinute),
+    line("phone", "Phone line", voiceMinutes, "min", prices.phonePerMinute),
+    line("notes", "Call notes", calls, "item", prices.perCallNote),
+    line("inbound", "E-mails & faxes read", amount(inputs.monthlyInbound), "item", prices.perMessage),
+    line("claims", "Claims checked", amount(inputs.monthlyClaims), "item", prices.perClaim),
+    line("letters", "Letters of Guarantee drafted", amount(inputs.monthlyLetters), "item", prices.perLetter),
+  ];
+
+  const monthlyCost = lines.reduce((sum, l) => sum + l.cost, 0);
+  const cases = amount(inputs.monthlyCases);
+  return {
+    lines,
+    callsClosed,
+    callsHandedOver,
+    handoverMinutes,
+    voiceMinutes,
+    monthlyCost,
+    annualCost: monthlyCost * 12,
+    costPerCase: cases > 0 ? monthlyCost / cases : 0,
+    netMonthlySaving: result.monthlySaving - monthlyCost,
+    netAnnualSaving: (result.monthlySaving - monthlyCost) * 12,
+    returnPerEuro: monthlyCost > 0 ? result.monthlySaving / monthlyCost : 0,
+    aiMinuteCost: amount(prices.voicePerMinute) + amount(prices.phonePerMinute),
+    agentMinuteCost: amount(inputs.costPerHour) / 60,
+  };
+}
+
+/** €0.074, €0.12: per-minute and per-item prices, to the tenth of a cent. */
+export function formatRate(eur: number): string {
+  return `€${eur.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`;
+}
+
+/** The headline, adding the saving after the AI's running cost. */
+export function netHeadline(result: BusinessCaseResult, running: RunningCostResult): string {
+  const base = headline(result);
+  if (result.hoursFreed < 1 || running.monthlyCost <= 0) return base;
+  const stem = base.replace(/\.$/, "");
+  if (running.netAnnualSaving <= 0) {
+    return `${stem}, which doesn't cover the ${formatMoney(roughly(running.annualCost), CURRENCY)} a year the AI costs to run.`;
+  }
+  return `${stem}, or ${formatMoney(roughly(running.netAnnualSaving), CURRENCY)} after the AI's running costs.`;
+}
+
+/** The copied summary, with the running-cost section before the closing line. */
+export function withRunningCost(summary: string, running: RunningCostResult): string {
+  const lines = summary.split("\n");
+  const closing = lines.pop() ?? "";
+  const eur = (v: number) => formatMoney(Math.round(v), CURRENCY);
+  const returnLine =
+    running.returnPerEuro > 0 ? ` (${formatMoney(Math.round(running.returnPerEuro), CURRENCY)} of agent time freed for every €1 of AI)` : "";
+  return [
+    ...lines,
+    "AI running cost (per month, pay-as-you-go)",
+    ...running.lines.map(
+      (l) => `- ${l.label}: ${formatCount(l.volume)}${l.unit === "min" ? " min" : ""} × ${formatRate(l.price)} = ${eur(l.cost)}`
+    ),
+    `- Total: ${eur(running.monthlyCost)} a month, ${eur(running.annualCost)} a year${
+      running.costPerCase > 0 ? ` (${formatMoneyExact(running.costPerCase, CURRENCY)} per case)` : ""
+    }`,
+    `- Net saving after AI costs: ${eur(running.netMonthlySaving)} a month, ${eur(running.netAnnualSaving)} a year${returnLine}`,
     "",
     closing,
   ].join("\n");

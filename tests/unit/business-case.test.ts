@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ASSUMPTIONS,
   DEFAULT_INPUTS,
+  DEFAULT_RUNNING_COST_PRICES,
   PRESETS,
   buildSummary,
   calculateBusinessCase,
+  calculateRunningCost,
   formatDuration,
+  formatRate,
   headline,
+  netHeadline,
   roughly,
+  withRunningCost,
   type Assumptions,
   type BusinessCaseResult,
   type OperationInputs,
@@ -230,5 +235,100 @@ describe("wording", () => {
       "Estimates for discussion, based on the assumptions shown. CareTrail · Powered by Sthiram"
     );
     expect(text).not.toMatch(/NaN|undefined|Claude|Grok|Twilio/);
+  });
+});
+
+describe("AI running cost", () => {
+  const result = calculateBusinessCase(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS);
+  const running = calculateRunningCost(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES, result);
+
+  it("starts from the list prices, in euros at the demo rate", () => {
+    // $0.08 a minute voice; $0.0085 + $0.0044 phone; $4 / $20 per million tokens.
+    expect(DEFAULT_RUNNING_COST_PRICES).toEqual({
+      voicePerMinute: 0.074,
+      phonePerMinute: 0.012,
+      handoverMinutes: 1.5,
+      perCallNote: 0.022,
+      perMessage: 0.092,
+      perClaim: 0.125,
+      perLetter: 0.059,
+    });
+  });
+
+  it("works the defaults through by hand", () => {
+    const byItem = Object.fromEntries(running.lines.map((l) => [l.item, l]));
+    // 3,600 calls closed × 6 min + 2,400 handed over × 1.5 min.
+    expect(running.callsClosed).toBeCloseTo(3_600);
+    expect(running.callsHandedOver).toBeCloseTo(2_400);
+    expect(running.voiceMinutes).toBeCloseTo(25_200);
+    expect(byItem.voice.cost).toBeCloseTo(1_864.8);
+    expect(byItem.phone.cost).toBeCloseTo(302.4);
+    expect(byItem.notes.cost).toBeCloseTo(132);
+    expect(byItem.inbound.cost).toBeCloseTo(368);
+    expect(byItem.claims.cost).toBeCloseTo(250);
+    expect(byItem.letters.cost).toBeCloseTo(17.7);
+
+    expect(running.monthlyCost).toBeCloseTo(2_934.9);
+    expect(running.annualCost).toBeCloseTo(35_218.8);
+    expect(running.costPerCase).toBeCloseTo(2_934.9 / 1_500);
+    expect(running.netMonthlySaving).toBeCloseTo(38_260 - 2_934.9);
+    expect(running.netAnnualSaving).toBeCloseTo((38_260 - 2_934.9) * 12);
+    expect(running.returnPerEuro).toBeCloseTo(38_260 / 2_934.9);
+    expect(running.aiMinuteCost).toBeCloseTo(0.086);
+    expect(running.agentMinuteCost).toBeCloseTo(0.5);
+  });
+
+  it("never keeps the voice AI on a hand-over longer than the call", () => {
+    const r = calculateRunningCost({ ...DEFAULT_INPUTS, callMinutes: 1 }, DEFAULT_ASSUMPTIONS, { ...DEFAULT_RUNNING_COST_PRICES, handoverMinutes: 5 });
+    expect(r.handoverMinutes).toBe(1);
+    expect(r.voiceMinutes).toBeCloseTo(6_000);
+  });
+
+  it("costs nothing, and returns zeros, for an empty operation", () => {
+    const r = calculateRunningCost(ZERO_INPUTS, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES);
+    // The price of a minute doesn't depend on the volumes; everything else does.
+    const { lines, aiMinuteCost, ...totals } = r;
+    expect(aiMinuteCost).toBeCloseTo(0.086);
+    for (const value of [...Object.values(totals), ...lines.map((l) => l.cost)]) expect(value).toBe(0);
+  });
+
+  it("treats blank and negative prices as zero", () => {
+    const r = calculateRunningCost(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS, {
+      ...DEFAULT_RUNNING_COST_PRICES,
+      voicePerMinute: Number.NaN,
+      perClaim: -1,
+    });
+    expect(r.lines.find((l) => l.item === "voice")!.cost).toBe(0);
+    expect(r.lines.find((l) => l.item === "claims")!.cost).toBe(0);
+    expect(Number.isFinite(r.monthlyCost)).toBe(true);
+  });
+
+  it("puts the net figure in the headline, or says when the AI isn't covered", () => {
+    expect(netHeadline(result, running)).toBe(
+      "With these numbers, CareTrail would free about 1,275 agent hours a month — roughly 9.1 full-time staff, worth about €459,000 a year, or €424,000 after the AI's running costs."
+    );
+    const unpaid = calculateBusinessCase({ ...DEFAULT_INPUTS, costPerHour: 0 }, DEFAULT_ASSUMPTIONS);
+    const costly = calculateRunningCost({ ...DEFAULT_INPUTS, costPerHour: 0 }, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES, unpaid);
+    expect(costly.netAnnualSaving).toBeLessThan(0);
+    expect(netHeadline(unpaid, costly)).toMatch(/which doesn't cover the €35,200 a year the AI costs to run\.$/);
+    const empty = calculateBusinessCase(ZERO_INPUTS, DEFAULT_ASSUMPTIONS);
+    expect(netHeadline(empty, calculateRunningCost(ZERO_INPUTS, DEFAULT_ASSUMPTIONS, DEFAULT_RUNNING_COST_PRICES, empty))).toBe(headline(empty));
+  });
+
+  it("adds its own section to the summary, without naming a vendor", () => {
+    const labour = buildSummary(DEFAULT_INPUTS, DEFAULT_ASSUMPTIONS, result);
+    const text = withRunningCost(labour, running);
+    expect(text).toContain("- Voice AI on calls: 25,200 min × €0.074 = €1,865");
+    expect(text).toContain("- Letters of Guarantee drafted: 300 × €0.059 = €18");
+    expect(text).toContain("- Total: €2,935 a month, €35,219 a year (€1.96 per case)");
+    expect(text).toContain("- Net saving after AI costs: €35,325 a month, €423,901 a year (€13 of agent time freed for every €1 of AI)");
+    expect(text.split("\n").at(-1)).toBe(labour.split("\n").at(-1));
+    expect(text).not.toMatch(/NaN|undefined|Claude|Grok|Twilio|xAI|Anthropic/);
+  });
+
+  it("formats prices to the tenth of a cent", () => {
+    expect(formatRate(0.074)).toBe("€0.074");
+    expect(formatRate(0.5)).toBe("€0.50");
+    expect(formatRate(0.125)).toBe("€0.125");
   });
 });
