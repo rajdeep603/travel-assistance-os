@@ -71,6 +71,11 @@ export async function matchCase(signals: MatchSignals): Promise<CaseCandidate[]>
     if (kase) add(kase, 0.55, `Claim reference ${ref} quoted`, { id: claim.id, ref: claim.ref });
   }
 
+  for (const ref of new Set(signals.text.toUpperCase().match(/\bLOG-\d{3,6}\b/g) ?? [])) {
+    const letter = await prisma.guaranteeLetter.findUnique({ where: { ref }, select: { case: true } });
+    if (letter) add(letter.case, 0.6, `Guarantee reference ${ref} quoted`);
+  }
+
   // 2–4. Who the message is about. These identify the patient; the evidence
   // then backs the cases already quoted for that patient, or — when nothing
   // was quoted — the patient's most relevant case.

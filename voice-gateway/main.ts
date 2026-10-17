@@ -1,5 +1,5 @@
 import { retryUnansweredCalls } from "@/lib/services/outbound-calls";
-import { purgeExpiredCallData } from "@/lib/voice/retention";
+import { closeOrphanedCalls, purgeExpiredCallData } from "@/lib/voice/retention";
 import { createGateway } from "./gateway";
 
 // Entry point: `npm run dev:gateway` in development, `node voice-gateway.cjs`
@@ -21,6 +21,11 @@ const gateway = createGateway({
 gateway.server.listen(port, () => {
   console.log(`[gateway] listening on :${port}${process.env.XAI_API_KEY ? "" : " (XAI_API_KEY not set: voice sessions will fail)"}`);
 });
+
+// Calls a killed predecessor left open would show "In progress" for ever.
+closeOrphanedCalls()
+  .then((n) => n && console.log(`[gateway] closed ${n} call(s) left open by the previous process`))
+  .catch((err) => console.error("[gateway] closing orphaned calls failed:", err));
 
 // Erase expired phone transcripts at start-up and every six hours.
 const purge = () =>

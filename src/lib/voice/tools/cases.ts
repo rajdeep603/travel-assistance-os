@@ -2,10 +2,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { retrieveContext } from "@/lib/services/assistant";
 import { matchSymptoms } from "@/lib/services/nlu";
+import { MODE_LABELS } from "@/lib/services/transport";
 import { utcToZoned } from "@/lib/time";
 import { spokenDate } from "./booking";
+import { nameMatches } from "./provider";
 import { agentActor, createCaseRecord, resolvePatient } from "./records";
-import { defineTool } from "./types";
+import { defineTool, type ToolContext } from "./types";
 
 export const createCaseTool = defineTool({
   name: "create_case",
@@ -87,37 +89,93 @@ export const addCaseNoteTool = defineTool({
   },
 });
 
+const GUARANTEE_IN_WORDS: Record<string, string> = {
+  DRAFT: "being prepared for the hospital",
+  APPROVED: "approved and about to go to the hospital",
+  SENT: "sent to the hospital",
+  ACKNOWLEDGED: "received by the hospital, so treatment can go ahead without a deposit",
+  REJECTED: "under discussion with a case manager",
+};
+
+/** Everything a "where is my case?" caller may hear about their case. */
+async function caseStatus(caseId: string, ctx: ToolContext) {
+  const kase = await prisma.case.findUniqueOrThrow({
+    where: { id: caseId },
+    include: {
+      appointments: {
+        where: { status: { in: ["PENDING", "CONFIRMED"] }, scheduledAt: { gte: new Date() } },
+        orderBy: { scheduledAt: "asc" },
+        take: 1,
+        include: { provider: true },
+      },
+      guaranteeLetters: { orderBy: { createdAt: "desc" }, take: 1 },
+      claims: { orderBy: { createdAt: "desc" }, take: 1 },
+      transportPlans: { orderBy: { createdAt: "desc" }, take: 1 },
+      events: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+    },
+  });
+  // File this call on the case, so the update shows on its timeline.
+  if (!ctx.caseId) await ctx.setCase(kase.id, kase.patientId);
+  await ctx.setOutcome({ statusGiven: { caseRef: kase.ref } });
+  const next = kase.appointments[0];
+  const slot = next ? utcToZoned(next.scheduledAt) : null;
+  const letter = kase.guaranteeLetters[0];
+  const claim = kase.claims[0];
+  const plan = kase.transportPlans[0];
+  const last = kase.events[0] ? utcToZoned(kase.events[0].createdAt) : null;
+  const issues = (Array.isArray(claim?.issues) ? claim.issues : []) as { severity?: string; message?: string }[];
+  return {
+    found: true,
+    case_ref: kase.ref,
+    status: kase.status.replace(/_/g, " ").toLowerCase(),
+    priority: kase.priority.toLowerCase(),
+    case_manager_assigned: Boolean(kase.assignedTo),
+    next_appointment: next && slot
+      ? { ref: next.ref, when: `${spokenDate(slot.date)} at ${slot.time}`, doctor: next.provider.name, facility: next.provider.facility }
+      : null,
+    guarantee_of_payment: letter ? `${letter.hospitalName}: ${GUARANTEE_IN_WORDS[letter.status]}` : null,
+    claim: claim
+      ? { ref: claim.ref, status: claim.status.replace(/_/g, " ").toLowerCase(), still_needed: issues.filter((i) => i.severity === "error").map((i) => i.message) }
+      : null,
+    transport_home: plan ? `${MODE_LABELS[plan.mode]} (${plan.status === "BOOKED" ? "booked" : "being arranged"})` : null,
+    last_update: last ? `${spokenDate(last.date)} at ${last.time}` : null,
+  };
+}
+
 export const getCaseStatusTool = defineTool({
   name: "get_case_status",
   description:
-    "Look up an existing case by reference (e.g. CASE-1024): status, priority, next appointment. Share only status-level information with the caller.",
+    "Look up a case by its reference (e.g. CASE-1024): status, next appointment, guarantee of payment, claim and transport home. Without a reference, use find_my_case. Share status-level information only.",
   schema: z.object({ case_ref: z.string().describe("e.g. CASE-1024") }),
-  async execute(args) {
+  async execute(args, ctx) {
     const ref = args.case_ref.toUpperCase().replace(/\s+/g, "").replace(/^CASE(\d)/, "CASE-$1");
-    const kase = await prisma.case.findUnique({
-      where: { ref },
-      include: {
-        appointments: {
-          where: { status: { in: ["PENDING", "CONFIRMED"] }, scheduledAt: { gte: new Date() } },
-          orderBy: { scheduledAt: "asc" },
-          take: 1,
-          include: { provider: true },
-        },
-      },
-    });
-    if (!kase) return { found: false, message: `No case ${ref} was found. Ask the caller to check the reference.` };
-    const next = kase.appointments[0];
-    const slot = next ? utcToZoned(next.scheduledAt) : null;
-    return {
-      found: true,
-      case_ref: kase.ref,
-      status: kase.status.replace(/_/g, " ").toLowerCase(),
-      priority: kase.priority.toLowerCase(),
-      case_manager_assigned: Boolean(kase.assignedTo),
-      next_appointment: next && slot
-        ? { ref: next.ref, when: `${spokenDate(slot.date)} at ${slot.time}`, doctor: next.provider.name, facility: next.provider.facility }
-        : null,
-    };
+    const kase = await prisma.case.findUnique({ where: { ref }, select: { id: true } });
+    if (!kase) return { found: false, message: `No case ${ref} was found. Ask the caller to check the reference, or use find_my_case with their name and date of birth.` };
+    return caseStatus(kase.id, ctx);
+  },
+});
+
+export const findMyCaseTool = defineTool({
+  name: "find_my_case",
+  description:
+    "Answer \"where is my case?\" when the caller has no case reference: finds their latest case from their name and date of birth, and returns its status, next appointment, guarantee of payment, claim and transport home.",
+  schema: z.object({
+    full_name: z.string().describe("The caller's first and last name"),
+    date_of_birth: z.string().describe("The caller's date of birth as YYYY-MM-DD"),
+  }),
+  async execute(args, ctx) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(args.date_of_birth)) return { found: false, message: "Give date_of_birth as YYYY-MM-DD." };
+    const candidates = await prisma.patient.findMany({ where: { dateOfBirth: new Date(`${args.date_of_birth}T00:00:00Z`) } });
+    const patient = candidates.find((p) => nameMatches(args.full_name, p.firstName, p.lastName));
+    // Their open case if they have one, else the latest.
+    const kase = patient
+      ? ((await prisma.case.findFirst({ where: { patientId: patient.id, status: { notIn: ["RESOLVED", "CLOSED"] } }, orderBy: { updatedAt: "desc" }, select: { id: true } })) ??
+        (await prisma.case.findFirst({ where: { patientId: patient.id }, orderBy: { updatedAt: "desc" }, select: { id: true } })))
+      : null;
+    if (!kase) {
+      return { found: false, message: "No case matches that name and date of birth. Read both back to the caller to check them, or ask for the case reference (CASE-…); otherwise offer a case manager call-back." };
+    }
+    return caseStatus(kase.id, ctx);
   },
 });
 

@@ -13,6 +13,7 @@ export function TranscriptPanel({
   live,
   onSend,
   className = "h-[440px]",
+  hint = "Try: “I’m in Taksim and I need to see a doctor tomorrow afternoon.”",
 }: {
   lines: TranscriptLine[];
   partial: { user: string; agent: string };
@@ -21,6 +22,8 @@ export function TranscriptPanel({
   live: boolean;
   onSend: (text: string) => void;
   className?: string;
+  /** What to say first, shown before the session starts. */
+  hint?: string;
 }) {
   const [text, setText] = useState("");
   const boxRef = useRef<HTMLDivElement>(null);
@@ -35,7 +38,7 @@ export function TranscriptPanel({
       <div ref={boxRef} role="log" aria-live="polite" aria-label="Conversation transcript" className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
         {lines.length === 0 && !partial.agent && !partial.user ? (
           <div className="flex h-full items-center justify-center">
-            <EmptyState title="Start the session to begin" hint="Try: “I’m in Taksim and I need to see a doctor tomorrow afternoon.”" />
+            <EmptyState title="Start the session to begin" hint={hint} />
           </div>
         ) : (
           // One keyed list, so the in-progress line and its final version are the same element.

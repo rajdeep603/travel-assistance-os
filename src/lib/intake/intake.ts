@@ -1,18 +1,19 @@
 import type { DocumentKind, InboundMessage, Prisma } from "@prisma/client";
-import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
 import { runAI } from "@/lib/services/ai";
-import { checkCompleteness, reviewClaim } from "@/lib/services/claims";
+import { reviewClaim } from "@/lib/services/claims";
 import { processDocument } from "@/lib/services/document-extraction";
 import { emailAddress } from "@/lib/services/email";
 import { reviewBillForDocument } from "@/lib/services/bill-review-service";
-import { draftFromCostEstimate } from "@/lib/services/guarantee-letter";
+import { draftFromCostEstimate, letterPdf } from "@/lib/services/guarantee-letter";
 import { sendEmail } from "@/lib/services/outbox";
+import { utcToZoned } from "@/lib/time";
 import { processingErrorMessage, sniffType, storeUpload } from "@/lib/uploads";
 import { MATCH_THRESHOLD, matchCase, type CaseCandidate } from "./case-matching";
 import { LANGUAGE_NAMES, detectLanguage, languageCode } from "./language";
+import { guaranteeEnquiryReply, missingItem, travellerReply, type MissingItem, type TravellerFacts } from "./replies";
 import { intakeSummary } from "./summary";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +49,11 @@ const RISK_RULES: [string, RegExp][] = [
   ["Possible medical emergency", /\b(chest pain|can't breathe|cannot breathe|unconscious|not breathing|bleeding heavily|stroke|seizure|suicid|emergency|acil|göğüs ağrısı)\b/i],
   ["Fraud indicator", /\b(change (my|the) bank|new bank details|different account|iban change)\b/i],
 ];
+
+/** A hospital asking whether a guarantee of payment was issued (no documents attached). */
+const GUARANTEE_ENQUIRY = /\b(guarantee|GOP|LOG-\d+|letter of guarantee|garanti|provizyon|ödeme taahh|Kostenübernahme|garantía de pago)/i;
+
+const domainOf = (address: string | null | undefined) => (address ?? "").toLowerCase().split("@")[1]?.replace(/>$/, "") ?? "";
 
 /** Stores an inbound message and its attachments; processing is separate. */
 export async function receiveInbound(input: InboundInput): Promise<InboundMessage> {
@@ -255,6 +261,11 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
         });
         status = "NEEDS_REVIEW";
       }
+    } else if (message.channel === "EMAIL" && matched && processed.length === 0 && GUARANTEE_ENQUIRY.test(bodyText)) {
+      // A hospital asking about its guarantee: answered at once when it writes
+      // from the domain of the hospital the letter was issued to.
+      const replied = riskFlags.length === 0 ? await answerGuaranteeEnquiry(message, matched, fromAddress, language) : false;
+      status = replied ? "REPLIED" : "NEEDS_REVIEW";
     } else if (riskFlags.length) {
       status = "NEEDS_REVIEW";
     }
@@ -281,34 +292,107 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
   }
 }
 
-/** The acknowledgement: templated facts (never invented), in the traveller's language. */
+/** Everything the traveller's reply may say about their case, from the records. */
+async function travellerFacts(match: CaseCandidate, claimId: string | null, filenames: string[]): Promise<TravellerFacts> {
+  const kase = await prisma.case.findUniqueOrThrow({
+    where: { id: match.caseId },
+    include: {
+      patient: true,
+      appointments: { where: { status: { in: ["PENDING", "CONFIRMED"] }, scheduledAt: { gte: new Date() } }, orderBy: { scheduledAt: "asc" }, take: 1, include: { provider: true } },
+      guaranteeLetters: { orderBy: { createdAt: "desc" }, take: 1 },
+      transportPlans: { orderBy: { createdAt: "desc" }, take: 1 },
+      claims: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true } },
+    },
+  });
+  const claim = await prisma.claim.findUnique({ where: { id: claimId ?? kase.claims[0]?.id ?? "" } });
+  // What the claims team recorded as still needed (reviewClaim keeps it current).
+  const issues = (Array.isArray(claim?.issues) ? claim.issues : []) as { severity?: string; message?: string }[];
+  const missing = [...new Set(issues.filter((i) => i.severity === "error").map((i) => missingItem(i.message ?? "")))].filter((m): m is MissingItem => m != null);
+  const apt = kase.appointments[0];
+  const slot = apt ? utcToZoned(apt.scheduledAt) : null;
+  return {
+    name: `${kase.patient.firstName} ${kase.patient.lastName}`,
+    documents: filenames,
+    caseRef: kase.ref,
+    caseStatus: kase.status,
+    appointment: apt && slot ? { date: slot.date, time: slot.time, doctor: apt.provider.name, facility: apt.provider.facility } : null,
+    guarantee: kase.guaranteeLetters[0] ? { hospital: kase.guaranteeLetters[0].hospitalName, status: kase.guaranteeLetters[0].status } : null,
+    transport: kase.transportPlans[0]?.mode ?? null,
+    claim: claim
+      ? { ref: claim.ref, status: claim.status, missing, complete: issues.length > 0 && issues.every((i) => i.severity === "ok") }
+      : null,
+  };
+}
+
+/**
+ * The reply: the case's actual state, in templated sentences (never invented),
+ * in the traveller's language. The phrasebook covers the main languages
+ * offline; others are translated when the live model is on, else English.
+ */
 async function draftReply(match: CaseCandidate, claimId: string | null, filenames: string[], messageLanguage: string): Promise<string> {
   const patient = await prisma.patient.findUniqueOrThrow({ where: { id: match.patientId } });
-  const claim = claimId
-    ? await prisma.claim.findUnique({ where: { id: claimId }, include: { patient: true, documents: { include: { extraction: true } } } })
-    : null;
-  const missing = claim ? checkCompleteness(claim).filter((i) => i.severity === "error").map((i) => i.message) : [];
-  const lines = [
-    `Dear ${patient.firstName} ${patient.lastName},`,
-    "",
-    "Thank you for your message — we have received it" + (filenames.length ? ` with ${filenames.length === 1 ? "1 document" : `${filenames.length} documents`}: ${filenames.join(", ")}.` : "."),
-    claim ? `Your claim ${claim.ref} is now ${claim.status.replace(/_/g, " ").toLowerCase()}.` : "",
-    missing.length
-      ? `To complete it we still need: ${missing.join("; ")}. You can simply reply to this e-mail with the documents.`
-      : claim
-        ? "All required documents are on file; a claims handler will review the claim shortly."
-        : "",
-    `Your case reference is ${match.caseRef}.`,
-    "",
-    "Kind regards,",
-    `Claims team — ${BRAND.name} (demonstration platform; all data is fictional)`,
-  ].filter((l, i, all) => l !== "" || all[i - 1] !== "");
-  const english = lines.join("\n");
-
+  const facts = await travellerFacts(match, claimId, filenames);
+  const english = travellerReply(facts, "en").text;
   // Reply in the traveller's language: their profile language, or the language they wrote in.
   const target = patient.language && patient.language !== "English" ? languageCode(patient.language) : messageLanguage;
-  if (target === "en" || !LANGUAGE_NAMES[target]) return english;
+  if (target === "en") return english;
+  const local = travellerReply(facts, target);
+  if (local.language === target) return `${local.text}\n\n— English —\n${english}`;
+  if (!LANGUAGE_NAMES[target]) return english;
   const translated = await runAI("translateText", (ai) => ai.translateText(english, LANGUAGE_NAMES[target]));
   // Offline glossary can't translate this template; keep English rather than send a marked-up draft.
   return translated.value.startsWith("[") ? english : `${translated.value}\n\n— English —\n${english}`;
+}
+
+/** Replies to a hospital's guarantee enquiry with the letter's status, attaching the letter. */
+async function answerGuaranteeEnquiry(message: InboundMessage, match: CaseCandidate, fromAddress: string | null, language: string): Promise<boolean> {
+  const kase = await prisma.case.findUniqueOrThrow({
+    where: { id: match.caseId },
+    include: { patient: true, guaranteeLetters: { orderBy: { createdAt: "desc" }, take: 1, include: { provider: true } } },
+  });
+  const letter = kase.guaranteeLetters[0] ?? null;
+  // Only to the hospital the letter was issued to (same e-mail domain as on file).
+  const domain = domainOf(fromAddress);
+  if (!letter || !domain || domain !== domainOf(letter.provider?.email)) return false;
+  const reply = guaranteeEnquiryReply(
+    {
+      patient: `${kase.patient.firstName} ${kase.patient.lastName}`,
+      dateOfBirth: kase.patient.dateOfBirth.toISOString().slice(0, 10),
+      caseRef: kase.ref,
+      letter: {
+        ref: letter.ref,
+        status: letter.status,
+        amount: Number(letter.guaranteedAmount),
+        currency: letter.currency,
+        excess: Number(letter.excess),
+        validUntil: letter.validUntil.toISOString().slice(0, 10),
+        sentVia: letter.sentVia === "EMAIL" ? "EMAIL" : letter.sentVia === "FAX" ? "FAX" : null,
+        sentAt: letter.sentAt?.toISOString() ?? null,
+        acknowledgedAt: letter.acknowledgedAt?.toISOString() ?? null,
+      },
+    },
+    language
+  );
+  const pdf = reply.attachLetter ? await letterPdf(letter.id).catch(() => null) : null;
+  await sendEmail({
+    to: message.fromAddress,
+    subject: `Re: ${message.subject ?? letter.ref}`,
+    text: reply.text,
+    attachments: pdf ? [{ filename: pdf.filename, content: pdf.content, type: "application/pdf" }] : undefined,
+    attachmentDocumentId: pdf?.documentId,
+    caseId: kase.id,
+    inReplyToId: message.id,
+    automatic: true,
+    threadId: message.externalId ?? undefined,
+  });
+  await prisma.caseEvent.create({
+    data: {
+      caseId: kase.id,
+      type: "LETTER_OF_GUARANTEE",
+      title: `Answered ${letter.hospitalName}'s guarantee enquiry ${message.ref}${pdf ? `, with ${letter.ref} attached` : ""}`,
+      body: reply.text.split("\n").slice(2, 5).join(" "),
+      actor: "agent:intake",
+    },
+  });
+  return true;
 }

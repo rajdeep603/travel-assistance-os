@@ -1,6 +1,7 @@
 import { appointmentBookingAgent } from "./appointment-booking";
 import { inboundHotlineAgent } from "./inbound-hotline";
 import { OUTBOUND_AGENTS } from "./outbound";
+import { providerLineAgent } from "./provider-line";
 import type { AgentProfile } from "./types";
 
 /**
@@ -24,7 +25,7 @@ export const interpreterProfile: AgentProfile = {
 };
 
 const PROFILES = new Map<string, AgentProfile>(
-  [appointmentBookingAgent, inboundHotlineAgent, ...OUTBOUND_AGENTS, interpreterProfile].map((p) => [p.id, p])
+  [appointmentBookingAgent, inboundHotlineAgent, providerLineAgent, ...OUTBOUND_AGENTS, interpreterProfile].map((p) => [p.id, p])
 );
 
 /** Adds profiles (later phases register the hotline and outbound agents). */

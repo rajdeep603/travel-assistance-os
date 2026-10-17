@@ -56,6 +56,15 @@ export interface CaseMoney {
 
 const inEur = (amount: number, currency: string) => toEur(amount, currency) ?? 0;
 
+type ReviewMoney = { billed: unknown; recommended?: unknown; savingsEur: unknown; agreedAmount: unknown; currency: string; status: string };
+
+/** What will be paid on a reviewed bill: the amount agreed with the hospital, else the recommendation. */
+const payable = (r: ReviewMoney) => Number(r.agreedAmount ?? r.recommended);
+
+/** The saving a person accepted, at the amount the hospital agreed to when there was a negotiation. */
+export const realisedSavingEur = (r: ReviewMoney): number =>
+  r.status !== "ACCEPTED" ? 0 : r.agreedAmount != null ? inEur(Number(r.billed) - Number(r.agreedAmount), r.currency) : Number(r.savingsEur ?? 0);
+
 export async function caseMoney(caseId: string, now = new Date()): Promise<CaseMoney | null> {
   const kase = await prisma.case.findUnique({
     where: { id: caseId },
@@ -78,7 +87,7 @@ export async function caseMoney(caseId: string, now = new Date()): Promise<CaseM
   const afterReview = sum(
     invoices.map((d) => {
       const r = d.billReview;
-      const amount = r && r.status !== "WAIVED" ? Number(r.recommended) : Number(d.extraction!.invoiceAmount);
+      const amount = r && r.status !== "WAIVED" ? payable(r) : Number(d.extraction!.invoiceAmount);
       return inEur(amount, r?.currency ?? d.extraction!.currency!);
     })
   );
@@ -111,7 +120,7 @@ export async function caseMoney(caseId: string, now = new Date()): Promise<CaseM
     expected,
     exposure: round2(Math.max(0, expected - paid)),
     savingsIdentified: sum(reviews.map((r) => Number(r.savingsEur ?? 0))),
-    savingsAccepted: sum(reviews.filter((r) => r.status === "ACCEPTED").map((r) => Number(r.savingsEur ?? 0))),
+    savingsAccepted: sum(reviews.map(realisedSavingEur)),
     openLetters: open.map((l) => ({ ref: l.ref, amount: Number(l.guaranteedAmount), currency: l.currency })),
     policy: policyView,
   };
@@ -134,7 +143,7 @@ export async function getMoneyOutcomes(days = 30, now = new Date()): Promise<Mon
   const [reviews, letters] = await Promise.all([
     prisma.billReview.findMany({
       where: { kind: "HOSPITAL_INVOICE", createdAt: { gte: since } },
-      select: { billed: true, savings: true, savingsEur: true, currency: true, status: true },
+      select: { billed: true, savings: true, savingsEur: true, agreedAmount: true, currency: true, status: true },
     }),
     prisma.guaranteeLetter.findMany({ where: openGuaranteeWhere(now), select: { guaranteedAmount: true, currency: true } }),
   ]);
@@ -144,7 +153,7 @@ export async function getMoneyOutcomes(days = 30, now = new Date()): Promise<Mon
     days,
     billsReviewed: reviews.length,
     savingsIdentifiedEur: round2(identified),
-    savingsAcceptedEur: round2(reviews.filter((r) => r.status === "ACCEPTED").reduce((s, r) => s + Number(r.savingsEur ?? 0), 0)),
+    savingsAcceptedEur: round2(reviews.reduce((s, r) => s + realisedSavingEur(r), 0)),
     awaitingDecision: reviews.filter((r) => r.status === "PROPOSED" && Number(r.savings) > 0).length,
     averageSavingShare: billedEur > 0 ? identified / billedEur : null,
     openGuarantees: { count: letters.length, eur: round2(letters.reduce((s, l) => s + inEur(Number(l.guaranteedAmount), l.currency), 0)) },

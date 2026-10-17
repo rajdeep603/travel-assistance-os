@@ -19,11 +19,12 @@ database, real document processing, real bookings, real phone calls), and
 | **Claims Automation** | Upload claim documents → classification → extraction → completeness check → human review actions (approve / request info / escalate) |
 | **Provider Search** | Match demo providers on specialty, language, availability and distance, with "why this provider" reasoning and real slot booking |
 | **Internal AI Assistant** | Lightweight RAG over an operational knowledge base + live case/provider lookups, with sources |
-| **AI Voice Medical Assistance Agent** | Speech-to-speech agent (xAI Grok Voice 3.0) in the browser: collects details, searches providers, confirms, **books a real appointment**, creates the case and hands off to a human |
-| **AI Call Center** | Phone agents on Twilio: a 24/7 hotline (emergency triage with **warm transfer to a doctor**, coverage questions answered from the policy, bookings, case/claim status) and outbound calls (hospital coordination in Turkish, reminders, follow-ups, missing-document chasers, guarantee receipt checks), with a live call board |
+| **Voice Agents** | Ten speech-to-speech agents (xAI Grok Voice 3.0), each runnable in the browser in any of 14 languages: appointment booking (**books a real appointment**), the 24/7 hotline, the hospital & provider line, and every outbound agent with the presenter playing the other side |
+| **AI Call Center** | Phone agents on Twilio: a 24/7 hotline (emergency triage with **warm transfer to a doctor**, coverage and delay payouts from the policy, bookings, "where is my case?", and hospitals asking about guarantees) and outbound calls (hospital coordination, reminders, follow-ups, missing-document chasers, guarantee receipt checks, **bill negotiation** with hold-harmless, **medical transport assessment** with a cost comparison), with a live call board |
 | **Live interpreter** | A case manager (English, browser) and a foreign hospital (phone) talk through real-time AI interpretation both ways, with bilingual captions |
-| **E-mail & fax automation** | Inbound claims and hospital mail/faxes: OCR for scans and handwriting, translation, explainable case matching, claim filing, automatic replies in the traveller's language, risky messages held for review |
+| **E-mail & fax automation** | Inbound claims and hospital mail/faxes: OCR for scans and handwriting, translation, explainable case matching, claim filing, "where is my case?" answered from the records in the traveller's language (9 languages, offline), hospitals' guarantee enquiries answered with the letter attached, risky messages held for review |
 | **Letters of Guarantee** | Hospital cost estimate → rules-based decision against the policy → letter PDF → approved automatically or by an operator → faxed back → receipt confirmed |
+| **Command palette** | ⌘K / Ctrl K anywhere: find any case, traveller, claim, call, message, guarantee, transport plan or document by name or reference; jump to a module, start a voice agent, receive a sample message |
 
 ## Quick start (development)
 
@@ -69,6 +70,7 @@ to seed demo data.
 | `npm run demo:samples` | Regenerate the whole sample library: documents, fax scans, `.eml` e-mails, assistance requests (macOS, for the handwriting font) |
 | `npm run demo:pdfs` | Regenerate only the text PDFs (what CI runs) |
 | `npm run auth:hash -- <name> <password>` | Print an `OPERATOR_USERS` entry |
+| `npm run voice:probe -- --agent <id> --say "…"` | Replay a scripted call (macOS voices, any language) through a real voice agent against the live model and the local database; prints the transcript, tools and outcome |
 
 ## Sample files
 

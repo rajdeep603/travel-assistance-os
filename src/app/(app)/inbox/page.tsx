@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryParam } from "@/lib/client/use-query-param";
 import { Mail, Printer, Sparkles, Upload } from "lucide-react";
 import { MessageDetailPanel } from "@/components/inbox/message-detail";
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
@@ -30,9 +31,14 @@ interface Samples {
 const STAGES = ["Reading attachments (OCR for scans)", "Classifying and extracting", "Matching the case", "Filing and replying"];
 
 export default function InboxPage() {
+  const urlMessage = useQueryParam("message");
   const [rows, setRows] = useState<Row[] | null>(null);
   const [samples, setSamples] = useState<Samples | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // Opened on a message (from search or the command palette).
+  useEffect(() => {
+    if (urlMessage) setSelected(urlMessage);
+  }, [urlMessage]);
   const [sample, setSample] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

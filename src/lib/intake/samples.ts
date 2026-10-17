@@ -73,6 +73,36 @@ export const EMAIL_SAMPLES: EmailSample[] = [
     attachments: ["demo-documents/final-invoice-lena-koch.pdf"],
   },
   {
+    id: "traveller-status-es",
+    label: "Traveller asks in Spanish: where is my case?",
+    from: "Carlos Garcia <carlos.garcia@example.com>",
+    to: "assistance@inbound.demo-assistance.example",
+    subject: "¿En qué estado está mi caso?",
+    body:
+      "Hola:\n\nMe lesioné la rodilla en Beşiktaş y quería saber en qué estado está mi caso y si el hospital ya tiene la garantía de pago. También envié mi reclamación hace unos días.\n\nGracias,\nCarlos García\nPóliza POL-TR-100952",
+    attachments: [],
+  },
+  {
+    id: "traveller-status-de",
+    label: "Traveller asks in German: where is my case?",
+    from: "Lena Koch <lena.koch@example.com>",
+    to: "assistance@inbound.demo-assistance.example",
+    subject: "Stand meines Falls",
+    body:
+      "Guten Tag,\n\nich bin noch im Krankenhaus in Istanbul. Können Sie mir bitte sagen, wie der Stand meines Falls ist und wann ich nach Hause fliegen kann?\n\nVielen Dank\nLena Koch\nPolice POL-TR-100946",
+    attachments: [],
+  },
+  {
+    id: "hospital-gop-enquiry",
+    label: "Hospital asks whether the guarantee was issued",
+    from: "Marmara Demo Heart Center International <international@demo-heart.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "GOP status: Lena Koch (LOG-0902)",
+    body:
+      "Dear colleagues,\n\nCould you please confirm the status of the guarantee of payment for your insured Lena Koch (born 29.07.1964)? Our billing team cannot find the letter.\n\nBest regards,\nInternational Patients Desk",
+    attachments: [],
+  },
+  {
     id: "complaint",
     label: "Upset traveller threatens legal action",
     from: "Marco Bianchi <marco.bianchi@example.com>",

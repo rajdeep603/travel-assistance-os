@@ -1,0 +1,36 @@
+From: Carlos Garcia <carlos.garcia@example.com>
+To: assistance@inbound.demo-assistance.example
+Subject: =?UTF-8?B?wr9FbiBxdcOpIGVzdGFkbyBlc3TDoSBtaSBjYXNvPw==?=
+Date: Fri, 16 Oct 2026 21:05:00 +0200
+Message-ID: <6ad6968d2968e025@example.com>
+MIME-Version: 1.0
+X-Sample: fictional demonstration message
+Content-Type: multipart/mixed; boundary="mixed_6ad6968d2968e025"
+
+--mixed_6ad6968d2968e025
+Content-Type: multipart/alternative; boundary="alt_6ad6968d2968e025"
+
+--alt_6ad6968d2968e025
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+SG9sYToKCk1lIGxlc2lvbsOpIGxhIHJvZGlsbGEgZW4gQmXFn2lrdGHFnyB5IHF1ZXLDrWEgc2Fi
+ZXIgZW4gcXXDqSBlc3RhZG8gZXN0w6EgbWkgY2FzbyB5IHNpIGVsIGhvc3BpdGFsIHlhIHRpZW5l
+IGxhIGdhcmFudMOtYSBkZSBwYWdvLiBUYW1iacOpbiBlbnZpw6kgbWkgcmVjbGFtYWNpw7NuIGhh
+Y2UgdW5vcyBkw61hcy4KCkdyYWNpYXMsCkNhcmxvcyBHYXJjw61hClDDs2xpemEgUE9MLVRSLTEw
+MDk1Mg==
+--alt_6ad6968d2968e025
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLEhlbHZl
+dGljYSxzYW5zLXNlcmlmO2ZvbnQtc2l6ZToxNHB4O2xpbmUtaGVpZ2h0OjEuNTtjb2xvcjojMWYy
+OTM3Ij4KPHAgc3R5bGU9Im1hcmdpbjowIDAgMTJweCI+SG9sYTo8L3A+CjxwIHN0eWxlPSJtYXJn
+aW46MCAwIDEycHgiPk1lIGxlc2lvbsOpIGxhIHJvZGlsbGEgZW4gQmXFn2lrdGHFnyB5IHF1ZXLD
+rWEgc2FiZXIgZW4gcXXDqSBlc3RhZG8gZXN0w6EgbWkgY2FzbyB5IHNpIGVsIGhvc3BpdGFsIHlh
+IHRpZW5lIGxhIGdhcmFudMOtYSBkZSBwYWdvLiBUYW1iacOpbiBlbnZpw6kgbWkgcmVjbGFtYWNp
+w7NuIGhhY2UgdW5vcyBkw61hcy48L3A+CjxwIHN0eWxlPSJtYXJnaW46MCAwIDEycHgiPkdyYWNp
+YXMsPGJyPkNhcmxvcyBHYXJjw61hPGJyPlDDs2xpemEgUE9MLVRSLTEwMDk1MjwvcD4KPC9ib2R5
+PjwvaHRtbD4=
+--alt_6ad6968d2968e025--
+--mixed_6ad6968d2968e025--

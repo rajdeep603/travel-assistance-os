@@ -1,3 +1,4 @@
+import { CommandPalette, SearchButton } from "@/components/command-palette";
 import { MobileNav, SideNav } from "@/components/nav";
 import { OperatorMenu } from "@/components/operator-menu";
 import { PresentToggle } from "@/components/present-toggle";
@@ -10,6 +11,7 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
   return (
     <div className="flex min-h-screen">
       <SessionWatch />
+      <CommandPalette />
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-stage pb-6 md:flex">
         <div className="flex items-center gap-2.5 px-5 py-6 text-white">
           <BrandMark size={36} />
@@ -23,12 +25,13 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur md:px-6 md:py-3">
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <MobileNav />
             <p className="flex items-center gap-2 text-sm font-semibold text-slate-700 md:hidden">
               <BrandMark size={24} />
-              {BRAND.name}
+              <span className="hidden min-[380px]:inline">{BRAND.name}</span>
             </p>
+            <SearchButton />
           </div>
           <div className="flex items-center gap-2">
             <OperatorMenu />

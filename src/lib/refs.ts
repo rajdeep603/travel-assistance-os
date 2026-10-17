@@ -18,6 +18,7 @@ const REF_SEQUENCES = {
   call: { sequence: "call_ref_seq", table: "Call", floor: 1000 },
   message: { sequence: "message_ref_seq", table: "InboundMessage", floor: 1000 },
   guarantee: { sequence: "guarantee_ref_seq", table: "GuaranteeLetter", floor: 1000 },
+  transport: { sequence: "transport_ref_seq", table: "TransportPlan", floor: 1000 },
 } as const;
 
 export type RefKind = keyof typeof REF_SEQUENCES;
@@ -49,6 +50,7 @@ const FORMATTERS: Record<RefKind, (n: number) => string> = {
   call: (n) => `CALL-${n}`,
   message: (n) => `MSG-${n}`,
   guarantee: (n) => `LOG-${n}`,
+  transport: (n) => `MT-${n}`,
 };
 
 export async function nextRef(kind: RefKind, client?: RawClient): Promise<string> {

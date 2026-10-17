@@ -38,6 +38,8 @@ git-ignored) and never put secrets in source code or Docker images.
 | `GATEWAY_SECRET` | prod | `SESSION_SECRET` | Signs voice-session tickets, Twilio stream tickets, upload links and app→gateway calls. |
 | `VOICE_GATEWAY_PUBLIC_URL` | dev | empty | Where browsers reach the gateway in development (`ws://localhost:8080`). Empty in production: same origin under `/ws/` via nginx. |
 | `VOICE_GATEWAY_INTERNAL_URL` | dev | `http://voice-gateway:8080` | How the app reaches the gateway (answering-machine notifications). Compose sets it. |
+| `APP_INTERNAL_URL` | dev | (empty) | How the gateway reaches the app for work it can't do itself (re-sending a Letter of Guarantee renders its PDF). Compose sets `http://app:3000`; empty runs it in-process (tests, the probe). |
+| `VOICE_DEBUG` | no | (empty) | `1` logs every voice-model event except audio, with tool arguments. |
 | `VOICE_GATEWAY_PORT` | no | `8080` | Gateway listen port. |
 
 ### Telephony (Twilio)

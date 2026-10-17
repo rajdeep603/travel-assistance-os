@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PhoneOutgoing } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle, readApiError } from "@/components/ui";
 import { maskPhone } from "@/lib/format";
+import { VOICE_LANGUAGES } from "@/lib/voice/languages";
 
 interface Options {
   telephonyConfigured: boolean;
@@ -24,6 +25,7 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
   const [options, setOptions] = useState<Options | null>(null);
   const [agentId, setAgentId] = useState("");
   const [to, setTo] = useState("");
+  const [language, setLanguage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<{ id: string; ref: string } | null>(null);
@@ -52,7 +54,7 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
       const res = await fetch("/api/calls/outbound", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile: agentId, caseId, to }),
+        body: JSON.stringify({ profile: agentId, caseId, to, language: language || undefined }),
       });
       if (!res.ok) {
         setError(await readApiError(res, "The call could not be placed."));
@@ -112,6 +114,21 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
                   </select>
                 </label>
               )}
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-muted">Language</span>
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
+                >
+                  <option value="">Agent&apos;s default</option>
+                  {VOICE_LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.name}>
+                      {l.native === l.name ? l.name : `${l.native} · ${l.name}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
               {agent.suggestedNumber && !agent.suggestedAllowed ? (
                 <p className="text-xs text-slate-500">
                   The {agent.audience === "provider" ? "hospital's" : "patient's"} number ({maskPhone(agent.suggestedNumber)}) isn&apos;t on the approved call list.

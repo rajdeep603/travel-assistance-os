@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { negotiationBrief, reviewToNegotiate } from "@/lib/services/bill-negotiation";
 import { checkCompleteness } from "@/lib/services/claims";
 import { utcToZoned } from "@/lib/time";
 import { COMPANY, SAFETY_GUARDRAILS, VOICE_STYLE, contextBlock } from "./prompt";
@@ -36,8 +37,8 @@ async function caseProvider(caseId: string) {
 
 export const hospitalCoordinationAgent: AgentProfile = {
   id: "outbound-hospital-coordination",
-  label: "Hospital coordination (Turkish)",
-  description: "Calls the hospital in Turkish to confirm admission, ward, attending doctor and cost estimate, and requests the medical report.",
+  label: "Hospital coordination",
+  description: "Calls the hospital (in Turkish by default) to confirm admission, ward, attending doctor and cost estimate, and requests the medical report.",
   direction: "outbound",
   channels: ["PHONE", "BROWSER"],
   audience: "provider",
@@ -275,8 +276,8 @@ NEVER promise approval or an amount. ALWAYS name the specific missing documents.
 
 export const logConfirmationAgent: AgentProfile = {
   id: "outbound-log-confirmation",
-  label: "Letter of Guarantee — receipt check (Turkish)",
-  description: "Calls the hospital's billing office in Turkish to confirm the Letter of Guarantee arrived and the treatment can go ahead.",
+  label: "Letter of Guarantee receipt check",
+  description: "Calls the hospital's billing office (in Turkish by default) to confirm the Letter of Guarantee arrived and the treatment can go ahead.",
   direction: "outbound",
   channels: ["PHONE", "BROWSER"],
   audience: "provider",
@@ -335,10 +336,153 @@ ${contextBlock(ctx)}
 NEVER change or promise amounts. ALWAYS call confirm_log_receipt before ending.`,
 };
 
+export const billNegotiationAgent: AgentProfile = {
+  id: "outbound-bill-negotiation",
+  label: "Bill negotiation",
+  description:
+    "Calls the hospital's billing office (in Turkish by default) about a reviewed invoice: explains the findings, agrees the reduced amount and gets confirmation the patient won't be billed the difference.",
+  direction: "outbound",
+  channels: ["PHONE", "BROWSER"],
+  audience: "provider",
+  requiresCase: true,
+  voice: "ara",
+  languageHint: "tr",
+  tools: ["record_bill_agreement", "add_case_note", "transfer_to_human", "end_call"],
+  maxSeconds: 8 * 60,
+  keyterms: ["fatura", "indirim", "tarife", "hasta", "fark", "muhasebe", "MHC-INV"],
+  openingCue: OUTBOUND_OPENING,
+  async buildBrief(caseId) {
+    const kase = await caseWithPeople(caseId);
+    return {
+      calling: "the hospital's billing / international patients accounting office",
+      patient: `${kase.patient.firstName} ${kase.patient.lastName}, born ${kase.patient.dateOfBirth.toISOString().slice(0, 10)}`,
+      case: kase.ref,
+      ...(await negotiationBrief(caseId)),
+    };
+  },
+  async suggestNumber(caseId) {
+    const review = await reviewToNegotiate(caseId);
+    const letter = review?.guaranteeLetterId
+      ? await prisma.guaranteeLetter.findUnique({ where: { id: review.guaranteeLetterId }, include: { provider: true } })
+      : null;
+    return letter?.provider?.phone ?? (await caseProvider(caseId)).provider?.phone ?? null;
+  },
+  instructions: (ctx) => `## Role & Persona
+You are Ada, calling on behalf of ${COMPANY}'s cost-containment desk. You speak polite, professional Turkish (formal "siz"). You are an AI assistant and say so. You are courteous and firm, and you stick to facts: the invoice, the reference tariff and the findings.
+
+## Objective
+Agree the reviewed amount in the brief as full and final payment for the invoice, and get the hospital's confirmation that the patient will not be billed for the difference (hold harmless).
+
+## Conversation Flow
+1. Introduce yourself and ask for the billing or international patients accounting office.
+2. Give the patient's name, the invoice number and the guarantee reference. Say the invoice was reviewed line by line against the reference tariff for international patients.
+3. Say the amount billed and your opening offer. Explain the two or three largest findings in a sentence each (for example non-medical items, nights beyond the stay, prices above the tariff, duplicate lines). Don't read every line.
+4. Ask whether they accept your opening offer as full and final payment.
+5. If they push back, acknowledge it, restate the strongest finding, then offer your second offer once. Whenever the hospital names an amount at or below your private limit, accept that amount. If they still want more than the private limit, record their figure as a counter-offer.
+6. Ask them to confirm the patient will not be billed for the difference. Ask who you're speaking to, and ask for a corrected invoice by e-mail.
+7. Call record_bill_agreement with the outcome, then thank them and end_call.
+- If the right person isn't available, record CALLBACK with any name and time they give.
+- ${VOICEMAIL_RULE}
+
+## Guardrails & Escalation
+${SAFETY_GUARDRAILS}
+- The private limit is for you only: never say it or hint at it.
+- Never agree above the private limit, and never agree without the hold-harmless confirmation: record a counter-offer instead.
+- Don't argue about medical necessity: say a doctor on our side reviews medical questions, note it with add_case_note.
+- Never threaten, and never imply the patient will pay.
+
+## Voice & Communication Style
+${VOICE_STYLE}
+- Speak Turkish throughout unless they switch to English. Say amounts slowly and repeat them back.
+
+## Brief
+${briefBlock(ctx)}
+
+## Context
+${contextBlock(ctx)}
+
+## CRITICAL INSTRUCTIONS
+NEVER reveal the private limit, agree above it, or agree without hold harmless. ALWAYS repeat the agreed amount and call record_bill_agreement before ending.`,
+};
+
+export const medicalTransportAgent: AgentProfile = {
+  id: "outbound-medical-transport",
+  label: "Medical transport assessment",
+  description:
+    "Calls the treating doctor to assess the patient for the journey home (fit to fly, seated or stretcher, oxygen, escort); the rules pick the safest, least costly option and request quotes.",
+  direction: "outbound",
+  channels: ["PHONE", "BROWSER"],
+  audience: "provider",
+  requiresCase: true,
+  voice: "ara",
+  tools: ["record_transport_assessment", "add_case_note", "transfer_to_human", "end_call"],
+  maxSeconds: 8 * 60,
+  keyterms: ["stretcher", "oxygen", "MEDIF", "fit to fly", "sedye", "oksijen", "uçuşa elverişli", "ambulans uçak"],
+  openingCue: OUTBOUND_OPENING,
+  async buildBrief(caseId) {
+    const { kase, provider } = await caseProvider(caseId);
+    const diagnosis = await prisma.documentExtraction.findFirst({
+      where: { diagnosis: { not: null }, document: { caseId } },
+      orderBy: { createdAt: "desc" },
+      select: { diagnosis: true, admissionDate: true, hospital: true },
+    });
+    return {
+      calling: `the treating doctor at ${diagnosis?.hospital ?? provider?.facility ?? "the hospital"}`,
+      patient: `${kase.patient.firstName} ${kase.patient.lastName}, born ${kase.patient.dateOfBirth.toISOString().slice(0, 10)}, ${kase.patient.nationality}`,
+      case: kase.ref,
+      reason: kase.title,
+      diagnosis_on_file: diagnosis?.diagnosis ?? "unknown: ask",
+      admitted: diagnosis?.admissionDate ?? "unknown",
+      going_home_to: `${kase.patient.nationality}; the family confirms the city`,
+    };
+  },
+  async suggestNumber(caseId) {
+    return (await caseProvider(caseId)).provider?.phone ?? null;
+  },
+  instructions: (ctx) => `## Role & Persona
+You are Ada, calling on behalf of ${COMPANY}'s medical assistance team to plan a patient's journey home. You speak to doctors: precise, brief and respectful of their time. You are an AI assistant and say so. Start in English; switch to Turkish if they prefer.
+
+## Objective
+Get the treating doctor's assessment for transporting the patient home, so the team can book the safest option that isn't more than the patient needs (an air ambulance only when it's medically necessary).
+
+## Conversation Flow
+1. Introduce yourself and ask for the treating doctor of the patient in the brief. Confirm the patient's name and date of birth.
+2. Ask one question at a time:
+   - the current diagnosis and whether the patient is stable;
+   - fit to fly now? If not, from which day (the journey is then planned for that day);
+   - can they sit upright for the flight, need a wheelchair, or must they lie flat (stretcher)?
+   - oxygen at rest, in litres per minute (0 if none);
+   - monitoring or IV during the flight (none, basic, continuous)? Intensive care?
+   - does the doctor recommend a nurse or a doctor as escort, or none?
+   - anything else the crew should know.
+3. Repeat the key answers back. Call record_transport_assessment.
+4. Tell the doctor the next step it returns (don't discuss costs), ask them to prepare the medical report and, for an airline, the MEDIF form. Thank them and end_call.
+- ${VOICEMAIL_RULE}
+
+## Guardrails & Escalation
+${SAFETY_GUARDRAILS}
+- Record the doctor's answers as given; never suggest a lower level of care than they recommend.
+- If the doctor says the patient is deteriorating, record it and transfer_to_human with target "case_manager".
+
+## Voice & Communication Style
+${VOICE_STYLE}
+
+## Brief
+${briefBlock(ctx)}
+
+## Context
+${contextBlock(ctx)}
+
+## CRITICAL INSTRUCTIONS
+ALWAYS repeat the answers back and call record_transport_assessment before ending. NEVER override the doctor's medical judgement.`,
+};
+
 export const OUTBOUND_AGENTS = [
   hospitalCoordinationAgent,
   appointmentReminderAgent,
   wellbeingFollowupAgent,
   claimMissingInfoAgent,
   logConfirmationAgent,
+  billNegotiationAgent,
+  medicalTransportAgent,
 ];

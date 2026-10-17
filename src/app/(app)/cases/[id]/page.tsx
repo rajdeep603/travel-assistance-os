@@ -22,6 +22,7 @@ import { InterpreterCard } from "@/components/calls/interpreter-card";
 import { GuaranteeLettersCard } from "@/components/cases/guarantee-letters-card";
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
 import { MoneyCard } from "@/components/cases/money-card";
+import { TransportCard, type TransportPlan } from "@/components/cases/transport-card";
 import type { CaseMoney } from "@/lib/services/exposure";
 import { PlaceCallCard } from "@/components/calls/place-call-card";
 import { formatActor, formatDateTime, formatEnum } from "@/lib/format";
@@ -69,6 +70,7 @@ interface CaseDetail {
   }[];
   conversations: { id: string; channel: string; summary: string | null }[];
   money: CaseMoney | null;
+  transportPlans: TransportPlan[];
   calls: {
     id: string;
     ref: string;
@@ -90,6 +92,7 @@ const EVENT_DOTS: Record<string, string> = {
   FAX: "bg-indigo-500",
   LETTER_OF_GUARANTEE: "bg-violet-500",
   BILL_REVIEW: "bg-brand",
+  TRANSPORT: "bg-brand-2",
   STATUS: "bg-blue-500",
   DOCUMENT: "bg-indigo-400",
   CLAIM: "bg-indigo-500",
@@ -351,6 +354,10 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             ))}
 
           <GuaranteeLettersCard caseId={data.id} onChanged={() => void load()} />
+
+          {data.transportPlans?.length || ["HOSPITALIZATION", "REPATRIATION", "EVACUATION"].includes(data.assistanceType) ? (
+            <TransportCard plans={data.transportPlans ?? []} caseId={data.id} />
+          ) : null}
 
           {data.calls?.length ? (
             <Card>

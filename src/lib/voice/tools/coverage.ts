@@ -5,7 +5,7 @@ import { defineTool } from "./types";
 export const checkCoverageTool = defineTool({
   name: "check_coverage",
   description:
-    "Check what a caller's travel policy covers (e.g. flight delay, dental, hospital). Requires the policy number and the policyholder's date of birth to verify identity. Answer only from what this returns, give the limit and conditions, and always mention that the claims team makes the final decision.",
+    "Check what a caller's travel policy covers (e.g. flight delay, dental, hospital). Requires the policy number and the policyholder's date of birth to verify identity. Answer only from what this returns, give the limit and conditions, and always mention that the claims team makes the final decision. For a delay, pass delay_hours and quote the returned payout amount and basis exactly; never work out amounts yourself.",
   schema: z.object({
     policy_number: z.string().describe("e.g. POL-TR-100944"),
     date_of_birth: z.string().describe("Policyholder's date of birth as YYYY-MM-DD"),
@@ -13,12 +13,17 @@ export const checkCoverageTool = defineTool({
       .string()
       .optional()
       .describe("What they ask about, e.g. 'flight delay', 'dental', 'hospital admission'"),
+    delay_hours: z
+      .number()
+      .optional()
+      .describe("For flight, trip or baggage delays: how many hours the delay was, if the caller said"),
   }),
   async execute(args, ctx) {
     const result = await checkCoverage({
       policyNumber: args.policy_number,
       dateOfBirth: args.date_of_birth,
       benefit: args.benefit,
+      delayHours: args.delay_hours ?? null,
     });
     if (!result.verified) {
       return {

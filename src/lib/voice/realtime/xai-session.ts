@@ -9,7 +9,8 @@ import WebSocket from "ws";
 //   appendAudio() streams caller audio; "audio" events stream agent audio.
 //   Function calls arrive as "function_call"; answer each with
 //   sendFunctionResult() — the next response starts once every call of the
-//   turn has an output (parallel calls get a single response.create).
+//   turn has an output (parallel calls get a single response.create), unless
+//   a result says the agent has nothing more to say (end_call).
 //   What the caller says arrives as "user_transcript" (text, itemId): Grok
 //   re-sends the whole utterance as it grows, so each item is one line whose
 //   text is replaced, not a new line per event.
@@ -39,8 +40,6 @@ export interface RealtimeSessionConfig {
   keyterms?: string[];
   /** "none" for pure relays like interpretation; default lets the model reason. */
   reasoningEffort?: "high" | "none";
-  /** Re-engage the caller after this much silence following a response. */
-  idleTimeoutMs?: number;
 }
 
 export interface RealtimeSessionOptions {
@@ -76,6 +75,8 @@ export interface RealtimeSessionEvents {
 }
 
 const DEFAULT_URL = "wss://api.x.ai/v1/realtime";
+/** VOICE_DEBUG=1 logs every model event except audio and transcript deltas. */
+const DEBUG = Boolean(process.env.VOICE_DEBUG);
 
 /** The fields of server events this client reads. */
 interface ServerEvent {
@@ -139,6 +140,11 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
         } catch {
           return;
         }
+        if (DEBUG && msg.type && !msg.type.endsWith(".delta") && msg.type !== "ping") {
+          const ids = [msg.item_id, msg.call_id ?? msg.item?.call_id, msg.name ?? msg.item?.name].filter(Boolean).join(" ");
+          const args = msg.arguments ?? msg.item?.arguments;
+          console.log(`[xai] ${new Date().toISOString().slice(11, 23)} ${msg.type}${ids ? ` ${ids}` : ""}${msg.transcript ? ` “${msg.transcript.slice(0, 60)}”` : ""}${args ? ` ${args.slice(0, 300)}` : ""}`);
+        }
         if (msg.type === "session.updated" && !this.ready) {
           this.ready = true;
           clearTimeout(timer);
@@ -166,6 +172,7 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
   }
 
   private send(event: Record<string, unknown>): void {
+    if (DEBUG && event.type !== "input_audio_buffer.append") console.log(`[xai] ${new Date().toISOString().slice(11, 23)} → ${String(event.type)}`);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(event));
   }
 
@@ -181,10 +188,10 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
       session: {
         instructions: c.instructions,
         voice: c.voice,
-        turn_detection: {
-          type: "server_vad",
-          ...(c.idleTimeoutMs ? { idle_timeout_ms: c.idleTimeoutMs } : {}),
-        },
+        // No idle_timeout_ms: it counts from when audio was generated, not
+        // played, so it fires mid-answer on the phone. The bridge re-engages
+        // silent callers itself.
+        turn_detection: { type: "server_vad" },
         audio: {
           input: { format: c.input, transcription },
           output: { format: c.output },
@@ -322,7 +329,7 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
     this.send({ type: "response.create" });
   }
 
-  sendFunctionResult(callId: string, output: unknown): void {
+  sendFunctionResult(callId: string, output: unknown, { respond = true }: { respond?: boolean } = {}): void {
     this.send({
       type: "conversation.item.create",
       item: {
@@ -332,6 +339,7 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
       },
     });
     this.pendingCalls.delete(callId);
+    if (!respond) this.turnHadCalls = false;
     this.maybeContinue();
   }
 

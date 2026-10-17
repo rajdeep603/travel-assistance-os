@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { Check, ReceiptText } from "lucide-react";
+import { Check, Handshake, PhoneOutgoing, ReceiptText } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle, readApiError } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
 import { formatActor, formatDateTime, formatMoneyExact } from "@/lib/format";
@@ -39,6 +40,17 @@ export interface BillReview {
   decidedBy: string | null;
   decidedAt: string | null;
   ruleset: string;
+  caseId?: string | null;
+  /** What the hospital agreed to on a negotiation call. */
+  agreedAmount?: number | null;
+  agreement?: {
+    outcome: "AGREED" | "COUNTER_OFFER" | "REFUSED" | "CALLBACK";
+    counterAmount: number | null;
+    holdHarmless: boolean;
+    contact: string | null;
+    notes: string | null;
+    callRef: string;
+  } | null;
   result: {
     lines: Line[];
     findings: Finding[];
@@ -187,6 +199,33 @@ export function BillReviewCard({
         </p>
       ))}
 
+      {review.agreement ? (
+        <p className="mt-3 flex items-start gap-2 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2 text-sm text-ink">
+          <Handshake size={16} aria-hidden className="mt-0.5 shrink-0 text-brand" />
+          <span>
+            {review.agreement.outcome === "AGREED" && review.agreedAmount != null
+              ? `The hospital agreed ${money(review.agreedAmount)} as full payment (saving ${money(review.billed - review.agreedAmount)})${review.agreement.holdHarmless ? " and won't bill the patient the difference" : ""}.`
+              : review.agreement.outcome === "COUNTER_OFFER"
+                ? `The hospital countered${review.agreement.counterAmount != null ? ` at ${money(review.agreement.counterAmount)}` : ""}: a person decides.`
+                : review.agreement.outcome === "REFUSED"
+                  ? "The hospital refused the reduction: a case manager follows up."
+                  : "The hospital will call back about this invoice."}{" "}
+            <span className="text-muted">
+              {review.agreement.contact ? `${review.agreement.contact}, ` : ""}call {review.agreement.callRef}.
+            </span>
+          </span>
+        </p>
+      ) : !estimate && review.savings > 0 && review.status !== "WAIVED" && review.caseId ? (
+        <p className="mt-3 text-sm">
+          <Link
+            href={`/voice?agent=outbound-bill-negotiation&caseId=${encodeURIComponent(review.caseId)}`}
+            className="inline-flex items-center gap-1.5 font-semibold text-brand hover:underline"
+          >
+            <PhoneOutgoing size={14} aria-hidden /> Agree it with the hospital: AI billing call
+          </Link>
+        </p>
+      ) : null}
+
       {error ? (
         <div className="mt-3">
           <ErrorBanner message={error} />
@@ -195,7 +234,7 @@ export function BillReviewCard({
       {review.status === "PROPOSED" && review.savings > 0 && !estimate ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Button onClick={() => void decide("ACCEPTED")} busy={busy === "ACCEPTED"} disabled={busy != null}>
-            <Check size={15} aria-hidden /> Accept: pay {money(review.recommended)}
+            <Check size={15} aria-hidden /> Accept: pay {money(review.agreement?.outcome === "AGREED" && review.agreedAmount != null ? review.agreedAmount : review.recommended)}
           </Button>
           <Button variant="secondary" onClick={() => void decide("WAIVED")} busy={busy === "WAIVED"} disabled={busy != null}>
             Pay as billed

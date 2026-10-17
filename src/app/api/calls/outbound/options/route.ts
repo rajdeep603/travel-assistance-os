@@ -11,7 +11,8 @@ export const GET = withErrorHandling(async (req: Request) => {
   const caseId = new URL(req.url).searchParams.get("caseId");
   const agents = await Promise.all(
     listAgents()
-      .filter((a) => a.direction === "outbound")
+      // The interpreter bridges two people; it has its own card.
+      .filter((a) => a.direction === "outbound" && a.id !== "interpreter")
       .map(async (a) => {
         const suggested = caseId && a.suggestNumber ? await a.suggestNumber(caseId).catch(() => null) : null;
         const normalized = suggested ? normalizeNumber(suggested) : null;

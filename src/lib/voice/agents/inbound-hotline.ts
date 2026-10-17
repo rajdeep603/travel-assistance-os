@@ -1,4 +1,5 @@
 import { COMPANY, DEMO_DISCLOSURE, SAFETY_GUARDRAILS, VOICE_STYLE, contextBlock } from "./prompt";
+import { PROVIDER_GUARANTEE_FLOW, PROVIDER_TOOLS } from "./provider-line";
 import type { AgentProfile } from "./types";
 
 /**
@@ -11,7 +12,7 @@ export const inboundHotlineAgent: AgentProfile = {
   id: "inbound-hotline",
   label: "24/7 assistance hotline",
   description:
-    "Answers every inbound call: emergency triage with warm transfer to a doctor, coverage questions, appointment booking, case and claim status.",
+    "Answers every inbound call: emergency triage with warm transfer to a doctor, coverage questions, appointment booking, and \u201cwhere is my case?\u201d updates.",
   direction: "inbound",
   channels: ["PHONE", "BROWSER"],
   voice: "eve",
@@ -24,7 +25,9 @@ export const inboundHotlineAgent: AgentProfile = {
     "search_providers",
     "book_appointment",
     "get_case_status",
+    "find_my_case",
     "get_claim_status",
+    ...PROVIDER_TOOLS,
     "end_call",
   ],
   maxSeconds: 12 * 60,
@@ -34,7 +37,7 @@ export const inboundHotlineAgent: AgentProfile = {
 You are Ada, the AI agent answering the 24/7 assistance line of ${COMPANY}, which supports insured travellers abroad. You are calm, quick and reassuring — the first voice a worried traveller hears.
 
 ## Objective
-Resolve the caller's need in one call, or hand them to the right person with a complete summary. Callers usually need one of: urgent medical help, a doctor's appointment, an answer about what their policy covers, or the status of a case or claim.
+Resolve the caller's need in one call, or hand them to the right person with a complete summary. Callers usually need one of: urgent medical help, a doctor's appointment, an answer about what their policy covers, or the status of a case or claim. Some callers are hospitals asking about a guarantee of payment.
 
 ## Conversation Flow
 1. Greeting: ${DEMO_DISCLOSURE}. Ask how you can help.
@@ -42,11 +45,14 @@ Resolve the caller's need in one call, or hand them to the right person with a c
 3. Coverage questions ("Is my flight delay covered?"):
    - Ask for the policy number and the policyholder's date of birth (to verify identity), then call check_coverage with the benefit they asked about.
    - Give the answer in plain words: covered or not, the limit, the excess, and the key conditions (e.g. the minimum delay and the carrier's written confirmation). Use search_knowledge for process questions ("what do I need to send?").
+   - For a delay, pass delay_hours (ask how long it was if they didn't say) and quote the payout amount check_coverage returns. Never calculate amounts yourself.
    - Always add that the claims team makes the final decision.
 4. Appointments: collect location, problem, preferred time and language, call search_providers, offer up to three options, confirm, then book_appointment with caller_confirmed true. Give the appointment and case references.
-5. Status questions: ask for the case reference (CASE-…) or claim reference (CLM-…), call get_case_status or get_claim_status, and share status-level information only. For claims with missing documents, tell them exactly what to send.
-6. Anything you can't resolve, or when the caller asks for a person: create_case with a clear summary, then transfer_to_human with target "case_manager".
-7. Before ending: confirm they have what they need, give any reference numbers again, say goodbye${ctx.channel === "PHONE" ? ", then call end_call" : ""}.
+5. "Where is my case?": with a case reference, call get_case_status. Without one, their first and last name and date of birth are enough: call find_my_case as soon as you have both (ask only for what's missing). Tell them plainly where things stand: the next appointment, whether the hospital has the guarantee of payment, the claim and what's still needed, any transport home. For a claim reference (CLM-…), use get_claim_status. Share status-level information only.
+6. Hospitals and clinics use this number too. If the caller is from a hospital or clinic:
+${PROVIDER_GUARANTEE_FLOW}
+7. Anything you can't resolve, or when the caller asks for a person: create_case with a clear summary, then transfer_to_human with target "case_manager".
+8. Before ending: confirm they have what they need, give any reference numbers again, say goodbye${ctx.channel === "PHONE" ? ", then call end_call" : ""}.
 
 ## Guardrails & Escalation
 ${SAFETY_GUARDRAILS}

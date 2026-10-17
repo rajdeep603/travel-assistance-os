@@ -1,0 +1,34 @@
+From: Lena Koch <lena.koch@example.com>
+To: assistance@inbound.demo-assistance.example
+Subject: Stand meines Falls
+Date: Fri, 16 Oct 2026 19:40:00 +0300
+Message-ID: <e821a8662e2be3bf@example.com>
+MIME-Version: 1.0
+X-Sample: fictional demonstration message
+Content-Type: multipart/mixed; boundary="mixed_e821a8662e2be3bf"
+
+--mixed_e821a8662e2be3bf
+Content-Type: multipart/alternative; boundary="alt_e821a8662e2be3bf"
+
+--alt_e821a8662e2be3bf
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+R3V0ZW4gVGFnLAoKaWNoIGJpbiBub2NoIGltIEtyYW5rZW5oYXVzIGluIElzdGFuYnVsLiBLw7Zu
+bmVuIFNpZSBtaXIgYml0dGUgc2FnZW4sIHdpZSBkZXIgU3RhbmQgbWVpbmVzIEZhbGxzIGlzdCB1
+bmQgd2FubiBpY2ggbmFjaCBIYXVzZSBmbGllZ2VuIGthbm4/CgpWaWVsZW4gRGFuawpMZW5hIEtv
+Y2gKUG9saWNlIFBPTC1UUi0xMDA5NDY=
+--alt_e821a8662e2be3bf
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLEhlbHZl
+dGljYSxzYW5zLXNlcmlmO2ZvbnQtc2l6ZToxNHB4O2xpbmUtaGVpZ2h0OjEuNTtjb2xvcjojMWYy
+OTM3Ij4KPHAgc3R5bGU9Im1hcmdpbjowIDAgMTJweCI+R3V0ZW4gVGFnLDwvcD4KPHAgc3R5bGU9
+Im1hcmdpbjowIDAgMTJweCI+aWNoIGJpbiBub2NoIGltIEtyYW5rZW5oYXVzIGluIElzdGFuYnVs
+LiBLw7ZubmVuIFNpZSBtaXIgYml0dGUgc2FnZW4sIHdpZSBkZXIgU3RhbmQgbWVpbmVzIEZhbGxz
+IGlzdCB1bmQgd2FubiBpY2ggbmFjaCBIYXVzZSBmbGllZ2VuIGthbm4/PC9wPgo8cCBzdHlsZT0i
+bWFyZ2luOjAgMCAxMnB4Ij5WaWVsZW4gRGFuazxicj5MZW5hIEtvY2g8YnI+UG9saWNlIFBPTC1U
+Ui0xMDA5NDY8L3A+CjwvYm9keT48L2h0bWw+
+--alt_e821a8662e2be3bf--
+--mixed_e821a8662e2be3bf--

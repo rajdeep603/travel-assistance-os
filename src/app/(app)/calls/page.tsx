@@ -121,7 +121,7 @@ export default function CallsPage() {
                     {a.label}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">{a.description}</p>
-                  {a.channels.includes("BROWSER") && config.voiceConfigured ? (
+                  {a.channels.includes("BROWSER") && a.id !== "interpreter" && config.voiceConfigured ? (
                     <Link href={`/voice?agent=${a.id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
                       <Globe size={12} aria-hidden /> Try it in the browser
                     </Link>

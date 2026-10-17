@@ -56,6 +56,56 @@ export interface ToolActivity {
   summary?: string;
 }
 
+/** Something an agent's tool recorded, shown as it happens. */
+export interface AgentResult {
+  id: number;
+  kind: string;
+  title: string;
+  detail?: string;
+}
+
+const money = (amount: unknown, currency: unknown) =>
+  typeof amount === "number" ? `${amount.toLocaleString("en-GB", { maximumFractionDigits: 2 })}${currency ? ` ${currency}` : ""}` : "";
+
+/** Gateway events that record a result, in words for the results panel. */
+export function resultOf(e: Record<string, unknown>): Omit<AgentResult, "id"> | null {
+  switch (e.type) {
+    case "coverage":
+      return e.benefit ? { kind: "coverage", title: `${e.benefit}: ${e.covered ? "covered" : "not covered"}`, detail: e.plan ? `${e.plan} plan` : undefined } : null;
+    case "guarantee_found": {
+      const letters = (e.letters as { ref: string; status: string; amount: number; currency: string }[] | undefined) ?? [];
+      return letters.length
+        ? { kind: "guarantee", title: `Guarantee ${letters.map((l) => l.ref).join(", ")} found`, detail: letters.map((l) => `${money(l.amount, l.currency)}, ${l.status.toLowerCase()}`).join("; ") }
+        : null;
+    }
+    case "guarantee_resent":
+      return { kind: "guarantee", title: `${e.ref} re-sent by ${e.via === "EMAIL" ? "e-mail" : "fax"}`, detail: "To the hospital's number on file" };
+    case "topup_requested":
+      return { kind: "guarantee", title: `Top-up requested on ${e.ref}`, detail: `New estimate ${money(e.amount, e.currency)}: a case manager decides` };
+    case "bill_agreement":
+      return {
+        kind: "money",
+        title:
+          e.outcome === "AGREED"
+            ? `Hospital agreed ${money(e.amount, e.currency)}`
+            : e.outcome === "COUNTER_OFFER"
+              ? `Counter-offer ${money(e.amount, e.currency)}`.trim()
+              : e.outcome === "REFUSED"
+                ? "Hospital refused the reduction"
+                : "Hospital will call back",
+        detail: e.outcome === "AGREED" ? "Patient held harmless; corrected invoice to follow" : "A case manager follows up",
+      };
+    case "transport_plan":
+      return { kind: "transport", title: `Transport plan ${e.ref}`, detail: String(e.label ?? "") };
+    case "hospital_update":
+      return { kind: "update", title: "Hospital update saved to the case" };
+    case "upload_link":
+      return { kind: "update", title: e.sent ? `Upload link texted for ${e.claim}` : `Upload link created for ${e.claim}` };
+    default:
+      return null;
+  }
+}
+
 export interface VoiceState {
   phase: "idle" | "starting" | "live" | "ended" | "error";
   callRef: string | null;
@@ -77,6 +127,8 @@ export interface VoiceState {
   booking: Booking | null;
   caseRef: { id: string; ref: string } | null;
   handoff: { target: string; reason: string; summary: string } | null;
+  /** What the agent recorded during the session (guarantee found, bill agreed, …). */
+  results: AgentResult[];
   endReason: string | null;
 }
 
@@ -98,6 +150,7 @@ const initial: VoiceState = {
   booking: null,
   caseRef: null,
   handoff: null,
+  results: [],
   endReason: null,
 };
 
@@ -217,6 +270,17 @@ export function voiceReducer(state: VoiceState, action: Action): VoiceState {
           return { ...state, handoff: { target: e.target ?? "", reason: e.reason ?? "", summary: e.summary ?? "" } };
         case "error":
           return { ...state, phase: "error", error: { message: e.message ?? "Something went wrong." } };
+        case "coverage":
+        case "guarantee_found":
+        case "guarantee_resent":
+        case "topup_requested":
+        case "bill_agreement":
+        case "transport_plan":
+        case "hospital_update":
+        case "upload_link": {
+          const result = resultOf(e as unknown as Record<string, unknown>);
+          return result ? { ...state, results: [...state.results, { id: ++toolId, ...result }].slice(-6) } : state;
+        }
         case "ended":
           return { ...state, phase: "ended", endReason: e.reason ?? null, agentSpeaking: false, thinking: false };
         default:
@@ -253,7 +317,7 @@ export function useGrokVoice() {
   useEffect(() => teardown, [teardown]);
 
   const start = useCallback(
-    async (opts: { profile?: string; caseId?: string } = {}) => {
+    async (opts: { profile?: string; caseId?: string; language?: string } = {}) => {
       teardown();
       dispatch({ type: "start" });
       // Created synchronously in the click handler so audio output is allowed.

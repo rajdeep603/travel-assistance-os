@@ -44,7 +44,7 @@ async function findProvider(hospital: string | null, caseId: string, sender: str
   return apt?.provider ?? null;
 }
 
-const actorOf = (by: string) => (by.startsWith("system") ? by : `operator:${by}`);
+const actorOf = (by: string) => (by.startsWith("system") || by.startsWith("agent:") ? by : `operator:${by}`);
 
 /** Drafts (and, when nothing needs a human, approves and sends) a letter for a cost estimate. */
 export async function draftFromCostEstimate(
@@ -147,6 +147,49 @@ async function remainingForLetter(letter: { id: string; currency: string; case: 
   return { amount: round2(Math.max(0, convert(left, policy.currency, letter.currency))), committed };
 }
 
+type LetterForPdf = GuaranteeLetter & {
+  case: { ref: string; title: string; patient: { id: string; firstName: string; lastName: string; dateOfBirth: Date; nationality: string; policyNumber: string; policy: { plan: string } | null } };
+  provider: { address: string; district: string; city: string; phone: string | null; email: string | null } | null;
+};
+
+/** Renders the letter's PDF and files it as a generated document on the case. */
+async function storeLetterPdf(letter: LetterForPdf, guaranteed: number, by: string) {
+  const estimateDoc = letter.estimateDocumentId
+    ? await prisma.document.findUnique({ where: { id: letter.estimateDocumentId }, include: { extraction: true } })
+    : null;
+  const p = letter.case.patient;
+  const pdf = await renderGuaranteeLetter({
+    ref: letter.ref,
+    issuedOn: zonedToday(),
+    validUntil: letter.validUntil.toISOString().slice(0, 10),
+    hospital: { name: letter.hospitalName, address: letter.provider ? `${letter.provider.address}, ${letter.provider.district}, ${letter.provider.city}` : null, fax: letter.provider?.phone ?? null, email: letter.provider?.email ?? null },
+    patient: { name: `${p.firstName} ${p.lastName}`, dateOfBirth: p.dateOfBirth.toISOString().slice(0, 10), nationality: p.nationality },
+    policy: { number: p.policyNumber, plan: p.policy?.plan ?? "—" },
+    caseRef: letter.case.ref,
+    treatment: [estimateDoc?.extraction?.diagnosis, ...(estimateDoc?.extraction?.procedures ?? [])].filter(Boolean).join("; ") || letter.case.title,
+    admissionDate: estimateDoc?.extraction?.admissionDate ?? null,
+    guaranteedAmount: guaranteed,
+    excess: Number(letter.excess),
+    currency: letter.currency,
+    conditions: letter.conditions,
+    approvedBy: by.startsWith("system") ? "automatic approval (within policy and limits)" : by,
+  });
+  const filename = `letter-of-guarantee-${letter.ref.toLowerCase()}.pdf`;
+  return prisma.document.create({
+    data: {
+      filename,
+      mimeType: "application/pdf",
+      sizeBytes: pdf.length,
+      kind: "GUARANTEE_LETTER",
+      status: "PROCESSED",
+      source: "GENERATED",
+      storagePath: await storeUpload(filename, pdf),
+      caseId: letter.caseId,
+      patientId: p.id,
+    },
+  });
+}
+
 /**
  * Approves a letter (optionally adjusting the amount) and generates its PDF.
  * Above what the policy can still guarantee, the approver must say why.
@@ -171,40 +214,7 @@ export async function approveLetter(id: string, by: string, amount?: number, rea
     );
   }
 
-  const estimateDoc = letter.estimateDocumentId
-    ? await prisma.document.findUnique({ where: { id: letter.estimateDocumentId }, include: { extraction: true } })
-    : null;
-  const p = letter.case.patient;
-  const pdf = await renderGuaranteeLetter({
-    ref: letter.ref,
-    issuedOn: zonedToday(),
-    validUntil: letter.validUntil.toISOString().slice(0, 10),
-    hospital: { name: letter.hospitalName, address: letter.provider ? `${letter.provider.address}, ${letter.provider.district}, ${letter.provider.city}` : null, fax: letter.provider?.phone ?? null, email: letter.provider?.email ?? null },
-    patient: { name: `${p.firstName} ${p.lastName}`, dateOfBirth: p.dateOfBirth.toISOString().slice(0, 10), nationality: p.nationality },
-    policy: { number: p.policyNumber, plan: p.policy?.plan ?? "—" },
-    caseRef: letter.case.ref,
-    treatment: [estimateDoc?.extraction?.diagnosis, ...(estimateDoc?.extraction?.procedures ?? [])].filter(Boolean).join("; ") || letter.case.title,
-    admissionDate: estimateDoc?.extraction?.admissionDate ?? null,
-    guaranteedAmount: guaranteed,
-    excess: Number(letter.excess),
-    currency: letter.currency,
-    conditions: letter.conditions,
-    approvedBy: by.startsWith("system") ? "automatic approval (within policy and limits)" : by,
-  });
-  const filename = `letter-of-guarantee-${letter.ref.toLowerCase()}.pdf`;
-  const pdfDoc = await prisma.document.create({
-    data: {
-      filename,
-      mimeType: "application/pdf",
-      sizeBytes: pdf.length,
-      kind: "GUARANTEE_LETTER",
-      status: "PROCESSED",
-      source: "GENERATED",
-      storagePath: await storeUpload(filename, pdf),
-      caseId: letter.caseId,
-      patientId: p.id,
-    },
-  });
+  const pdfDoc = await storeLetterPdf(letter, guaranteed, by);
   const updated = await prisma.guaranteeLetter.update({
     where: { id },
     data: {
@@ -254,6 +264,72 @@ export async function sendLetter(id: string, by: string): Promise<GuaranteeLette
   const letter = await prisma.guaranteeLetter.findUnique({ where: { id }, include: { provider: true, case: true } });
   if (!letter) throw notFound("Letter of Guarantee");
   if (letter.status !== "APPROVED") throw conflict(`${letter.ref} must be approved before it is sent.`);
+  const { via, to } = await deliver(letter, by);
+  const updated = await prisma.guaranteeLetter.update({
+    where: { id },
+    data: { status: "SENT", sentVia: via, sentTo: to, sentAt: new Date() },
+  });
+  await prisma.caseEvent.create({
+    data: {
+      caseId: letter.caseId,
+      type: "LETTER_OF_GUARANTEE",
+      title: `${letter.ref} sent by ${via === "FAX" ? "fax" : "e-mail"} to ${letter.hospitalName}`,
+      body: via === "FAX" ? `Fax ${to}` : `E-mail ${to}`,
+      actor: actorOf(by),
+    },
+  });
+  return updated;
+}
+
+/**
+ * Sends an already-sent letter again, to the hospital on file only (never
+ * to a number a caller dictates). Its status and dates stay as they were.
+ */
+export async function resendLetter(id: string, by: string): Promise<{ via: "FAX" | "EMAIL"; to: string }> {
+  const letter = await prisma.guaranteeLetter.findUnique({ where: { id }, include: { provider: true, case: true } });
+  if (!letter) throw notFound("Letter of Guarantee");
+  if (letter.status !== "SENT" && letter.status !== "ACKNOWLEDGED") {
+    throw conflict(`${letter.ref} hasn't been sent yet, so it can't be re-sent.`);
+  }
+  letter.pdfDocumentId = (await letterPdf(id)).documentId;
+  const sent = await deliver(letter, by);
+  await prisma.caseEvent.create({
+    data: {
+      caseId: letter.caseId,
+      type: "LETTER_OF_GUARANTEE",
+      title: `${letter.ref} re-sent by ${sent.via === "FAX" ? "fax" : "e-mail"} to ${letter.hospitalName}`,
+      body: `${sent.via === "FAX" ? "Fax" : "E-mail"} ${sent.to}`,
+      actor: actorOf(by),
+    },
+  });
+  return sent;
+}
+
+/**
+ * The letter's PDF, rendered now if it has none: seeded letters don't
+ * (pdfkit can't run in the seed bundle).
+ */
+export async function letterPdf(id: string): Promise<{ filename: string; content: Buffer; documentId: string }> {
+  const letter = await prisma.guaranteeLetter.findUniqueOrThrow({
+    where: { id },
+    include: { case: { include: { patient: { include: { policy: true } } } }, provider: true },
+  });
+  let doc = letter.pdfDocumentId ? await prisma.document.findUnique({ where: { id: letter.pdfDocumentId } }) : null;
+  if (!doc?.storagePath) {
+    doc = await storeLetterPdf(letter, Number(letter.guaranteedAmount), letter.approvedBy ?? "system:auto-approval");
+    await prisma.guaranteeLetter.update({ where: { id }, data: { pdfDocumentId: doc.id } });
+  }
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const content = await fs.readFile(path.join(path.resolve(env.uploadDir), path.basename(doc.storagePath!)));
+  return { filename: doc.filename, content, documentId: doc.id };
+}
+
+/** Faxes the letter's PDF to the hospital (or e-mails it when there's no fax number). */
+async function deliver(
+  letter: GuaranteeLetter & { provider: { phone: string | null; email: string | null } | null; case: { ref: string } },
+  by: string
+): Promise<{ via: "FAX" | "EMAIL"; to: string }> {
   const pdfDoc = letter.pdfDocumentId ? await prisma.document.findUnique({ where: { id: letter.pdfDocumentId } }) : null;
   if (!pdfDoc?.storagePath) throw conflict(`${letter.ref} has no generated PDF.`);
   const fs = await import("node:fs/promises");
@@ -266,7 +342,7 @@ export async function sendLetter(id: string, by: string): Promise<GuaranteeLette
   const via = fax ? "FAX" : "EMAIL";
   const out =
     via === "FAX"
-      ? await sendFax({ to: fax, pdf, filename: pdfDoc.filename, cover, caseId: letter.caseId, attachmentDocumentId: pdfDoc.id, automatic: by.startsWith("system"), approvedBy: by })
+      ? await sendFax({ to: fax, pdf, filename: pdfDoc.filename, cover, caseId: letter.caseId, attachmentDocumentId: pdfDoc.id, automatic: by.startsWith("system") || by.startsWith("agent:"), approvedBy: by })
       : await sendEmail({
           to: email || "billing@unknown-hospital.example",
           subject: `Letter of Guarantee ${letter.ref} — ${letter.case.ref}`,
@@ -274,25 +350,11 @@ export async function sendLetter(id: string, by: string): Promise<GuaranteeLette
           attachments: [{ filename: pdfDoc.filename, content: pdf, type: "application/pdf" }],
           caseId: letter.caseId,
           attachmentDocumentId: pdfDoc.id,
-          automatic: by.startsWith("system"),
+          automatic: by.startsWith("system") || by.startsWith("agent:"),
           approvedBy: by,
         });
   if (out.status === "FAILED") throw conflict(`Sending ${letter.ref} failed: ${out.error ?? "provider error"}.`);
-
-  const updated = await prisma.guaranteeLetter.update({
-    where: { id },
-    data: { status: "SENT", sentVia: via, sentTo: via === "FAX" ? fax : email, sentAt: new Date() },
-  });
-  await prisma.caseEvent.create({
-    data: {
-      caseId: letter.caseId,
-      type: "LETTER_OF_GUARANTEE",
-      title: `${letter.ref} sent by ${via === "FAX" ? "fax" : "e-mail"} to ${letter.hospitalName}`,
-      body: via === "FAX" ? `Fax ${fax}` : `E-mail ${email}`,
-      actor: actorOf(by),
-    },
-  });
-  return updated;
+  return { via, to: via === "FAX" ? fax : email };
 }
 
 export { acknowledgeLetter } from "./guarantee-status";

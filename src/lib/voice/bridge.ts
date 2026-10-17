@@ -7,6 +7,7 @@ import type { ChatMessage, ConversationSummaryContext } from "@/lib/services/typ
 import { utcToZoned, weekdayIndex } from "@/lib/time";
 import type { AgentContext, AgentProfile } from "./agents/types";
 import type { VoiceLeg } from "./legs/types";
+import { voiceLanguage } from "./languages";
 import { monitorBus } from "./monitor";
 import { XaiRealtimeSession } from "./realtime/xai-session";
 import { executeTool, realtimeTools } from "./tools/registry";
@@ -51,7 +52,8 @@ function agentContext(
   callRef: string,
   channel: "PHONE" | "BROWSER",
   linkedCase: AgentContext["linkedCase"],
-  brief: Record<string, unknown> | null | undefined
+  brief: Record<string, unknown> | null | undefined,
+  language: string | null
 ): AgentContext {
   const now = utcToZoned(new Date());
   return {
@@ -62,8 +64,15 @@ function agentContext(
     time: now.time,
     linkedCase,
     brief: brief ?? null,
+    language,
   };
 }
+
+/** Silence after the agent finished speaking before it checks on a phone caller. */
+const PHONE_IDLE_MS = 12_000;
+
+/** Tools after which the agent must not speak again (the call is over or handed on). */
+const FINAL_TOOLS = new Set(["end_call"]);
 
 const DEFAULT_KEYTERMS = [
   ...Object.keys(ISTANBUL_DISTRICTS).map((d) => d.charAt(0).toUpperCase() + d.slice(1)),
@@ -72,6 +81,7 @@ const DEFAULT_KEYTERMS = [
   "CLM",
 ];
 
+/** Runs one voice session; resolves once it has ended and its call record is saved. */
 export async function runVoiceSession(params: VoiceSessionParams): Promise<void> {
   const { leg, profile } = params;
   const call = await prisma.call.findUniqueOrThrow({
@@ -80,6 +90,9 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   });
   const channel = call.channel;
   const startedAt = Date.now();
+  // Browser rehearsals of outbound agents carry their brief on the call, like phone calls do.
+  const brief = params.brief ?? (call.outcome as { brief?: Record<string, unknown> } | null)?.brief ?? null;
+  const language = voiceLanguage(call.language);
 
   const conversation = await prisma.conversation.create({
     data: {
@@ -89,6 +102,11 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
       call: { connect: { id: call.id } },
     },
   });
+
+  // Resolves once the session has ended and its record is saved, so the
+  // gateway can wait for live calls before it shuts down.
+  let sessionEnded: () => void = () => {};
+  const finished = new Promise<void>((resolve) => (sessionEnded = resolve));
 
   const messages: ChatMessage[] = [];
   let outcome: Record<string, unknown> = (call.outcome as Record<string, unknown> | null) ?? {};
@@ -149,12 +167,14 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     caseId: call.caseId,
     patientId: call.case?.patientId ?? null,
     async setCase(caseId, patientId) {
+      if (ctx.caseId === caseId) return;
       ctx.caseId = caseId;
       ctx.patientId = patientId;
-      await prisma.$transaction([
-        prisma.call.update({ where: { id: call.id }, data: { caseId } }),
+      const [updated] = await prisma.$transaction([
+        prisma.call.update({ where: { id: call.id }, data: { caseId }, select: { case: { select: { id: true, ref: true } } } }),
         prisma.conversation.update({ where: { id: conversation.id }, data: { caseId } }),
       ]);
+      if (updated.case) emit({ type: "case", case: updated.case });
     },
     async setOutcome(patch) {
       outcome = { ...outcome, ...patch };
@@ -210,19 +230,49 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
                 status: call.case.status,
               }
             : null,
-          params.brief
+          brief,
+          language?.name ?? null
         )
       ),
       voice: profile.voice,
       input: leg.format,
       output: leg.format,
       tools: realtimeTools(profile.tools),
-      languageHint: profile.languageHint,
+      languageHint: language?.code ?? profile.languageHint,
       keyterms: [...DEFAULT_KEYTERMS, ...(profile.keyterms ?? []), ...(call.case ? [call.case.ref] : [])],
       reasoningEffort: profile.reasoningEffort,
-      idleTimeoutMs: channel === "PHONE" ? 12_000 : undefined,
     },
   });
+
+  // Re-engage a silent phone caller. Counted from when the agent's audio has
+  // finished playing: the model's own idle timer counts from when it finished
+  // generating, so it fired halfway through long answers and the agent
+  // repeated their tail.
+  let idleSeq = 0;
+  let idleTimer: NodeJS.Timeout | null = null;
+  let idleNudges = 0;
+  const disarmIdle = () => {
+    idleSeq += 1;
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = null;
+  };
+  const armIdle = () => {
+    if (channel !== "PHONE" || ended) return;
+    disarmIdle();
+    const seq = idleSeq;
+    void leg.awaitPlayback(90_000).then(() => {
+      if (seq !== idleSeq || ended) return;
+      idleTimer = setTimeout(() => {
+        if (seq !== idleSeq || ended) return;
+        idleNudges += 1;
+        session.sendText(
+          idleNudges > 2
+            ? "[The caller has been silent for a long time. Say a short goodbye and end the call.]"
+            : "[The caller hasn't said anything for a while. Briefly check whether they're still there; don't repeat what you already said.]"
+        );
+      }, PHONE_IDLE_MS);
+    });
+  };
 
   /** What the summary should know beyond the transcript; the case may be new since the call started. */
   async function summaryContext(finalOutcome: Record<string, unknown>): Promise<ConversationSummaryContext> {
@@ -278,10 +328,19 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   async function end(reason: string): Promise<void> {
     if (ended) return;
     ended = true;
+    try {
+      await finish(reason);
+    } finally {
+      sessionEnded();
+    }
+  }
+
+  async function finish(reason: string): Promise<void> {
     // Closing the leg before a redirect lands would hang up on the caller.
     if (handover) await handover;
     reason = failure ?? reason;
     liveSessions.delete(call.id);
+    disarmIdle();
     for (const t of timers) clearTimeout(t);
     session.close();
     leg.close(reason);
@@ -339,7 +398,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     if (channel === "PHONE" && params.controls) await handOver("voice model unavailable");
     else leg.sendEvent({ type: "error", message: "The voice service is unavailable right now. Please try again shortly." });
     await end("voice model unavailable");
-    return;
+    return finished;
   }
 
   await prisma.call.update({ where: { id: call.id }, data: { status: "IN_PROGRESS", answeredAt: new Date() } });
@@ -371,6 +430,8 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   // --- Wire audio, transcripts and tools ---------------------------------------
   leg.onAudio((b64) => session.appendAudio(b64));
   leg.onText((text) => {
+    disarmIdle();
+    idleNudges = 0;
     record("user", text);
     session.sendText(text);
   });
@@ -389,20 +450,33 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
 
   session.on("audio", (b64) => leg.sendAudio(b64));
   session.on("speech_started", () => {
+    disarmIdle();
+    idleNudges = 0;
     leg.clearPlayback();
     emit({ type: "user_speaking" });
   });
+  session.on("response_started", disarmIdle);
+  session.on("response_done", armIdle);
   // The caller has finished: the model is working out its answer.
   session.on("speech_stopped", () => emit({ type: "agent_thinking" }));
   session.on("agent_transcript_delta", (text) => emit({ type: "transcript_delta", role: "agent", text }));
   session.on("agent_transcript_done", (text) => record("agent", text));
   session.on("user_transcript", recordCaller);
+  // The model can get stuck re-sending a call that failed; a third identical
+  // attempt isn't run, and it is told to ask the caller instead.
+  const attempts = new Map<string, number>();
   session.on("function_call", async ({ callId, name, args }) => {
     emit({ type: "tool", name, status: "running" });
-    const result = await executeTool(name, args, ctx, profile.tools);
+    const key = `${name}:${JSON.stringify(args)}`;
+    const tries = (attempts.get(key) ?? 0) + 1;
+    attempts.set(key, tries);
+    const result =
+      tries > 2 && !FINAL_TOOLS.has(name)
+        ? { error: "You already made this exact call twice. Don't repeat it: ask the caller for the missing or corrected details, or offer a case manager call-back." }
+        : await executeTool(name, args, ctx, profile.tools);
     const failed = typeof result.error === "string";
     emit({ type: "tool", name, status: failed ? "error" : "done", summary: failed ? result.error : undefined });
-    session.sendFunctionResult(callId, result);
+    session.sendFunctionResult(callId, result, { respond: failed || !FINAL_TOOLS.has(name) });
   });
   session.on("error", (err) => console.warn(`[voice] ${call.ref} model error:`, err.message));
   session.on("closed", () => {
@@ -423,4 +497,5 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     setTimeout(() => void ctx.actions.hangup("maximum call length reached"), max)
   );
   session.sendText(profile.openingCue);
+  return finished;
 }

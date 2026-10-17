@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { json, withErrorHandling } from "@/lib/api";
 import { getOperator } from "@/lib/auth/session";
@@ -8,12 +9,15 @@ import { ApiError, badRequest, notFound } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
 import { DEFAULT_BROWSER_AGENT, getAgent } from "@/lib/voice/agents/registry";
 import { gatewayBase } from "@/lib/voice/gateway-url";
+import { voiceLanguage } from "@/lib/voice/languages";
 
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
   profile: z.string().optional(),
   caseId: z.string().optional(),
+  /** Language the agent opens in (English name or ISO code); detected otherwise. */
+  language: z.string().max(40).optional(),
 });
 
 /**
@@ -31,11 +35,16 @@ export const POST = withErrorHandling(async (req: Request) => {
   const body = Body.parse(await req.json().catch(() => ({})));
   const profile = getAgent(body.profile ?? DEFAULT_BROWSER_AGENT);
   if (!profile || !profile.channels.includes("BROWSER")) throw badRequest("Unknown voice agent.");
+  // The interpreter bridges a case manager and a hospital; it starts from the Call Center's interpreter card.
+  if (profile.id === "interpreter") throw badRequest("Start the interpreter from the Call Center's interpreter card.");
 
   if (body.caseId) {
     const exists = await prisma.case.findUnique({ where: { id: body.caseId }, select: { id: true } });
     if (!exists) throw notFound("Case");
   }
+  if (profile.requiresCase && !body.caseId) throw badRequest("This agent calls about a case: open it from a case.");
+  // An outbound agent rehearsed in the browser gets the same brief as a phone call.
+  const brief = body.caseId && profile.buildBrief ? await profile.buildBrief(body.caseId) : null;
 
   const operator = await getOperator(req);
   const call = await withRef("call", (ref) =>
@@ -47,6 +56,8 @@ export const POST = withErrorHandling(async (req: Request) => {
         agentProfile: profile.id,
         caseId: body.caseId ?? null,
         placedBy: operator,
+        language: voiceLanguage(body.language)?.name ?? null,
+        ...(brief ? { outcome: { brief } as Prisma.InputJsonValue } : {}),
       },
     })
   );

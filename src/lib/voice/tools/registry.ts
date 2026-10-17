@@ -6,11 +6,13 @@ import { endCallTool, transferToHumanTool } from "./call-control";
 import {
   addCaseNoteTool,
   createCaseTool,
+  findMyCaseTool,
   getCaseStatusTool,
   getClaimStatusTool,
   searchKnowledgeTool,
 } from "./cases";
 import { checkCoverageTool } from "./coverage";
+import { recordBillAgreementTool, recordTransportAssessmentTool } from "./money";
 import {
   cancelAppointmentTool,
   confirmAppointmentTool,
@@ -19,6 +21,7 @@ import {
   recordHospitalUpdateTool,
   sendUploadLinkTool,
 } from "./outbound";
+import { findGuaranteeTool, requestGuaranteeIncreaseTool, resendGuaranteeTool } from "./provider";
 import type { ToolContext, VoiceTool } from "./types";
 
 const ALL_TOOLS: VoiceTool[] = [
@@ -27,6 +30,7 @@ const ALL_TOOLS: VoiceTool[] = [
   createCaseTool,
   addCaseNoteTool,
   getCaseStatusTool,
+  findMyCaseTool,
   getClaimStatusTool,
   searchKnowledgeTool,
   checkCoverageTool,
@@ -36,6 +40,11 @@ const ALL_TOOLS: VoiceTool[] = [
   cancelAppointmentTool,
   sendUploadLinkTool,
   confirmLogReceiptTool,
+  findGuaranteeTool,
+  resendGuaranteeTool,
+  requestGuaranteeIncreaseTool,
+  recordBillAgreementTool,
+  recordTransportAssessmentTool,
   transferToHumanTool,
   endCallTool,
 ] as VoiceTool[];

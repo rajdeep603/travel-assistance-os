@@ -21,6 +21,29 @@ people make the decisions.*
    `OUTBOUND_ALLOWED_NUMBERS`).
 5. `curl https://<your-domain>/api/health` → `"status":"ok"`.
 
+## 20-minute meetings: what to show, by who you're meeting
+
+Open the **Voice Agents** page (`/voice`) before they sit down. Pick the
+agent and **set the language to theirs** (Spanish, Arabic, Turkish, German,
+Italian, French, Portuguese, Russian, Polish, Czech, Swedish, Norwegian,
+Hindi or English): the agent greets them in it. Outbound agents run here
+too: you play the hospital, the doctor or the traveller being called, on a
+ready demo case. Press **⌘K** (Ctrl K) anywhere to jump to a case, a
+guarantee (`LOG-0902`), a call or a voice agent.
+
+| Who | Minutes 1–8 | Minutes 8–15 | Close on |
+|---|---|---|---|
+| **Assistance company** (case platform buyer) | Hotline in their language: *"Where is my case? I'm James Carter, born 2 November 1979."* | Inbox: a cost estimate fax becomes a guarantee (`CASE-1024`), then the Spanish or German "where is my case?" e-mail answered from the records | The case page: every call, e-mail and letter on one timeline |
+| **Large group / insurer** (voice pilot on one flow) | Hospital & provider line: *"Has the guarantee for Lena Koch, born 29 July 1964, been issued?"*, then ask it to re-send the letter | Letter of Guarantee receipt check, or the hospital's guarantee e-mail answered with the letter attached | Pick one call flow for a 60-day pilot |
+| **Cost containment** (bill review) | Inbox: the overbilled final invoice → bill review finds €4,802.50 | Bill negotiation: push back as the billing office; it holds its line and records the hospital's agreement and that the patient isn't billed the difference | The money card and the overview's savings row |
+| **Hospital international desk** | Hospital & provider line from the hospital's side: the guarantee, its amount and a top-up request in one call | Medical transport assessment as the treating doctor; the plan shows what an air ambulance would have cost | "Your desk stops chasing guarantees by phone" |
+| **Air ambulance / repatriation** | Medical transport assessment: answer as the doctor (stretcher, oxygen, escort) | The transport card: the least intensive safe option, every option's cost, quote requests sent | First call to quote request, automatically |
+| **Tech partner / CTO** | Any agent, then the case timeline and the call's tool steps | ⌘K search, the decision trace on a guarantee, bill review rules | Integration by API and webhooks (roadmap) |
+
+Before each meeting: if you'll show the bill negotiation, receive
+**Hospital bills the final invoice against a guarantee (overbilled)** first
+(the voice page offers it), so there's a reviewed bill to negotiate.
+
 ## If they mention… call volumes, seasonal spikes, emergencies
 
 **Have them call the hotline** (number on screen) while `/calls` is visible.
@@ -28,9 +51,13 @@ people make the decisions.*
   can help. The call appears on the **Live calls** board with a running
   transcript and the tools it uses.
 - Try: *“Is my flight delay covered?”* — it asks for the policy number and
-  date of birth (e.g. `POL-TR-100944`, 14 March 1987), then answers from the
-  policy: covered, the limit, the minimum delay, the documents needed — and
-  that the claims team decides.
+  date of birth (e.g. `POL-TR-100945`, 2 November 1979), then answers from the
+  policy: covered, what it pays for the delay (worked out by the system,
+  not the model), the documents needed — and that the claims team decides.
+- Try: *“Where is my case?”* with a name and date of birth: it finds the
+  case and says where things stand (appointment, guarantee, claim, trip home).
+- Hospitals use the same number: *“Marmara Heart Center here, about the
+  guarantee for Lena Koch…”* gets the guarantee's status and amount.
 - Try: *“My husband has chest pain and can't breathe”* — it says to call 112,
   opens a **critical case**, and **warm-transfers to the doctor's phone**,
   which first hears the AI's summary.
@@ -40,7 +67,7 @@ people make the decisions.*
 ## If they mention… coordinating with foreign hospitals, languages
 
 **Open a hospitalisation case** (e.g. `CASE-1024`).
-- **AI phone calls → Hospital coordination (Turkish)** → *Call now*: the
+- **AI phone calls → Hospital coordination** → *Call now*: the
   hospital phone rings and the agent asks, in Turkish, about admission,
   ward, doctor, cost estimate and the medical report — the structured
   answer lands on the case timeline in English.
@@ -72,8 +99,11 @@ people make the decisions.*
 - Show the decision trace: estimate, remaining limit, excess, the rule.
 - Over the limit or a possible pre-existing condition → it waits for a
   person, who can approve a lower amount.
-- Optionally: **AI phone calls → Letter of Guarantee — receipt check** to
+- Optionally: **AI phone calls → Letter of Guarantee receipt check** to
   confirm the hospital got it.
+- **Hospital asks whether the guarantee was issued** (Inbox sample) → an
+  automatic reply with the status, the amount and the letter attached, but
+  only to the hospital the letter was issued to.
 - Line: *“The stranded traveller isn't turned away while paperwork waits.”*
 
 ## If they mention… documents, case management, claims, providers, knowledge
@@ -89,8 +119,9 @@ The original modules, unchanged:
 - **Provider Search** (`/providers`) — *Why this provider?*, book a slot.
 - **Internal AI Assistant** (`/assistant`) — procedures with sources,
   live case status.
-- **Voice Agent** (`/voice`) — the same agents in the browser: *Start*,
-  talk (or type), watch provider options, the booking and the case appear.
+- **Voice Agents** (`/voice`) — every agent in the browser, in any of 14
+  languages: pick it, *Start*, talk (or type); what it records appears
+  below the stage and on the case.
 
 ## Closing position
 
@@ -108,4 +139,5 @@ The original modules, unchanged:
 | "isn't on the list of numbers AI agents may call" | Add the number to `OUTBOUND_ALLOWED_NUMBERS` |
 | Transfer says nobody can take the call | Set `ON_CALL_DOCTOR_NUMBER` / `CASE_MANAGER_NUMBER` |
 | No provider found | Providers take bookings daily until 22:00 (international clinics until 23:30); pick an earlier time or tomorrow |
+| An agent repeats itself or talks over a caller | Check `docker compose logs voice-gateway`; locally, `npm run voice:probe` replays a call against the live model |
 | Data looks messy after experiments | On the server: `docker compose exec app node seed.cjs` restores the canonical demo records (locally: `npm run db:seed`) |

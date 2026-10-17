@@ -30,6 +30,11 @@ export function contextBlock(ctx: AgentContext): string {
     `- Call reference: ${ctx.callRef} (${ctx.channel === "PHONE" ? "phone call" : "web voice session"}).`,
     `- This is a demonstration platform: every record is fictional demo data.`,
   ];
+  if (ctx.language) {
+    lines.push(
+      `- Language for this ${ctx.channel === "PHONE" ? "call" : "session"}: ${ctx.language}. Open in ${ctx.language} and keep to it unless the other person switches. This overrides any default language in these instructions; tool arguments stay in English.`
+    );
+  }
   if (ctx.linkedCase) {
     lines.push(
       `- This session is for case ${ctx.linkedCase.ref}: "${ctx.linkedCase.title}", patient ${ctx.linkedCase.patientName}, ${ctx.linkedCase.location}, status ${ctx.linkedCase.status}. Don't open a new case; everything you do is filed on it.`

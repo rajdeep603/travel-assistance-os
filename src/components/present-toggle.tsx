@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Presentation } from "lucide-react";
-import { PRESENT_STORAGE_KEY as STORAGE_KEY } from "@/lib/present-mode";
+import { PRESENT_EVENT, setPresentMode } from "@/lib/present-mode";
 
 /**
  * Toggles presentation mode: a root font-size bump that scales the whole UI
@@ -11,21 +11,17 @@ import { PRESENT_STORAGE_KEY as STORAGE_KEY } from "@/lib/present-mode";
 export function PresentToggle() {
   const [on, setOn] = useState(false);
 
-  // The root layout applies the saved mode before paint; mirror it here.
+  // The root layout applies the saved mode before paint; mirror it here, and
+  // follow changes made elsewhere (the command palette).
   useEffect(() => {
     setOn(document.documentElement.dataset.present === "on");
+    const follow = (e: Event) => setOn(Boolean((e as CustomEvent<boolean>).detail));
+    window.addEventListener(PRESENT_EVENT, follow);
+    return () => window.removeEventListener(PRESENT_EVENT, follow);
   }, []);
 
   function toggle() {
-    const next = !on;
-    setOn(next);
-    if (next) document.documentElement.dataset.present = "on";
-    else delete document.documentElement.dataset.present;
-    try {
-      localStorage.setItem(STORAGE_KEY, next ? "on" : "off");
-    } catch {
-      // non-critical
-    }
+    setPresentMode(!on);
   }
 
   return (

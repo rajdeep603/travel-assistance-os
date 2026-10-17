@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Info, Mic, MicOff, PhoneCall, PhoneOff, ShieldAlert } from "lucide-react";
 import { ErrorBanner, PageHeader } from "@/components/ui";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
-import { BookingPanel, ProvidersPanel } from "@/components/voice/session-panels";
+import { AgentPicker, type VoiceCatalog } from "@/components/voice/agent-picker";
+import { BookingPanel, ProvidersPanel, ResultsPanel } from "@/components/voice/session-panels";
 import { TranscriptPanel } from "@/components/voice/transcript-panel";
 import { StageButton, VoiceStage } from "@/components/voice/voice-stage";
 import type { OrbState } from "@/components/voice/voice-orb";
@@ -23,7 +24,7 @@ function orbState(s: VoiceState): OrbState {
   return s.userSpeaking ? "hearing" : "listening";
 }
 
-function statusLine(s: VoiceState): { title: string; detail: string } {
+function statusLine(s: VoiceState, agentLabel: string | null): { title: string; detail: string } {
   switch (s.phase) {
     case "starting":
       return { title: "Connecting…", detail: "Starting the microphone and the voice agent" };
@@ -52,19 +53,60 @@ function statusLine(s: VoiceState): { title: string; detail: string } {
     case "error":
       return { title: "Not connected", detail: s.error?.message ?? "" };
     default:
-      return { title: "Ready when you are", detail: "Start a conversation with the AI medical assistance agent" };
+      return { title: "Ready when you are", detail: agentLabel ? `Start a conversation with the ${agentLabel.toLowerCase()} agent` : "Start a conversation with the AI medical assistance agent" };
   }
 }
 
+/** Agents whose sessions are about finding and booking care. */
+const BOOKING_AGENTS = new Set(["appointment-booking", "inbound-hotline"]);
+const DEFAULT_AGENT = "appointment-booking";
+
 export default function VoicePage() {
   const { state, start, stop, sendText, setMuted, getLevels } = useGrokVoice();
-  const caseId = useQueryParam("caseId");
-  const agent = useQueryParam("agent");
+  const urlCaseId = useQueryParam("caseId");
+  const urlAgent = useQueryParam("agent");
+  const urlLanguage = useQueryParam("lang");
+  const [agentId, setAgentId] = useState(DEFAULT_AGENT);
+  const [language, setLanguage] = useState("");
+  const [catalog, setCatalog] = useState<VoiceCatalog | null>(null);
+  useEffect(() => {
+    if (urlAgent) setAgentId(urlAgent);
+  }, [urlAgent]);
+  useEffect(() => {
+    if (urlLanguage) setLanguage(urlLanguage);
+  }, [urlLanguage]);
+
+  const loadCatalog = useCallback(() => {
+    fetch("/api/voice/agents")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => body && setCatalog(body))
+      .catch(() => undefined);
+  }, []);
+  useEffect(loadCatalog, [loadCatalog]);
+
+  // An agent the picker doesn't offer (say, an old link) falls back to the default.
+  useEffect(() => {
+    if (catalog && !catalog.scenarios.some((s) => s.agentId === agentId)) setAgentId(DEFAULT_AGENT);
+  }, [catalog, agentId]);
+  const scenario = catalog?.scenarios.find((s) => s.agentId === agentId) ?? null;
+  // Opened from a case, the session is for that case; otherwise outbound agents use their demo case.
+  const caseId = urlCaseId ?? (scenario?.direction === "outbound" ? (scenario.case?.id ?? null) : null);
   const linkedCase = useCaseContext(caseId);
   const live = state.phase === "live";
   const busy = state.phase === "starting";
-  const { title, detail } = statusLine(state);
+  const { title, detail } = statusLine(state, scenario?.label ?? null);
   const notConfigured = state.error?.code === "VOICE_NOT_CONFIGURED";
+
+  /** Keeps the choice in the address bar, so a refresh or a shared link reopens it. */
+  function remember(next: { agent?: string; lang?: string }) {
+    const params = new URLSearchParams(window.location.search);
+    if (next.agent !== undefined) params.set("agent", next.agent);
+    if (next.lang !== undefined) {
+      if (next.lang) params.set("lang", next.lang);
+      else params.delete("lang");
+    }
+    window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
+  }
 
   // When the session went live, for the stage's call timer.
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -76,11 +118,30 @@ export default function VoicePage() {
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader
-        title="Voice Agent"
-        subtitle="Understands the request, searches providers, confirms, books and files the case, then hands off to a person."
+        title="Voice Agents"
+        subtitle="Pick an agent and a language, then play the other side: a traveller, a hospital desk or a treating doctor. Every call is filed on the case."
       />
 
-      {linkedCase ? <CaseContextBanner kase={linkedCase} action="This voice session works" /> : null}
+      {catalog ? (
+        <AgentPicker
+          catalog={catalog}
+          agentId={agentId}
+          language={language}
+          onAgent={(id) => {
+            setAgentId(id);
+            remember({ agent: id });
+          }}
+          onLanguage={(name) => {
+            setLanguage(name);
+            remember({ lang: name });
+          }}
+          onPrepared={loadCatalog}
+          disabled={live || busy}
+          caseOverride={urlCaseId && linkedCase ? { id: linkedCase.id, ref: linkedCase.ref } : null}
+        />
+      ) : null}
+
+      {linkedCase && urlCaseId ? <CaseContextBanner kase={linkedCase} action="This voice session works" /> : null}
 
       {notConfigured ? (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
@@ -115,7 +176,7 @@ export default function VoicePage() {
             partialAgent={state.partial.agent}
             tools={state.tools}
             booking={state.booking}
-            idleHint="Try: “I’m in Taksim and I need to see a doctor tomorrow afternoon.”"
+            idleHint={scenario ? `Try: ${scenario.tryLine}` : "Try: “I’m in Taksim and I need to see a doctor tomorrow afternoon.”"}
             controls={
               live || busy ? (
                 <>
@@ -131,7 +192,7 @@ export default function VoicePage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => void start({ caseId: linkedCase?.id, profile: agent ?? undefined })}
+                  onClick={() => void start({ caseId: caseId ?? undefined, profile: agentId, language: language || undefined })}
                   className="inline-flex h-14 items-center gap-2.5 rounded-full bg-brand px-7 text-base font-semibold text-white shadow-lg shadow-brand/30 transition-colors duration-150 hover:bg-brand-deep focus-visible:outline-brand-2 active:scale-[0.98]"
                 >
                   <PhoneCall size={19} aria-hidden />
@@ -159,6 +220,7 @@ export default function VoicePage() {
             live={live}
             onSend={sendText}
             className="h-[440px] lg:absolute lg:inset-0 lg:h-auto"
+            hint={scenario ? `You play: ${scenario.youPlay.toLowerCase()}.` : undefined}
           />
         </div>
       </div>
@@ -187,8 +249,15 @@ export default function VoicePage() {
       ) : null}
 
       <div className="mt-5 grid gap-5 md:grid-cols-3">
-        <ProvidersPanel providers={state.providers} onPick={sendText} disabled={!live} />
-        <BookingPanel booking={state.booking} caseRef={state.caseRef} />
+        {BOOKING_AGENTS.has(agentId) ? (
+          <>
+            <ProvidersPanel providers={state.providers} onPick={sendText} disabled={!live} />
+            <BookingPanel booking={state.booking} caseRef={state.caseRef} />
+          </>
+        ) : null}
+        {!BOOKING_AGENTS.has(agentId) || state.results.length ? (
+          <ResultsPanel results={state.results} caseRef={state.caseRef ?? (linkedCase ? { id: linkedCase.id, ref: linkedCase.ref } : null)} />
+        ) : null}
       </div>
     </div>
   );

@@ -122,6 +122,24 @@ export const SAMPLE_KITS: SampleKit[] = [
         email: { sample: "hospital-final-invoice", sentAt: "2026-10-15T17:10:00+03:00" },
       },
       {
+        path: "samples/inbox/carlos-garcia-case-status-es.eml",
+        title: "Where is my case? (Spanish)",
+        note: "Carlos Garcia · answered in Spanish with the case's real status",
+        email: { sample: "traveller-status-es", sentAt: "2026-10-16T21:05:00+02:00" },
+      },
+      {
+        path: "samples/inbox/lena-koch-case-status-de.eml",
+        title: "Where is my case? (German)",
+        note: "Lena Koch · guarantee, bill and transport home, in German",
+        email: { sample: "traveller-status-de", sentAt: "2026-10-16T19:40:00+03:00" },
+      },
+      {
+        path: "samples/inbox/marmara-gop-enquiry-lena-koch.eml",
+        title: "Hospital chases a guarantee",
+        note: "Marmara asks about LOG-0902 · answered with the letter attached",
+        email: { sample: "hospital-gop-enquiry", sentAt: "2026-10-16T10:25:00+03:00" },
+      },
+      {
         path: "samples/inbox/marco-bianchi-complaint.eml",
         title: "Upset traveller",
         note: "Threatens legal action · held for a person",

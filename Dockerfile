@@ -24,7 +24,7 @@ RUN npx prisma generate \
  # it as its own service with `node voice-gateway.cjs`.
  && npx esbuild voice-gateway/main.ts --bundle --platform=node --format=cjs --target=node22 \
       --outfile=.next/standalone/voice-gateway.cjs \
-      --external:@prisma/client --external:pdf-parse \
+      --external:@prisma/client --external:pdf-parse --external:pdfkit \
       --external:bufferutil --external:utf-8-validate
 
 FROM node:22-alpine AS runner

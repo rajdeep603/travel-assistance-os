@@ -17,6 +17,8 @@ export interface AgentContext {
   } | null;
   /** Free-form facts for outbound calls (who to call, what to ask). */
   brief?: Record<string, unknown> | null;
+  /** Language the operator chose for this session (English name), if any. */
+  language?: string | null;
 }
 
 /**

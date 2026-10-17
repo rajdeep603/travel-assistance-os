@@ -70,6 +70,10 @@ export const env = {
     return Number.isFinite(n) && n > 0 ? n : 30;
   },
   /** How the app reaches the gateway inside the stack (AMD notifications). */
+  /** Where the voice gateway reaches the app for work it can't do itself (rendering PDFs). Empty = in-process. */
+  get appInternalUrl(): string {
+    return (process.env.APP_INTERNAL_URL ?? "").replace(/\/$/, "");
+  },
   get voiceGatewayInternalUrl(): string {
     return (process.env.VOICE_GATEWAY_INTERNAL_URL || "http://voice-gateway:8080").replace(/\/$/, "");
   },

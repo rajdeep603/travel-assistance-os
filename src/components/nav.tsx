@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/business-case", label: "Business Case", icon: Calculator },
   { href: "/documents", label: "Medical Document AI", icon: FileText },
@@ -27,7 +27,7 @@ const NAV_ITEMS = [
   { href: "/claims", label: "Claims Automation", icon: ReceiptText },
   { href: "/providers", label: "Provider Search", icon: Stethoscope },
   { href: "/assistant", label: "Internal AI Assistant", icon: MessageSquareText },
-  { href: "/voice", label: "Voice Agent", icon: Mic },
+  { href: "/voice", label: "Voice Agents", icon: Mic },
   { href: "/calls", label: "Call Center", icon: Headset },
   { href: "/inbox", label: "Inbox (e-mail & fax)", icon: Inbox },
 ];

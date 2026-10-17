@@ -22,6 +22,8 @@ const PUBLIC_PREFIXES = [
   "/api/health",
   "/api/twilio/",
   "/api/inbound/",
+  // The voice gateway, with a short-lived token signed with the gateway secret.
+  "/api/internal/",
   // Claimants' signed upload links (the token is the credential).
   "/upload/",
   "/api/public/",

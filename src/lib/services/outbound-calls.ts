@@ -5,6 +5,7 @@ import { ApiError, badRequest, forbidden, notFound } from "@/lib/errors";
 import { maskPhone } from "@/lib/format";
 import { withRef } from "@/lib/refs";
 import { getAgent } from "@/lib/voice/agents/registry";
+import { voiceLanguage } from "@/lib/voice/languages";
 import { getTelephony } from "./telephony";
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,8 @@ export interface PlaceCallInput {
   extraOutcome?: Record<string, unknown>;
   /** Answering-machine detection (on by default). */
   amd?: boolean;
+  /** Language the agent opens in (English name, e.g. "Spanish"); detected otherwise. */
+  language?: string | null;
 }
 
 export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
@@ -77,6 +80,7 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
         caseId: input.caseId ?? null,
         placedBy: input.placedBy,
         bridgeId: input.bridgeId ?? null,
+        language: voiceLanguage(input.language)?.name ?? null,
         outcome: {
           brief,
           retries,

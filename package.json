@@ -12,6 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "demo:pdfs": "tsx scripts/samples/generate.ts --pdfs",
     "demo:samples": "tsx scripts/samples/generate.ts",
+    "voice:probe": "tsx scripts/voice-probe.ts",
     "auth:hash": "tsx scripts/hash-password.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude 'tests/e2e/**'",

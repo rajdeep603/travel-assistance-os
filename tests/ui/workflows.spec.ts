@@ -76,6 +76,39 @@ test("voice page explains when voice isn't configured", async ({ page }) => {
   await expect(page.getByText(/Voice isn.t available on this server/i)).toBeVisible();
 });
 
+test("⌘K finds a guarantee by its reference and opens the case", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search and commands" }).click();
+  const dialog = page.getByRole("dialog", { name: "Search and commands" });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.getByRole("combobox").fill("LOG-0902");
+  await expect(dialog.getByRole("option", { name: /LOG-0902 · 11,850 EUR/ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: /CASE-1022/ })).toBeVisible();
+
+  // Commands too: jump to a voice agent.
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.getByRole("combobox").fill("hospital line");
+  await dialog.getByRole("option", { name: /Hospital & provider line/ }).click();
+  await expect(page).toHaveURL(/\/voice\?agent=inbound-provider-line/);
+  await expect(page.getByRole("combobox", { name: "Voice agent" })).toHaveValue("inbound-provider-line");
+});
+
+test("the presenter picks any voice agent and language, on a ready demo case", async ({ page }) => {
+  await page.goto("/voice");
+  await page.getByRole("combobox", { name: "Voice agent" }).selectOption("outbound-medical-transport");
+  await expect(page.getByText(/You play:\s*The treating doctor/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "CASE-1022" }).first()).toBeVisible();
+  await page.getByRole("combobox", { name: "Language" }).selectOption("Turkish");
+  await expect(page).toHaveURL(/agent=outbound-medical-transport/);
+  await expect(page).toHaveURL(/lang=Turkish/);
+  await expect(page.getByText("What the agent recorded")).toBeVisible();
+});
+
 test("the business case recalculates from the visitor's own numbers", async ({ page }) => {
   await page.goto("/business-case");
   const headline = page.getByText(/^With these numbers, .+ would free about [\d,]+ agent hours a month/);

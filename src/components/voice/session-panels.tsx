@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { CalendarCheck2, FolderKanban } from "lucide-react";
+import { BadgeCheck, CalendarCheck2, FileCheck2, FolderKanban, Plane, ReceiptText, ShieldCheck } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui";
 import { formatSlotDate } from "@/lib/format";
-import type { Booking, ProviderOption } from "@/lib/voice/client/use-grok-voice";
+import type { AgentResult, Booking, ProviderOption } from "@/lib/voice/client/use-grok-voice";
 
 export function ProvidersPanel({
   providers,
@@ -95,5 +95,49 @@ export function BookingPanel({ booking, caseRef }: { booking: Booking | null; ca
         )}
       </Card>
     </>
+  );
+}
+
+const RESULT_ICONS: Record<string, typeof BadgeCheck> = {
+  coverage: ShieldCheck,
+  guarantee: FileCheck2,
+  money: ReceiptText,
+  transport: Plane,
+  update: BadgeCheck,
+};
+
+/** What the agent recorded during the session, and the case it went to. */
+export function ResultsPanel({ results, caseRef }: { results: AgentResult[]; caseRef: { id: string; ref: string } | null }) {
+  return (
+    <Card className="md:col-span-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <SectionTitle>What the agent recorded</SectionTitle>
+        {caseRef ? (
+          <Link href={`/cases/${caseRef.id}`} className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
+            <FolderKanban size={15} aria-hidden /> {caseRef.ref}
+          </Link>
+        ) : null}
+      </div>
+      {results.length ? (
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+          {results.map((r) => {
+            const Icon = RESULT_ICONS[r.kind] ?? BadgeCheck;
+            return (
+              <li key={r.id} className="animate-fade-up flex min-w-0 items-start gap-2.5 rounded-lg border border-line/80 px-3 py-2">
+                <Icon size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-ink">{r.title}</span>
+                  {r.detail ? <span className="block text-xs text-muted">{r.detail}</span> : null}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-muted">
+          Everything the agent saves (guarantees found, bills agreed, transport plans, hospital updates) appears here and on the case timeline.
+        </p>
+      )}
+    </Card>
   );
 }

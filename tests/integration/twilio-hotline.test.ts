@@ -137,7 +137,8 @@ describe("Hotline emergency over a phone media stream", () => {
     const update = await model.waitFor((e) => e.type === "session.update");
     expect(update.session.audio.input.format).toEqual({ type: "audio/pcmu" });
     expect(update.session.audio.output.format).toEqual({ type: "audio/pcmu" });
-    expect(update.session.turn_detection.idle_timeout_ms).toBeGreaterThan(0);
+    // Silence is timed by the bridge from the end of playback, not by the model.
+    expect(update.session.turn_detection.idle_timeout_ms).toBeUndefined();
     expect(update.session.tools.map((t: { name: string }) => t.name)).toEqual(
       expect.arrayContaining(["check_coverage", "transfer_to_human", "create_case"])
     );

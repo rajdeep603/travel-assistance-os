@@ -63,9 +63,49 @@ export type CoverageResult =
       currency: string;
       medicalLimitRemaining: number;
       benefit: Benefit | null;
+      /** For a delay benefit and a stated delay: what the policy pays, worked out here, never by the model. */
+      payout?: DelayPayout;
       otherBenefits?: { code: string; label: string; covered: boolean }[];
       caveat: string;
     };
+
+export interface DelayPayout {
+  hours: number;
+  amount: number;
+  currency: string;
+  /** How the amount was reached, in words the agent can read out. */
+  basis: string;
+}
+
+/**
+ * Delay benefits pay a fixed sum per full block of hours ("EUR 50 per full 6
+ * hours"), from a minimum delay, up to the limit. Null when the benefit isn't
+ * paid per block or isn't covered.
+ */
+export function delayPayout(benefit: Benefit, hours: number): DelayPayout | null {
+  const m = benefit.unit?.match(/^([A-Z]{3})\s+([\d.]+)\s+per full\s+(\d+)\s+hours?$/i);
+  if (!benefit.covered || !m || !(hours >= 0)) return null;
+  const [, currency, perBlock, blockHours] = m;
+  const per = Number(perBlock);
+  const block = Number(blockHours);
+  const minimum = benefit.waitingHours ?? 0;
+  if (hours < minimum) {
+    return { hours, amount: 0, currency, basis: `Nothing is payable: the delay must be at least ${minimum} hours.` };
+  }
+  const blocks = Math.floor(hours / block);
+  const raw = blocks * per;
+  const amount = benefit.limit != null ? Math.min(raw, benefit.limit) : raw;
+  const capped = amount < raw ? `, capped at the ${benefit.limit} ${currency} limit` : "";
+  return {
+    hours,
+    amount,
+    currency,
+    basis:
+      blocks === 0
+        ? `Nothing is payable: ${hours} hours is less than one full ${block}-hour block.`
+        : `${blocks} full ${block}-hour block${blocks === 1 ? "" : "s"} × ${per} ${currency} = ${raw} ${currency}${capped}.`,
+  };
+}
 
 const CAVEAT = "This is general policy information; the claims team makes the final decision on any claim.";
 
@@ -103,6 +143,8 @@ export async function checkCoverage(input: {
   policyNumber: string;
   dateOfBirth: string;
   benefit?: string | null;
+  /** For delay benefits: how long the delay was, if the caller said. */
+  delayHours?: number | null;
 }): Promise<CoverageResult> {
   const policy = await findPolicyForCaller(input.policyNumber, input.dateOfBirth);
   if (!policy || !policy.patient) {
@@ -127,6 +169,7 @@ export async function checkCoverage(input: {
     currency: policy.currency,
     medicalLimitRemaining: Math.max(0, Number(policy.medicalLimit) - Number(policy.medicalUsed) - committed.total),
     benefit,
+    ...(benefit && input.delayHours != null ? { payout: delayPayout(benefit, input.delayHours) ?? undefined } : {}),
     ...(benefit ? {} : { otherBenefits: benefits.map((b) => ({ code: b.code, label: b.label, covered: b.covered })) }),
     caveat: CAVEAT,
   };

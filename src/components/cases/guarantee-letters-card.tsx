@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, FileCheck2, FileDown, Send, ShieldCheck } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle, StatusBadge, readApiError } from "@/components/ui";
-import { formatActor, formatDate, formatMoney } from "@/lib/format";
+import { formatActor, formatMoney } from "@/lib/format";
 import { describeGuaranteeDecision } from "@/lib/guarantee-trace";
+import { formatPlainDate } from "@/lib/time";
 
 interface Letter {
   id: string;
@@ -151,7 +152,7 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
               </div>
               <div>
                 <dt className="text-[11px] uppercase tracking-wide text-slate-500">Valid until</dt>
-                <dd className="text-slate-800">{formatDate(l.validUntil)}</dd>
+                <dd className="text-slate-800">{formatPlainDate(l.validUntil.slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</dd>
               </div>
             </dl>
             {l.flags.length ? (
@@ -249,6 +250,11 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
               {l.status === "SENT" ? (
                 <Button variant="secondary" busy={busy === `ack-${l.id}`} onClick={() => void act(`ack-${l.id}`, `/api/guarantee-letters/${l.id}/acknowledge`)}>
                   Hospital confirmed receipt
+                </Button>
+              ) : null}
+              {l.status === "SENT" || l.status === "ACKNOWLEDGED" ? (
+                <Button variant="secondary" busy={busy === `resend-${l.id}`} onClick={() => void act(`resend-${l.id}`, `/api/guarantee-letters/${l.id}/resend`)}>
+                  <Send size={14} aria-hidden /> Re-send
                 </Button>
               ) : null}
             </div>

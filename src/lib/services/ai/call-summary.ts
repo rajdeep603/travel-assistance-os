@@ -35,6 +35,12 @@ interface CallOutcome {
   cancelled?: string;
   uploadLink?: { claim?: string; sent?: boolean };
   letterReceipt?: { ref?: string; received?: boolean };
+  billAgreement?: { outcome?: string; amount?: number | null; currency?: string; holdHarmless?: boolean };
+  transportPlan?: { ref?: string; mode?: string };
+  guaranteeEnquiry?: { hospital?: string; letters?: string[] };
+  guaranteeResent?: { ref?: string; via?: string };
+  topUpRequest?: { letter_ref?: string; new_estimated_total?: number; currency?: string; reason?: string };
+  statusGiven?: { caseRef?: string };
   answeredBy?: string;
   endReason?: string;
 }
@@ -79,6 +85,14 @@ const BENEFITS: Record<string, string> = {
   BAGGAGE_DELAY: "a baggage delay",
   TRIP_CANCELLATION: "a trip cancellation",
   PRE_EXISTING_CONDITIONS: "a pre-existing condition",
+};
+
+const TRANSPORT_MODES: Record<string, string> = {
+  COMMERCIAL: "a seated scheduled flight",
+  COMMERCIAL_ESCORTED: "a scheduled flight with a medical escort",
+  COMMERCIAL_STRETCHER: "a stretcher on a scheduled flight",
+  AIR_AMBULANCE: "an air ambulance",
+  NOT_FIT_TO_FLY: "not fit to fly yet",
 };
 
 const ENDINGS: Record<string, string> = {
@@ -216,6 +230,34 @@ function updateSentences(o: CallOutcome, context: ConversationSummaryContext): s
         : `Hospital has not received ${o.letterReceipt.ref} — it needs to be resent.`
     );
   }
+
+  const b = o.billAgreement;
+  if (b?.outcome) {
+    const amount = b.amount != null ? `${Number(b.amount).toLocaleString("en-GB", { minimumFractionDigits: 2 })}${b.currency ? ` ${b.currency}` : ""}` : null;
+    out.push(
+      b.outcome === "AGREED"
+        ? `Hospital billing agreed ${amount ?? "the reviewed amount"} as full payment${b.holdHarmless ? ", and won't bill the patient the difference" : ""}.`
+        : b.outcome === "COUNTER_OFFER"
+          ? `Hospital billing countered${amount ? ` at ${amount}` : ""}; a case manager decides.`
+          : b.outcome === "REFUSED"
+            ? "Hospital billing refused the reduction; a case manager follows up."
+            : "Hospital billing will call back about the invoice."
+    );
+  }
+  if (o.transportPlan?.ref) {
+    out.push(`Treating doctor assessed ${patient ?? "the patient"} for transport home: ${TRANSPORT_MODES[o.transportPlan.mode ?? ""] ?? "plan recorded"} (${o.transportPlan.ref}).`);
+  }
+  if (o.guaranteeEnquiry?.letters?.length) {
+    out.push(`${plain(o.guaranteeEnquiry.hospital) ?? "A hospital"} asked about ${listJoin(o.guaranteeEnquiry.letters)}; status and amount given.`);
+  }
+  if (o.guaranteeResent?.ref) out.push(`Re-sent ${o.guaranteeResent.ref} by ${o.guaranteeResent.via === "EMAIL" ? "e-mail" : "fax"}.`);
+  if (o.topUpRequest?.letter_ref) {
+    const t = o.topUpRequest;
+    out.push(
+      `Hospital asked to raise ${t.letter_ref} to ${Number(t.new_estimated_total ?? 0).toLocaleString("en-GB")}${t.currency ? ` ${t.currency}` : ""}${t.reason ? ` (${clause(t.reason)})` : ""}; for a case manager.`
+    );
+  }
+  if (o.statusGiven?.caseRef) out.push(`Gave ${patient ?? "the caller"} an update on ${o.statusGiven.caseRef}.`);
 
   if (out.length && context.caseRef && context.direction === "outbound") {
     out[0] = `${out[0].slice(0, -1)} (case ${context.caseRef}).`;

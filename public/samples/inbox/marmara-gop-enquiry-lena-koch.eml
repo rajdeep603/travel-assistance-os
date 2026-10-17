@@ -1,0 +1,34 @@
+From: Marmara Demo Heart Center International <international@demo-heart.example>
+To: medical@inbound.demo-assistance.example
+Subject: GOP status: Lena Koch (LOG-0902)
+Date: Fri, 16 Oct 2026 10:25:00 +0300
+Message-ID: <2a436bb63ebae89a@demo-heart.example>
+MIME-Version: 1.0
+X-Sample: fictional demonstration message
+Content-Type: multipart/mixed; boundary="mixed_2a436bb63ebae89a"
+
+--mixed_2a436bb63ebae89a
+Content-Type: multipart/alternative; boundary="alt_2a436bb63ebae89a"
+
+--alt_2a436bb63ebae89a
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+RGVhciBjb2xsZWFndWVzLAoKQ291bGQgeW91IHBsZWFzZSBjb25maXJtIHRoZSBzdGF0dXMgb2Yg
+dGhlIGd1YXJhbnRlZSBvZiBwYXltZW50IGZvciB5b3VyIGluc3VyZWQgTGVuYSBLb2NoIChib3Ju
+IDI5LjA3LjE5NjQpPyBPdXIgYmlsbGluZyB0ZWFtIGNhbm5vdCBmaW5kIHRoZSBsZXR0ZXIuCgpC
+ZXN0IHJlZ2FyZHMsCkludGVybmF0aW9uYWwgUGF0aWVudHMgRGVzaw==
+--alt_2a436bb63ebae89a
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLEhlbHZl
+dGljYSxzYW5zLXNlcmlmO2ZvbnQtc2l6ZToxNHB4O2xpbmUtaGVpZ2h0OjEuNTtjb2xvcjojMWYy
+OTM3Ij4KPHAgc3R5bGU9Im1hcmdpbjowIDAgMTJweCI+RGVhciBjb2xsZWFndWVzLDwvcD4KPHAg
+c3R5bGU9Im1hcmdpbjowIDAgMTJweCI+Q291bGQgeW91IHBsZWFzZSBjb25maXJtIHRoZSBzdGF0
+dXMgb2YgdGhlIGd1YXJhbnRlZSBvZiBwYXltZW50IGZvciB5b3VyIGluc3VyZWQgTGVuYSBLb2No
+IChib3JuIDI5LjA3LjE5NjQpPyBPdXIgYmlsbGluZyB0ZWFtIGNhbm5vdCBmaW5kIHRoZSBsZXR0
+ZXIuPC9wPgo8cCBzdHlsZT0ibWFyZ2luOjAgMCAxMnB4Ij5CZXN0IHJlZ2FyZHMsPGJyPkludGVy
+bmF0aW9uYWwgUGF0aWVudHMgRGVzazwvcD4KPC9ib2R5PjwvaHRtbD4=
+--alt_2a436bb63ebae89a--
+--mixed_2a436bb63ebae89a--
