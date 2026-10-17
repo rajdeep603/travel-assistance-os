@@ -22,6 +22,10 @@ const LABELS: Record<string, [activity: string, chip: string]> = {
   request_guarantee_increase: ["Recording the request to raise the guarantee", "Top-up requested"],
   record_bill_agreement: ["Recording the hospital's answer on the bill", "Bill agreement"],
   record_transport_assessment: ["Planning the medical transport home", "Transport plan"],
+  lookup_case: ["Looking up the case", "Case lookup"],
+  search_records: ["Searching the records", "Record search"],
+  find_providers: ["Finding providers", "Provider search"],
+  open_record: ["Opening it on screen", "Opened on screen"],
   transfer_to_human: ["Handing over to a person", "Handover"],
   end_call: ["Ending the call", "Call ended"],
 };

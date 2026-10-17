@@ -1,3 +1,5 @@
+import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
+import { AssistantProvider } from "@/components/assistant/assistant-provider";
 import { CommandPalette, SearchButton } from "@/components/command-palette";
 import { MobileNav, SideNav } from "@/components/nav";
 import { OperatorMenu } from "@/components/operator-menu";
@@ -9,42 +11,45 @@ import { SessionWatch } from "@/components/session-watch";
 /** The operator workspace: sidebar navigation, header and page content. */
 export default function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="flex min-h-screen">
-      <SessionWatch />
-      <CommandPalette />
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-stage pb-6 md:flex">
-        <div className="flex items-center gap-2.5 px-5 py-6 text-white">
-          <BrandMark size={36} />
-          <div>
-            <p className="text-lg font-semibold leading-tight tracking-tight">{BRAND.name}</p>
-            <p className="text-xs leading-snug text-stage-muted">{BRAND.tagline}</p>
+    <AssistantProvider>
+      <div className="flex min-h-screen">
+        <SessionWatch />
+        <CommandPalette />
+        <AssistantLauncher />
+        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-stage pb-6 md:flex">
+          <div className="flex items-center gap-2.5 px-5 py-6 text-white">
+            <BrandMark size={36} />
+            <div>
+              <p className="text-lg font-semibold leading-tight tracking-tight">{BRAND.name}</p>
+              <p className="text-xs leading-snug text-stage-muted">{BRAND.tagline}</p>
+            </div>
           </div>
+          <SideNav />
+          <p className="mt-auto px-6 pt-6 text-xs text-stage-muted/80">{POWERED_BY}</p>
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur md:px-6 md:py-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <MobileNav />
+              <p className="flex items-center gap-2 text-sm font-semibold text-slate-700 md:hidden">
+                <BrandMark size={24} />
+                <span className="hidden min-[380px]:inline">{BRAND.name}</span>
+              </p>
+              <SearchButton />
+            </div>
+            <div className="flex items-center gap-2">
+              <OperatorMenu />
+              <PresentToggle />
+              <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 md:text-xs">
+                Fictional data
+              </span>
+            </div>
+          </header>
+          <main id="main-content" className="min-w-0 flex-1 px-4 py-5 md:px-6 md:py-6 lg:px-10">
+            {children}
+          </main>
         </div>
-        <SideNav />
-        <p className="mt-auto px-6 pt-6 text-xs text-stage-muted/80">{POWERED_BY}</p>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur md:px-6 md:py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <MobileNav />
-            <p className="flex items-center gap-2 text-sm font-semibold text-slate-700 md:hidden">
-              <BrandMark size={24} />
-              <span className="hidden min-[380px]:inline">{BRAND.name}</span>
-            </p>
-            <SearchButton />
-          </div>
-          <div className="flex items-center gap-2">
-            <OperatorMenu />
-            <PresentToggle />
-            <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 md:text-xs">
-              Fictional data
-            </span>
-          </div>
-        </header>
-        <main id="main-content" className="min-w-0 flex-1 px-4 py-5 md:px-6 md:py-6 lg:px-10">
-          {children}
-        </main>
       </div>
-    </div>
+    </AssistantProvider>
   );
 }

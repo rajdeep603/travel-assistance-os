@@ -1,5 +1,6 @@
 import { appointmentBookingAgent } from "./appointment-booking";
 import { inboundHotlineAgent } from "./inbound-hotline";
+import { internalAssistantAgent } from "./internal-assistant";
 import { OUTBOUND_AGENTS } from "./outbound";
 import { providerLineAgent } from "./provider-line";
 import type { AgentProfile } from "./types";
@@ -25,7 +26,7 @@ export const interpreterProfile: AgentProfile = {
 };
 
 const PROFILES = new Map<string, AgentProfile>(
-  [appointmentBookingAgent, inboundHotlineAgent, providerLineAgent, ...OUTBOUND_AGENTS, interpreterProfile].map((p) => [p.id, p])
+  [appointmentBookingAgent, inboundHotlineAgent, providerLineAgent, ...OUTBOUND_AGENTS, interpreterProfile, internalAssistantAgent].map((p) => [p.id, p])
 );
 
 /** Adds profiles (later phases register the hotline and outbound agents). */
@@ -37,8 +38,11 @@ export function getAgent(id: string): AgentProfile | undefined {
   return PROFILES.get(id);
 }
 
+/** The call agents; the internal assistant talks to colleagues, not callers, so it isn't listed. */
 export function listAgents(): AgentProfile[] {
-  return [...PROFILES.values()];
+  return [...PROFILES.values()].filter((p) => !p.internal);
 }
+
+export { INTERNAL_AGENT_IDS } from "./ids";
 
 export const DEFAULT_BROWSER_AGENT = appointmentBookingAgent.id;

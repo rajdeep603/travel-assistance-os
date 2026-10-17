@@ -119,3 +119,34 @@ test("the business case recalculates from the visitor's own numbers", async ({ p
   await page.getByRole("button", { name: "Large insurer" }).click();
   await expect(page.getByRole("button", { name: "Large insurer" })).toHaveAttribute("aria-pressed", "true");
 });
+
+test("the floating AI assistant keeps the conversation and its history, with voice mode a click away", async ({ page }) => {
+  await page.goto("/cases");
+  await page.getByRole("button", { name: "Open the AI assistant" }).click();
+  const panel = page.getByRole("dialog", { name: "AI assistant" });
+  const box = panel.getByRole("textbox", { name: "Ask the assistant a question" });
+  await box.fill("What is the status of CASE-1024?");
+  await box.press("Enter");
+  await expect(panel.getByText(/Assigned to Elif Demirtas/)).toBeVisible();
+  // A follow-up about "it" stays on the case.
+  await box.fill("Who is it assigned to?");
+  await box.press("Enter");
+  await expect(panel.getByText(/Assigned to Elif Demirtas/)).toHaveCount(2);
+
+  // The conversation comes back after a reload, and is listed under History.
+  await page.reload();
+  await page.getByRole("button", { name: "Open the AI assistant" }).click();
+  await expect(panel.getByText("Who is it assigned to?")).toBeVisible();
+  await panel.getByRole("button", { name: "Conversation history" }).click();
+  await expect(panel.getByRole("list", { name: "Earlier conversations" }).getByText("What is the status of CASE-1024?").first()).toBeVisible();
+  await panel.getByRole("button", { name: "Conversation history" }).click();
+
+  // Voice mode explains itself when the voice service isn't configured.
+  await panel.getByRole("button", { name: "Talk to the assistant (voice mode)" }).click();
+  await expect(panel.getByRole("alert")).toContainText("isn't configured");
+
+  // The full page shows the same conversation, without the floating button.
+  await page.goto("/assistant");
+  await expect(page.getByText("Who is it assigned to?")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open the AI assistant" })).toHaveCount(0);
+});

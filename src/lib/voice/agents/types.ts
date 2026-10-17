@@ -1,3 +1,5 @@
+import type { ChatMessage } from "@/lib/services/types";
+
 export type VoiceChannel = "PHONE" | "BROWSER";
 
 /** Facts known when a session starts, woven into the agent's instructions. */
@@ -50,4 +52,11 @@ export interface AgentProfile {
   buildBrief?(caseId: string): Promise<Record<string, unknown>>;
   /** Outbound only: the number to suggest (patient's or provider's phone). */
   suggestNumber?(caseId: string): Promise<string | null>;
+  /**
+   * Talks to the operations team, not to callers (the internal assistant):
+   * kept out of the Call Center's lists, live board and metrics.
+   */
+  internal?: boolean;
+  /** Runs when the session ends, before the browser is told; e.g. to save the transcript elsewhere. */
+  afterSession?(session: { callRef: string; outcome: Record<string, unknown>; messages: ChatMessage[] }): Promise<void>;
 }

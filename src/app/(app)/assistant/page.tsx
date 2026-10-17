@@ -1,197 +1,72 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import Markdown from "react-markdown";
-import { BookOpenText, FileText, SendHorizonal, Sparkles } from "lucide-react";
-import {
-  AISourceBadge,
-  Button,
-  Card,
-  ErrorBanner,
-  PageHeader,
-} from "@/components/ui";
-import { useWordReveal } from "@/lib/client/use-word-reveal";
+import { useEffect } from "react";
+import { History, SquarePen } from "lucide-react";
+import { Card, PageHeader } from "@/components/ui";
+import { AssistantComposer, AssistantHistory, AssistantMessages, VoiceBar } from "@/components/assistant/assistant-conversation";
+import { NEW_TITLE, useAssistant } from "@/components/assistant/assistant-provider";
 
-/** Animated "assistant is thinking" indicator. */
-function TypingIndicator() {
-  return (
-    <div className="flex justify-start" role="status" aria-label="The assistant is thinking">
-      <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-3">
-        <Sparkles size={14} className="text-ai" aria-hidden />
-        <span className="flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="animate-typing-dot h-1.5 w-1.5 rounded-full bg-slate-400"
-              style={{ animationDelay: `${i * 0.18}s` }}
-            />
-          ))}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-interface Turn {
-  role: "user" | "assistant";
-  text: string;
-  sources?: { title: string; source: string }[];
-  aiSource?: string;
-  /** Arrived in this visit: written out word by word once. */
-  fresh?: boolean;
-}
-
-/** An assistant answer: written out word by word, then its sources. */
-function AnswerBubble({ turn, onGrow }: { turn: Turn; onGrow: () => void }) {
-  const { shown, done } = useWordReveal(turn.text, !!turn.fresh);
-  useEffect(onGrow, [shown, onGrow]);
-  return (
-    <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-slate-100 px-4 py-2.5">
-      <div className="prose-chat text-sm leading-relaxed text-ink">
-        <Markdown>{shown}</Markdown>
-      </div>
-      {done && turn.sources?.length ? (
-        <div className="animate-fade-in mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-200 pt-2">
-          <AISourceBadge source={turn.aiSource} />
-          <span className="text-[11px] font-medium text-slate-500">Sources</span>
-          {turn.sources.map((s) => (
-            <span
-              key={s.title}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-surface px-2 py-0.5 text-[11px] text-slate-500"
-            >
-              <FileText size={10} aria-hidden />
-              {s.title}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-const SUGGESTED = [
-  "What documents are required for a hospitalization case?",
-  "What is the status of CASE-1024?",
-  "What is the process for arranging hospital admission?",
-  "Which providers are available in Istanbul?",
-  "When does a claim need to be escalated?",
-];
-
+/**
+ * The internal assistant full size: the same conversation, voice mode and
+ * history as the floating panel, with the earlier conversations alongside.
+ */
 export default function AssistantPage() {
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const chatBoxRef = useRef<HTMLDivElement>(null);
-
-  // Pin the chat to the latest message (scoped to the box — scrollIntoView
-  // would also scroll the page).
-  const pinToLatest = useCallback(() => {
-    const box = chatBoxRef.current;
-    if (box) box.scrollTop = box.scrollHeight;
-  }, []);
-  useEffect(pinToLatest, [turns, busy, pinToLatest]);
-
-  async function ask(question: string) {
-    const q = question.trim();
-    if (!q || busy) return;
-    setError(null);
-    setInput("");
-    setTurns((t) => [...t, { role: "user", text: q }]);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/assistant/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        setError(body?.error?.message ?? "The assistant could not answer — please try again.");
-        return;
-      }
-      const body = await res.json();
-      setTurns((t) => [
-        ...t,
-        { role: "assistant", text: body.answer, sources: body.sources, aiSource: body.aiSource, fresh: true },
-      ]);
-    } catch {
-      setError("The assistant is unreachable — please check your connection.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { view, setView, title, threadId, newConversation } = useAssistant();
+  const showHistory = view === "history";
+  // The chat first; the list sits alongside on wide screens.
+  useEffect(() => setView("chat"), [setView]);
 
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader
         title="Internal AI Assistant"
-        subtitle="Answers from your operating procedures, cases and provider network — always with sources."
+        subtitle="Answers from your operating procedures, cases and provider network, always with sources. Type, or switch on voice and ask out loud."
       />
-      {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
+      <div className="flex max-w-5xl gap-4">
+        <Card className="hidden w-72 shrink-0 flex-col lg:flex lg:h-[66vh] lg:min-h-[480px]">
+          <p className="mb-3 text-sm font-semibold text-ink">Conversations</p>
+          <AssistantHistory className="flex-1" />
+        </Card>
 
-      <Card className="flex h-[62vh] min-h-[480px] max-w-4xl flex-col">
-        <div ref={chatBoxRef} className="flex-1 space-y-4 overflow-y-auto pr-1">
-          {turns.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center">
-              <BookOpenText size={28} className="text-slate-300" />
-              <p className="mt-3 text-sm font-medium text-slate-500">
-                Ask about cases, providers or operational procedures
-              </p>
-              <div className="mt-4 flex max-w-md flex-wrap justify-center gap-2">
-                {SUGGESTED.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => ask(s)}
-                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 transition-colors hover:border-blue-400 hover:text-blue-600"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+        <Card className="flex h-[66vh] min-h-[480px] min-w-0 flex-1 flex-col">
+          <div className="mb-3 flex items-center gap-2 border-b border-line pb-3">
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+              {showHistory ? "Conversations" : threadId && title !== NEW_TITLE ? title : "New conversation"}
+            </p>
+            <button
+              type="button"
+              onClick={() => setView(showHistory ? "chat" : "history")}
+              aria-pressed={showHistory}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-100 lg:hidden"
+            >
+              <History size={14} aria-hidden />
+              History
+            </button>
+            <button
+              type="button"
+              onClick={newConversation}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors duration-150 hover:bg-slate-100"
+            >
+              <SquarePen size={14} aria-hidden />
+              New
+            </button>
+          </div>
+          {showHistory ? (
+            <AssistantHistory className="flex-1 lg:hidden" />
+          ) : null}
+          <div className={`min-h-0 flex-1 flex-col ${showHistory ? "hidden lg:flex" : "flex"}`}>
+            <AssistantMessages />
+            <VoiceBar />
+            <div className="mt-3">
+              <AssistantComposer />
             </div>
-          ) : (
-            turns.map((t, i) =>
-              t.role === "user" ? (
-                <div key={i} className="animate-fade-up flex justify-end">
-                  <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-brand px-4 py-2.5 text-sm text-white shadow-sm">
-                    {t.text}
-                  </div>
-                </div>
-              ) : (
-                <div key={i} className="animate-fade-up flex justify-start">
-                  <AnswerBubble turn={t} onGrow={pinToLatest} />
-                </div>
-              )
-            )
-          )}
-          {busy ? <TypingIndicator /> : null}
-        </div>
-        <form
-          className="mt-4 flex gap-2 border-t border-slate-100 pt-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            ask(input);
-          }}
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a question…"
-            aria-label="Ask the assistant a question"
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          />
-          <Button type="submit" disabled={busy || input.trim().length === 0}>
-            <SendHorizonal size={15} />
-            Ask
-          </Button>
-        </form>
-      </Card>
+          </div>
+        </Card>
+      </div>
 
-      <p className="mt-3 max-w-4xl text-xs text-slate-400">
-        Answers come only from the knowledge base and platform records. The assistant
-        does not give medical advice.
+      <p className="mt-3 max-w-5xl text-xs text-slate-400">
+        Answers come only from the knowledge base and platform records. The assistant does not give medical advice. Conversations are kept for you
+        under History.
       </p>
     </div>
   );

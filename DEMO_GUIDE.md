@@ -117,8 +117,12 @@ The original modules, unchanged:
 - **Claims Automation** (`/claims`) — `CLM-10245`, completeness, *Request
   Information*.
 - **Provider Search** (`/providers`) — *Why this provider?*, book a slot.
-- **Internal AI Assistant** (`/assistant`) — procedures with sources,
-  live case status.
+- **Internal AI Assistant** (the round button bottom right, on every page,
+  or `/assistant`) — procedures with sources, live case status; follow-ups
+  ("who is it assigned to?") stay on the case. Press the microphone for
+  **voice mode**: ask out loud, it carries on from what was typed, and
+  "open it" puts the case on screen while you keep talking. Every
+  conversation, typed and spoken, is kept under *History*.
 - **Voice Agents** (`/voice`) — every agent in the browser, in any of 14
   languages: pick it, *Start*, talk (or type); what it records appears
   below the stage and on the case.

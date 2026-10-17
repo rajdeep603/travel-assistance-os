@@ -6,6 +6,7 @@ import type {
   CaseIntakeAnalysis,
   ChatMessage,
   ClaimSummaryInput,
+  AssistantTurn,
   ContextChunk,
   ConversationSummaryContext,
   DocumentFile,
@@ -74,8 +75,8 @@ class ResilientAIService implements AIService {
   classifyDocument(text: string, filename?: string): Promise<DocumentKind> {
     return this.run("classifyDocument", (s) => s.classifyDocument(text, filename));
   }
-  answerWithContext(question: string, context: ContextChunk[]): Promise<string> {
-    return this.run("answerWithContext", (s) => s.answerWithContext(question, context));
+  answerWithContext(question: string, context: ContextChunk[], history?: AssistantTurn[]): Promise<string> {
+    return this.run("answerWithContext", (s) => s.answerWithContext(question, context, history));
   }
   summarizeClaim(input: ClaimSummaryInput): Promise<string> {
     return this.run("summarizeClaim", (s) => s.summarizeClaim(input));

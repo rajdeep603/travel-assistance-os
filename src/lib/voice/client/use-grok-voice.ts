@@ -106,6 +106,14 @@ export function resultOf(e: Record<string, unknown>): Omit<AgentResult, "id"> | 
   }
 }
 
+/** What /api/voice/session returned for a started session. */
+export interface VoiceSessionInfo {
+  url: string;
+  call: { id: string; ref: string };
+  /** Internal assistant: the conversation the session saves into. */
+  thread?: { id: string };
+}
+
 export interface VoiceState {
   phase: "idle" | "starting" | "live" | "ended" | "error";
   callRef: string | null;
@@ -129,6 +137,8 @@ export interface VoiceState {
   handoff: { target: string; reason: string; summary: string } | null;
   /** What the agent recorded during the session (guarantee found, bill agreed, …). */
   results: AgentResult[];
+  /** A page the agent asked to open on the operator's screen (internal assistant). */
+  navigate: { id: number; href: string; label: string } | null;
   endReason: string | null;
 }
 
@@ -151,6 +161,7 @@ const initial: VoiceState = {
   caseRef: null,
   handoff: null,
   results: [],
+  navigate: null,
   endReason: null,
 };
 
@@ -174,6 +185,8 @@ interface GatewayEvent {
   agent?: string;
   data?: string;
   mark?: string;
+  href?: string;
+  label?: string;
 }
 
 type Action =
@@ -266,6 +279,11 @@ export function voiceReducer(state: VoiceState, action: Action): VoiceState {
           return { ...state, booking: e as unknown as Booking, caseRef: e.case ?? state.caseRef };
         case "case":
           return { ...state, caseRef: e.case ?? state.caseRef };
+        case "navigate":
+          // Only paths inside the app.
+          return e.href?.startsWith("/") && !e.href.startsWith("//")
+            ? { ...state, navigate: { id: ++toolId, href: e.href, label: e.label ?? e.href } }
+            : state;
         case "handoff":
           return { ...state, handoff: { target: e.target ?? "", reason: e.reason ?? "", summary: e.summary ?? "" } };
         case "error":
@@ -317,7 +335,7 @@ export function useGrokVoice() {
   useEffect(() => teardown, [teardown]);
 
   const start = useCallback(
-    async (opts: { profile?: string; caseId?: string; language?: string } = {}) => {
+    async (opts: { profile?: string; caseId?: string; language?: string; threadId?: string } = {}): Promise<VoiceSessionInfo | null> => {
       teardown();
       dispatch({ type: "start" });
       // Created synchronously in the click handler so audio output is allowed.
@@ -339,7 +357,7 @@ export function useGrokVoice() {
         }
       );
 
-      let session: { url: string; call: { ref: string } };
+      let session: VoiceSessionInfo;
       try {
         const res = await fetch("/api/voice/session", {
           method: "POST",
@@ -354,13 +372,13 @@ export function useGrokVoice() {
             code: body?.error?.code,
           });
           void audio.close();
-          return;
+          return null;
         }
         session = body;
       } catch {
         dispatch({ type: "error", message: "Could not reach the server. Check your connection and try again." });
         void audio.close();
-        return;
+        return null;
       }
 
       const ws = new WebSocket(session.url);
@@ -422,6 +440,7 @@ export function useGrokVoice() {
 
       tickRef.current = window.setInterval(() => dispatch({ type: "speaking", agent: audio.isSpeaking() }), 120);
       void micReady;
+      return session;
     },
     [teardown]
   );

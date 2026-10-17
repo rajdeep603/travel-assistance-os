@@ -17,18 +17,20 @@ import {
   Presentation,
   ReceiptText,
   Search,
+  Sparkles,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+import { OPEN_ASSISTANT_EVENT, type OpenAssistantDetail } from "@/components/assistant/assistant-provider";
 import { NAV_ITEMS } from "@/components/nav";
 import { setPresentMode } from "@/lib/present-mode";
 import type { SearchHit, SearchKind } from "@/lib/services/search";
 
 // ---------------------------------------------------------------------------
 // Command palette (⌘K / Ctrl K): jump to any module, start any voice agent,
-// receive a sample e-mail or fax, toggle presentation mode, or find any
-// record (case, traveller, claim, call, message, guarantee, transport plan,
-// document, appointment) by name or reference.
+// receive a sample e-mail or fax, toggle presentation mode, ask the AI
+// assistant, or find any record (case, traveller, claim, call, message,
+// guarantee, transport plan, document, appointment) by name or reference.
 // ---------------------------------------------------------------------------
 
 interface Item {
@@ -176,6 +178,14 @@ export function CommandPalette() {
     });
     for (const e of samples?.emails ?? []) items.push(receive("email", e.id, e.label));
     for (const f of samples?.faxes ?? []) items.push(receive("fax", f.id, f.label));
+    const assistant = (detail: OpenAssistantDetail) => {
+      close();
+      window.dispatchEvent(new CustomEvent<OpenAssistantDetail>(OPEN_ASSISTANT_EVENT, { detail }));
+    };
+    items.push(
+      { id: "action:assistant", group: "Actions", label: "Ask the AI assistant", hint: "Chat, with your history", icon: Sparkles, keywords: "assistant ai chat question help", run: () => assistant({}) },
+      { id: "action:assistant-voice", group: "Actions", label: "Talk to the AI assistant", hint: "Voice mode", icon: Mic, keywords: "assistant ai voice talk speak", run: () => assistant({ voice: true }) }
+    );
     items.push({
       id: "action:present",
       group: "Actions",
@@ -213,8 +223,26 @@ export function CommandPalette() {
     const weak = cmds.filter((c) => !leads(c));
     // An exact reference hit goes first of all.
     const exact = hits[0] && hits[0].ref.toUpperCase() === query.trim().toUpperCase() ? found.slice(0, 1) : [];
-    return [...exact, ...strong.slice(0, 12), ...found.slice(exact.length), ...weak.slice(0, 6)];
-  }, [query, hits, commands, go]);
+    // A question can go straight to the assistant.
+    const question = query.trim();
+    const askIt: Item[] =
+      question.length >= 3 && !exact.length
+        ? [
+            {
+              id: "assistant:ask",
+              group: "Ask the AI assistant",
+              label: `“${question}”`,
+              hint: "Answer with sources",
+              icon: Sparkles,
+              run: () => {
+                close();
+                window.dispatchEvent(new CustomEvent<OpenAssistantDetail>(OPEN_ASSISTANT_EVENT, { detail: { question } }));
+              },
+            },
+          ]
+        : [];
+    return [...exact, ...strong.slice(0, 12), ...found.slice(exact.length), ...weak.slice(0, 6), ...askIt];
+  }, [query, hits, commands, go, close]);
 
   useEffect(() => setActive(0), [query, hits.length]);
   useEffect(() => {
@@ -260,6 +288,7 @@ export function CommandPalette() {
       {open ? (
         <motion.div
           key="palette"
+          data-command-palette
           className="fixed inset-0 z-50 flex items-start justify-center bg-ink/40 px-4 pt-[12vh] backdrop-blur-[2px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

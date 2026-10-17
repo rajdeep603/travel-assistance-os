@@ -129,8 +129,10 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     if (!flushTimer) flushTimer = setTimeout(flush, 1500);
   };
 
-  const publish = (event: Record<string, unknown>) =>
-    monitorBus.publish({ callId: call.id, callRef: call.ref, type: String(event.type), ...event });
+  // The live Call Center board shows calls, not colleagues talking to the internal assistant.
+  const publish = (event: Record<string, unknown>) => {
+    if (!profile.internal) monitorBus.publish({ callId: call.id, callRef: call.ref, type: String(event.type), ...event });
+  };
 
   const emit = (event: Record<string, unknown>) => {
     leg.sendEvent(event);
@@ -343,13 +345,19 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     disarmIdle();
     for (const t of timers) clearTimeout(t);
     session.close();
+    // Before the browser hears the session has ended, so what it reloads includes it.
+    if (profile.afterSession) {
+      await profile
+        .afterSession({ callRef: call.ref, outcome, messages })
+        .catch((err) => console.error(`[voice] ${call.ref} after-session step failed:`, err));
+    }
     leg.close(reason);
     if (flushTimer) clearTimeout(flushTimer);
     await flush();
 
     const durationSec = Math.round((Date.now() - startedAt) / 1000);
     let summary: string | null = null;
-    if (messages.length > 0) {
+    if (messages.length > 0 && !profile.internal) {
       const context = await summaryContext({ ...outcome, endReason: reason });
       summary = await Promise.race([
         runAI("summarizeConversation", (ai) => ai.summarizeConversation(messages, context)).then((r) => r.value),
@@ -402,7 +410,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   }
 
   await prisma.call.update({ where: { id: call.id }, data: { status: "IN_PROGRESS", answeredAt: new Date() } });
-  monitorBus.started({
+  if (!profile.internal) monitorBus.started({
     callId: call.id,
     callRef: call.ref,
     profileId: profile.id,

@@ -74,6 +74,12 @@ export interface ContextChunk {
   score: number;
 }
 
+/** An earlier turn of an assistant conversation, for follow-up questions. */
+export interface AssistantTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 export interface AssistantAnswer {
   answer: string;
   sources: { title: string; source: string }[];
@@ -131,7 +137,8 @@ export interface AIService {
   extractMedicalDocument(text: string): Promise<MedicalExtractionResult>;
   analyzeAssistanceRequest(text: string): Promise<CaseIntakeAnalysis>;
   classifyDocument(text: string, filename?: string): Promise<DocumentKind>;
-  answerWithContext(question: string, context: ContextChunk[]): Promise<string>;
+  /** `history`: the conversation so far, oldest first, so follow-ups ("and its claim?") make sense. */
+  answerWithContext(question: string, context: ContextChunk[], history?: AssistantTurn[]): Promise<string>;
   summarizeClaim(input: ClaimSummaryInput): Promise<string>;
   summarizeConversation(messages: ChatMessage[], context?: ConversationSummaryContext): Promise<string>;
   /** OCR: reads a scanned / faxed / handwritten document that has no text layer. */

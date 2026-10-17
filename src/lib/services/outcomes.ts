@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { LANGUAGE_NAMES } from "@/lib/intake/language";
+import { INTERNAL_AGENT_IDS } from "@/lib/voice/agents/ids";
 import { INTERPRETER_LANGUAGES } from "@/lib/voice/interpreter-prompt";
 
 // ---------------------------------------------------------------------------
@@ -58,7 +59,7 @@ export async function getOutcomes(days = 30, now = new Date()): Promise<Outcomes
   const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   const [calls, inbound, replies, letters, documents, confidence] = await Promise.all([
     prisma.call.findMany({
-      where: { createdAt: { gte: since }, status: { in: ["COMPLETED", "TRANSFERRED", "VOICEMAIL", "FAILED"] } },
+      where: { createdAt: { gte: since }, status: { in: ["COMPLETED", "TRANSFERRED", "VOICEMAIL", "FAILED"] }, agentProfile: { notIn: INTERNAL_AGENT_IDS } },
       select: { status: true, channel: true, direction: true, language: true, startedAt: true, answeredAt: true },
     }),
     prisma.inboundMessage.findMany({ where: { receivedAt: { gte: since } }, select: { status: true, language: true } }),

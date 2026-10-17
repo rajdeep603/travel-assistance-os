@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { runAI } from "./ai";
 import { findCity } from "./nlu";
-import type { AssistantAnswer, ContextChunk } from "./types";
+import type { AssistantAnswer, AssistantTurn, ContextChunk } from "./types";
 
 // ---------------------------------------------------------------------------
 // Internal AI Assistant: lightweight RAG over the seeded operational
@@ -82,9 +82,34 @@ export async function retrieveContext(question: string, k = 3): Promise<ContextC
     .slice(0, k);
 }
 
-export async function askAssistant(question: string): Promise<AssistantAnswer> {
-  // Structured intent 1: case status lookup (e.g. "status of CASE-1024").
-  const caseRef = question.match(/\bCASE-\d+\b/i)?.[0]?.toUpperCase();
+/** How far back a follow-up looks for what "it" is. */
+const FOLLOW_UP_TURNS = 6;
+
+/**
+ * The case a follow-up is about: "who is it assigned to?" after CASE-1024
+ * came up. Needs both a word pointing back and a case-status word, so a new
+ * question about procedures isn't taken for a case lookup.
+ */
+export function followUpCaseRef(question: string, history: AssistantTurn[]): string | null {
+  if (!/\b(it|its|this|that|the|same)\s+(case|patient|traveller)\b|\b(it|its|they|their|he|his|she|her)\b/i.test(question)) return null;
+  if (!/\b(status|assigned|appointment|update|progress|priority|summary|doing)\b/i.test(question)) return null;
+  for (const turn of history.slice(-FOLLOW_UP_TURNS).reverse()) {
+    const refs = turn.text.match(/\bCASE-\d+\b/gi);
+    if (refs) return refs[refs.length - 1].toUpperCase();
+  }
+  return null;
+}
+
+/** What to search the knowledge base for: a short follow-up ("and for outpatients?") borrows the previous question. */
+export function retrievalQuery(question: string, history: AssistantTurn[]): string {
+  const followUp = /^(and|also|what about|how about|then|so)\b|\b(it|that|this|those|them|they)\b/i.test(question.trim());
+  const previous = [...history].reverse().find((t) => t.role === "user");
+  return followUp && previous && tokenize(question).length < 8 ? `${previous.text} ${question}` : question;
+}
+
+export async function askAssistant(question: string, history: AssistantTurn[] = []): Promise<AssistantAnswer> {
+  // Structured intent 1: case status lookup (e.g. "status of CASE-1024", or "who is it assigned to?" after one).
+  const caseRef = question.match(/\bCASE-\d+\b/i)?.[0]?.toUpperCase() ?? followUpCaseRef(question, history);
   if (caseRef) {
     const c = await prisma.case.findUnique({
       where: { ref: caseRef },
@@ -135,9 +160,9 @@ export async function askAssistant(question: string): Promise<AssistantAnswer> {
   }
 
   // Otherwise: RAG over the knowledge base.
-  const context = await retrieveContext(question);
+  const context = await retrieveContext(retrievalQuery(question, history));
   const { value: answer, source: aiSource } = await runAI("answerWithContext", (ai) =>
-    ai.answerWithContext(question, context)
+    ai.answerWithContext(question, context, history)
   );
   return {
     answer,

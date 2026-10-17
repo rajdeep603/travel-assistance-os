@@ -1,13 +1,14 @@
 import { json, serialize, withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { maskPhone } from "@/lib/format";
-import { getAgent } from "@/lib/voice/agents/registry";
+import { INTERNAL_AGENT_IDS, getAgent } from "@/lib/voice/agents/registry";
 
 export const dynamic = "force-dynamic";
 
 /** Recent voice sessions (phone and browser), newest first. */
 export const GET = withErrorHandling(async () => {
   const calls = await prisma.call.findMany({
+    where: { agentProfile: { notIn: INTERNAL_AGENT_IDS } },
     orderBy: { startedAt: "desc" },
     take: 60,
     include: { case: { select: { id: true, ref: true } } },

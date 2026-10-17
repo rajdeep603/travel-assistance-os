@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { getAgent } from "@/lib/voice/agents/registry";
+import { INTERNAL_AGENT_IDS, getAgent } from "@/lib/voice/agents/registry";
 
 // ---------------------------------------------------------------------------
 // Global search behind the command palette (⌘K): one query across cases,
@@ -55,7 +55,10 @@ export async function globalSearch(query: string, perKind = 5): Promise<SearchHi
       take,
     }),
     prisma.call.findMany({
-      where: { OR: [{ ref: insensitive(q) }, { summary: insensitive(q) }, { agentProfile: insensitive(q) }, { case: { patient: person } }] },
+      where: {
+        agentProfile: { notIn: INTERNAL_AGENT_IDS },
+        OR: [{ ref: insensitive(q) }, { summary: insensitive(q) }, { agentProfile: insensitive(q) }, { case: { patient: person } }],
+      },
       orderBy: { startedAt: "desc" },
       take,
     }),
