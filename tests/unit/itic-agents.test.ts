@@ -91,6 +91,10 @@ describe("who a hospital caller may hear about", () => {
     expect(nameMatches("Mrs Lena Marie Koch", "Lena", "Koch")).toBe(true);
     expect(nameMatches("Aylin Yılmaz", "Aylin", "Yilmaz")).toBe(true);
     expect(nameMatches("Lena Kochová", "Lena", "Koch")).toBe(false);
+    // Speech recognition heard "Lena" as "Lina" on a live call.
+    expect(nameMatches("Lina Koch", "Lena", "Koch")).toBe(true);
+    expect(nameMatches("Lina Kach", "Lena", "Koch")).toBe(true);
+    expect(nameMatches("Anna Koch", "Lena", "Koch")).toBe(false);
   });
 
   it("only shares a letter with the hospital it was issued to", () => {

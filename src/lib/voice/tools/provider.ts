@@ -25,10 +25,29 @@ const fold = (s: string) =>
     .split(/\s+/)
     .filter(Boolean);
 
-/** Every word of the record's name appears in what was said ("Lena Koch" ⊂ "Mrs Lena Marie Koch"). */
+/** Edit distance, for names the recogniser spelled slightly wrong. */
+function distance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length];
+}
+
+/**
+ * Every word of the record's name appears in what was said ("Lena Koch" ⊂
+ * "Mrs Lena Marie Koch"), allowing one wrong letter in longer words: speech
+ * recognition hears "Lena" as "Lina". Always used with the date of birth.
+ */
 export function nameMatches(said: string, first: string, last: string): boolean {
-  const words = new Set(fold(said));
-  return [...fold(first).slice(0, 1), ...fold(last)].every((w) => words.has(w));
+  const words = fold(said);
+  return [...fold(first).slice(0, 1), ...fold(last)].every((w) => words.some((s) => s === w || (w.length >= 4 && distance(s, w) <= 1)));
 }
 
 /** The caller's hospital and the letter's share a distinctive word ("Marmara"). */
