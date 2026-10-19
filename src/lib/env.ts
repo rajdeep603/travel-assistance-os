@@ -94,6 +94,13 @@ export const env = {
     if (!host || !port || !user || !password || !from) return null;
     return { host, port, user, password, from, fromName: process.env.SES_MAIL_FROM_NAME || "" };
   },
+  /**
+   * Where a visitor's reply to a meeting follow-up goes (a presenter's own
+   * mailbox), since the sender address doesn't take mail. Empty: no Reply-To.
+   */
+  get followUpReplyTo(): string {
+    return (process.env.FOLLOW_UP_REPLY_TO ?? "").trim();
+  },
   /** Sender for e-mail replies and Letters of Guarantee. */
   get emailFrom(): string {
     return process.env.EMAIL_FROM || "claims@demo-assistance.example";

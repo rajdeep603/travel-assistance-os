@@ -26,6 +26,8 @@ export interface EmailMessage {
   attachments?: EmailAttachment[];
   /** Threading: the Message-ID being replied to. */
   inReplyTo?: string;
+  /** Where replies should go, when not to the sender. */
+  replyTo?: string;
 }
 
 export interface EmailService {
@@ -84,6 +86,7 @@ class SesSmtpEmail implements EmailService {
       subject: message.subject,
       text: message.text,
       ...(message.inReplyTo ? { inReplyTo: message.inReplyTo, references: message.inReplyTo } : {}),
+      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
       attachments: message.attachments?.map((a) => ({ filename: a.filename, content: a.content, contentType: a.type })),
     });
     if (info.rejected?.length) throw new Error(`SES refused the recipient ${emailAddress(message.to)}`);
@@ -105,6 +108,7 @@ class SendGridEmail implements EmailService {
         personalizations: [{ to: [{ email: emailAddress(message.to) }] }],
         from: { email: emailAddress(env.emailFrom), name: `${BRAND.name} (demo)` },
         subject: message.subject,
+        ...(message.replyTo ? { reply_to: { email: emailAddress(message.replyTo) } } : {}),
         content: [{ type: "text/plain", value: message.text }],
         ...(message.inReplyTo ? { headers: { "In-Reply-To": message.inReplyTo, References: message.inReplyTo } } : {}),
         ...(message.attachments?.length

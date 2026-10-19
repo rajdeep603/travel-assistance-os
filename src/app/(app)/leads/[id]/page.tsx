@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Download, Printer, Trash2 } from "lucide-react";
 import { Button, Card, ErrorBanner, KeyValue, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
+import { FollowUp } from "@/components/leads/follow-up";
+import { MeetingNotes } from "@/components/leads/meeting-notes";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import { businessCaseReport, longDate, quoteMeta, type BusinessCaseInput } from "@/lib/business-case";
 import { printElement } from "@/lib/client/print";
@@ -25,6 +27,13 @@ interface LeadDetail {
   email: string | null;
   phone: string | null;
   status: LeadStatus;
+  segment: string | null;
+  pains: string[];
+  pilot: string | null;
+  notes: string | null;
+  nextStep: string | null;
+  nextStepOn: string | null;
+  followUpSentAt: string | null;
   createdBy: string | null;
   createdAt: string;
   input: BusinessCaseInput;
@@ -255,8 +264,18 @@ export default function LeadPage() {
               </div>
             </div>
 
-            <div ref={previewRef} className="min-w-0">
-              <QuotationPreview report={report} meta={meta} />
+            <div className="min-w-0 space-y-5">
+              <div className="space-y-5">
+                <MeetingNotes leadId={lead.id} value={lead} onSaved={(v) => setLead({ ...lead, ...v })} />
+                <FollowUp
+                  leadId={lead.id}
+                  sentAt={lead.followUpSentAt}
+                  onSent={(v) => setLead({ ...lead, status: v.status as LeadStatus, followUpSentAt: v.followUpSentAt })}
+                />
+              </div>
+              <div ref={previewRef}>
+                <QuotationPreview report={report} meta={meta} />
+              </div>
             </div>
           </div>
         </>

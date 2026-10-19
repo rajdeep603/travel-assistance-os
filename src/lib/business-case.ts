@@ -9,6 +9,7 @@
 import { BRAND, POWERED_BY } from "./brand";
 import { formatMoney, formatMoneyExact } from "./format";
 import { DEMO_FX_TO_EUR } from "./fx";
+import { PILOT_DAYS, pilotPlan, type PilotPlan } from "./pilots";
 import { addDays, formatPlainDate } from "./time";
 
 export const CURRENCY = "EUR";
@@ -614,6 +615,8 @@ export interface QuoteDetails {
   phone: string;
   /** Sthiram's one-time service charges. */
   services: ServiceItem[];
+  /** The 60-day pilot proposed (an id from src/lib/pilots.ts); empty or absent for none. */
+  pilot?: string;
 }
 
 export const EMPTY_QUOTE: QuoteDetails = { customerName: "", companyName: "", email: "", phone: "", services: [] };
@@ -630,6 +633,7 @@ export interface QuoteResult {
   preparedFor: string;
   /** The services with a description, in the order entered. */
   services: ServiceItem[];
+  pilot: PilotPlan | null;
   oneTimeTotal: number;
   monthlyRunningCost: number;
   /** One-time services plus twelve months of running cost. */
@@ -652,6 +656,7 @@ export function calculateQuote(quote: QuoteDetails, running: RunningCostResult):
     phone: quote.phone.trim(),
     preparedFor: [customerName, companyName].filter(Boolean).join(", "),
     services,
+    pilot: pilotPlan(quote.pilot),
     oneTimeTotal,
     monthlyRunningCost: running.monthlyCost,
     firstYearCost: oneTimeTotal + running.annualCost,
@@ -685,11 +690,16 @@ export function quoteNumber(input: BusinessCaseInput, date: string): string {
 export function withQuote(summary: string, quote: QuoteResult): string {
   const lines = summary.split("\n");
   if (quote.preparedFor) lines.splice(1, 0, `Prepared for ${quote.preparedFor}`);
-  if (!quote.services.length) return lines.join("\n");
+  if (!quote.services.length && !quote.pilot) return lines.join("\n");
   const closing = lines.pop() ?? "";
   const eur = (v: number) => formatMoney(Math.round(v), CURRENCY);
+  const pilot = quote.pilot
+    ? [`${PILOT_DAYS}-day pilot: ${quote.pilot.label}`, quote.pilot.scope, ...quote.pilot.measures.map((m) => `- ${m}`), ""]
+    : [];
+  if (!quote.services.length) return [...lines, ...pilot, closing].join("\n");
   return [
     ...lines,
+    ...pilot,
     "Service charges (one-time)",
     ...quote.services.map((s) => `- ${s.description}: ${s.amount > 0 ? eur(s.amount) : "included"}`),
     `- Total one-time: ${eur(quote.oneTimeTotal)}`,

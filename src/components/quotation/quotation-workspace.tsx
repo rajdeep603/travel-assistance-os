@@ -7,6 +7,7 @@ import { Check, CheckCircle2, Download, Mail, Plus, Printer, Send, X } from "luc
 import { Button, ErrorBanner, readApiError } from "@/components/ui";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import { businessCaseReport, longDate, quoteMeta, type BusinessCaseInput, type QuoteDetails } from "@/lib/business-case";
+import { PILOT_DAYS, PILOTS, pilotPlan } from "@/lib/pilots";
 import { printElement } from "@/lib/client/print";
 import { zonedToday } from "@/lib/time";
 
@@ -29,6 +30,8 @@ export interface QuoteDraft {
   email: string;
   phone: string;
   services: ServiceDraft[];
+  /** A pilot id from src/lib/pilots.ts, or "" for none. */
+  pilot: string;
 }
 
 const MAX_SERVICES = 20;
@@ -39,7 +42,14 @@ let nextId = SERVICE_HINTS.length + 1;
 const blankService = (): ServiceDraft => ({ id: nextId++, description: "", amount: "" });
 
 export function emptyQuoteDraft(): QuoteDraft {
-  return { customerName: "", companyName: "", email: "", phone: "", services: SERVICE_HINTS.map((_, i) => ({ id: i + 1, description: "", amount: "" })) };
+  return {
+    customerName: "",
+    companyName: "",
+    email: "",
+    phone: "",
+    services: SERVICE_HINTS.map((_, i) => ({ id: i + 1, description: "", amount: "" })),
+    pilot: "",
+  };
 }
 
 export function draftToQuote(draft: QuoteDraft): QuoteDetails {
@@ -49,6 +59,7 @@ export function draftToQuote(draft: QuoteDraft): QuoteDetails {
     email: draft.email,
     phone: draft.phone,
     services: draft.services.map((s) => ({ description: s.description, amount: Number(s.amount) })),
+    pilot: draft.pilot || undefined,
   };
 }
 
@@ -115,6 +126,12 @@ export function QuotationWorkspace({
     set({ services: draft.services.map((s) => (s.id === id ? { ...s, ...change } : s)) });
   const removeService = (id: number) =>
     set({ services: draft.services.length > 1 ? draft.services.filter((s) => s.id !== id) : [blankService()] });
+  /** Choosing a pilot fills in its usual service charges, unless some are typed already; amounts stay the presenter's. */
+  const choosePilot = (id: string) => {
+    const plan = pilotPlan(id);
+    const untouched = draft.services.every((s) => !s.description.trim() && !s.amount.trim());
+    set({ pilot: id, ...(plan && untouched ? { services: plan.services.map((description) => ({ ...blankService(), description })) } : {}) });
+  };
 
   const submittedNow = submitted?.number === meta.number;
   const missing = { customer: !draft.customerName.trim(), company: !draft.companyName.trim() };
@@ -326,6 +343,24 @@ export function QuotationWorkspace({
               {field("email", "E-mail", draft.email, (v) => set({ email: v }), { type: "email", ref: emailRef, placeholder: "name@company.com" })}
               {field("phone", "Phone", draft.phone, (v) => set({ phone: v }), { type: "tel", placeholder: "+90 …" })}
             </div>
+          </fieldset>
+
+          <fieldset className="min-w-0">
+            <legend className="text-sm font-semibold text-ink">{PILOT_DAYS}-day pilot</legend>
+            <p className="mt-0.5 text-xs text-muted">One call flow or one desk first, with the measures it is judged on and a four-phase plan.</p>
+            <select
+              aria-label={`${PILOT_DAYS}-day pilot`}
+              value={draft.pilot}
+              onChange={(e) => choosePilot(e.target.value)}
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              <option value="">No pilot: the full services</option>
+              {PILOTS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
           </fieldset>
 
           <fieldset className="min-w-0">

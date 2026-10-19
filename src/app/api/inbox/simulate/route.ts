@@ -4,6 +4,7 @@ import { z } from "zod";
 import { json, serialize, withErrorHandling } from "@/lib/api";
 import { notFound } from "@/lib/errors";
 import { processInbound, receiveInbound } from "@/lib/intake/intake";
+import { withOfflineAI } from "@/lib/services/ai";
 import { EMAIL_SAMPLES, FAX_SAMPLES } from "@/lib/intake/samples";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,8 @@ export const POST = withErrorHandling(async (req: Request) => {
     files = [await read(s.file)];
     message = await receiveInbound({ channel: "FAX", from: s.from, to: s.to, files });
   }
-  const processed = await processInbound(message.id, files);
+  // A bundled sample, so its replies and figures stay the rehearsed ones.
+  const processed = await withOfflineAI(() => processInbound(message.id, files));
   return json({ message: serialize(processed) }, { status: 201 });
 });
 

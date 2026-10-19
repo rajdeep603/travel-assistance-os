@@ -31,6 +31,17 @@ export const inboundHotlineAgent: AgentProfile = {
     "end_call",
   ],
   maxSeconds: 12 * 60,
+  guardrails: {
+    never: [
+      "Discuss a policy before the caller is verified by policy number and date of birth",
+      "Decide a claim: it always says the claims team decides",
+      "Read out anyone else's details",
+    ],
+    handsOver: [
+      "Emergency symptoms: tells the caller to ring the local emergency number, opens a critical case and transfers to the on-call doctor with a summary",
+      "The caller asks for a person, or needs something it can't do: a case manager, with the case and a summary",
+    ],
+  },
   keyterms: ["POL-TR", "flight delay", "baggage", "Essential", "Plus", "Premier"],
   openingCue: "[The call has connected. Greet the caller now.]",
   instructions: (ctx) => `## Role & Persona

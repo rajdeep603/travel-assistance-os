@@ -1,7 +1,8 @@
 import type { Case, Patient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { withRef } from "@/lib/refs";
-import { getAIService } from "./ai";
+import { isSampleRequest } from "@/lib/samples/fingerprints";
+import { getAIService, withOfflineAI } from "./ai";
 import { getNotificationService } from "./notification";
 import type { CaseIntakeAnalysis } from "./types";
 
@@ -12,7 +13,9 @@ import type { CaseIntakeAnalysis } from "./types";
 export async function analyzeRequest(text: string): Promise<
   CaseIntakeAnalysis & { existingCase: { ref: string; status: string; id: string } | null }
 > {
-  const analysis = await getAIService().analyzeAssistanceRequest(text);
+  const analyse = () => getAIService().analyzeAssistanceRequest(text);
+  // A bundled sample request keeps its rehearsed analysis.
+  const analysis = (await isSampleRequest(text)) ? await withOfflineAI(analyse) : await analyse();
   let existingCase: { ref: string; status: string; id: string } | null = null;
   if (analysis.existingCaseRef) {
     const found = await prisma.case.findUnique({

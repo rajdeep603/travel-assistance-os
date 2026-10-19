@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Inbox, Languages, UserRound } from "lucide-react";
+import { Ban, Check, ChevronDown, Inbox, Languages, ShieldCheck, UserRound } from "lucide-react";
 import { Button, Card, readApiError } from "@/components/ui";
-import type { ScenarioGroup, VoiceScenario } from "@/lib/voice/demo-scenarios";
+import type { HowItWorks, ScenarioGroup, VoiceScenario } from "@/lib/voice/demo-scenarios";
 import type { VoiceLanguage } from "@/lib/voice/languages";
 
 export interface VoiceCatalog {
@@ -129,8 +129,49 @@ export function AgentPicker({
             </div>
           ) : null}
           {error ? <p className="text-xs text-red-700">{error}</p> : null}
+          <HowItWorksPanel how={scenario.howItWorks} />
         </div>
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * What the agent can do, what it never does and when a person takes over:
+ * the answer to "what stops it from saying something wrong?".
+ */
+function HowItWorksPanel({ how }: { how: HowItWorks }) {
+  const columns = [
+    { title: "What it can do", items: how.can, icon: <Check size={13} className="mt-0.5 shrink-0 text-brand" aria-hidden /> },
+    { title: "What it never does", items: how.never, icon: <Ban size={13} className="mt-0.5 shrink-0 text-muted" aria-hidden /> },
+    { title: "When a person takes over", items: how.handsOver, icon: <UserRound size={13} className="mt-0.5 shrink-0 text-brand-2" aria-hidden /> },
+  ];
+  return (
+    <details className="group rounded-lg border border-line bg-canvas/60 text-xs">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 font-semibold text-ink [&::-webkit-details-marker]:hidden">
+        <ShieldCheck size={14} className="text-brand" aria-hidden />
+        How this agent works
+        <ChevronDown size={14} className="ml-auto text-muted transition-transform duration-150 group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="grid gap-4 border-t border-line px-3 py-3 md:grid-cols-3">
+        {columns.map((c) => (
+          <div key={c.title} className="min-w-0">
+            <p className="mb-1.5 font-semibold text-ink">{c.title}</p>
+            <ul className="space-y-1 text-muted">
+              {c.items.map((item) => (
+                <li key={item} className="flex gap-1.5">
+                  {c.icon}
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <p className="border-t border-line px-3 py-2 text-muted">
+        Says it&apos;s an AI at the start of every call, files everything on the case, and ends the call by itself after{" "}
+        <span className="tabular-nums">{how.maxMinutes}</span> minutes.
+      </p>
+    </details>
   );
 }

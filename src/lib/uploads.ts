@@ -9,13 +9,21 @@ import { ApiError, badRequest } from "./errors";
 // and storage under UPLOAD_DIR (a Docker volume in production).
 // ---------------------------------------------------------------------------
 
-export const ALLOWED_UPLOAD_TYPES = new Set(["application/pdf", "text/plain"]);
+export type UploadType = "application/pdf" | "text/plain" | "image/jpeg" | "image/png" | "image/webp";
+
+export const ALLOWED_UPLOAD_TYPES = new Set<UploadType>(["application/pdf", "text/plain", "image/jpeg", "image/png", "image/webp"]);
 
 const PDF_MAGIC = Buffer.from("%PDF-");
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
 
 /** Detects the real type from the content; the browser's MIME is only a hint. */
-export function sniffType(buffer: Buffer): "application/pdf" | "text/plain" | null {
+export function sniffType(buffer: Buffer): UploadType | null {
   if (buffer.subarray(0, 1024).includes(PDF_MAGIC)) return "application/pdf";
+  // Photos of documents (a phone picture of a bill): read by the live model only.
+  if (buffer.subarray(0, 8).equals(PNG_MAGIC)) return "image/png";
+  if (buffer.subarray(0, 3).equals(JPEG_MAGIC)) return "image/jpeg";
+  if (buffer.subarray(0, 4).toString("latin1") === "RIFF" && buffer.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
   // Plain text: valid UTF-8 without NUL bytes in the first 8 KB.
   const head = buffer.subarray(0, 8192);
   if (head.includes(0)) return null;
@@ -36,7 +44,7 @@ export function acceptedUploadType(
   buffer: Buffer,
   name: string,
   declaredType: string
-): "application/pdf" | "text/plain" | null {
+): UploadType | null {
   const sniffed = sniffType(buffer);
   if (sniffed === "text/plain" && declaredType !== "text/plain" && !/\.txt$/i.test(name)) return null;
   return sniffed && ALLOWED_UPLOAD_TYPES.has(sniffed) ? sniffed : null;
@@ -45,7 +53,7 @@ export function acceptedUploadType(
 /** Validates an upload and returns its bytes plus the content-derived type. */
 export async function readUpload(
   file: File
-): Promise<{ buffer: Buffer; mimeType: "application/pdf" | "text/plain" }> {
+): Promise<{ buffer: Buffer; mimeType: UploadType }> {
   if (file.size === 0) throw badRequest(`"${file.name}" is empty.`);
   if (file.size > env.maxUploadBytes) {
     throw badRequest(
@@ -55,7 +63,7 @@ export async function readUpload(
   const buffer = Buffer.from(await file.arrayBuffer());
   const mimeType = acceptedUploadType(buffer, file.name, file.type);
   if (!mimeType) {
-    throw badRequest(`"${file.name}": only PDF and plain-text documents are accepted.`);
+    throw badRequest(`"${file.name}": only PDF, plain-text and photo (JPEG, PNG) documents are accepted.`);
   }
   return { buffer, mimeType };
 }

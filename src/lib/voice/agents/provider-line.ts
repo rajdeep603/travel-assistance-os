@@ -26,6 +26,17 @@ export const providerLineAgent: AgentProfile = {
   voice: "ara",
   tools: [...PROVIDER_TOOLS, "add_case_note", "transfer_to_human", "end_call"],
   maxSeconds: 10 * 60,
+  guardrails: {
+    never: [
+      "Share anything before the patient and the calling hospital are verified",
+      "Change an amount, extend a validity date or promise a top-up",
+      "Send a letter to a fax number or e-mail address that isn't on file",
+    ],
+    handsOver: [
+      "A medical question about the patient, or anything it can't resolve: a case manager, with a note on the case",
+      "A request to raise the guarantee: recorded for a case manager to decide",
+    ],
+  },
   keyterms: ["LOG", "garanti mektubu", "provizyon", "epikriz", "maliyet tahmini", "Marmara", "Letter of Guarantee"],
   openingCue: "[The call has connected. Greet the caller now.]",
   instructions: (ctx) => `## Role & Persona

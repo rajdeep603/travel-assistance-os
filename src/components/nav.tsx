@@ -16,6 +16,7 @@ import {
   Inbox,
   Mic,
   ReceiptText,
+  ShieldCheck,
   Stethoscope,
   X,
 } from "lucide-react";
@@ -32,6 +33,7 @@ export const NAV_ITEMS = [
   { href: "/voice", label: "Voice Agents", icon: Mic },
   { href: "/calls", label: "Call Center", icon: Headset },
   { href: "/inbox", label: "Inbox (e-mail & fax)", icon: Inbox },
+  { href: "/trust", label: "Trust & Integration", icon: ShieldCheck },
 ];
 
 function isActive(pathname: string, href: string): boolean {

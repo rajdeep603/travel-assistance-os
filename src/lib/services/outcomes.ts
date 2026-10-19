@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { LANGUAGE_NAMES } from "@/lib/intake/language";
 import { INTERNAL_AGENT_IDS } from "@/lib/voice/agents/ids";
 import { INTERPRETER_LANGUAGES } from "@/lib/voice/interpreter-prompt";
+import { VOICE_LANGUAGES } from "@/lib/voice/languages";
 
 // ---------------------------------------------------------------------------
 // Outcome figures for the executive overview: what the AI actually did over
@@ -35,7 +36,11 @@ export function formatShortDuration(seconds: number): string {
   return `${Math.round(hours / 24)} days`;
 }
 
-const NAMES: Record<string, string> = { ...INTERPRETER_LANGUAGES, ...LANGUAGE_NAMES };
+const NAMES: Record<string, string> = {
+  ...Object.fromEntries(VOICE_LANGUAGES.map((l) => [l.code, l.name])),
+  ...INTERPRETER_LANGUAGES,
+  ...LANGUAGE_NAMES,
+};
 
 /** "tr" → "Turkish"; "English ⇄ Hindi" → both; unknown values are kept as written. */
 export function languageNames(values: (string | null | undefined)[]): string[] {

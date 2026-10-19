@@ -1,7 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { reviewToNegotiate } from "@/lib/services/bill-negotiation";
+import { BASE_NEVER } from "./agents/prompt";
 import { getAgent } from "./agents/registry";
+import type { AgentProfile } from "./agents/types";
+import { toolAbilityLabel } from "./tool-labels";
 
 // ---------------------------------------------------------------------------
 // The voice agents as a presenter starts them in the browser: who the agent
@@ -47,6 +50,27 @@ export interface VoiceScenario {
   defaultLanguage: string;
   case: { id: string; ref: string } | null;
   needs: ScenarioNeed | null;
+  howItWorks: HowItWorks;
+}
+
+/** An agent's abilities and limits in plain words, for people judging it. */
+export interface HowItWorks {
+  can: string[];
+  never: string[];
+  handsOver: string[];
+  maxMinutes: number;
+}
+
+/** Tools every agent has that say nothing about what it's for. */
+const PLUMBING_TOOLS = new Set(["end_call", "transfer_to_human"]);
+
+export function howItWorks(profile: AgentProfile): HowItWorks {
+  return {
+    can: [...new Set(profile.tools.filter((t) => !PLUMBING_TOOLS.has(t)).map(toolAbilityLabel))],
+    never: [...BASE_NEVER, ...(profile.guardrails?.never ?? [])],
+    handsOver: profile.guardrails?.handsOver ?? [],
+    maxMinutes: Math.round(profile.maxSeconds / 60),
+  };
 }
 
 const OPEN_CASE: Prisma.CaseWhereInput = { status: { notIn: ["RESOLVED", "CLOSED"] } };
@@ -164,6 +188,7 @@ export async function voiceScenarios(): Promise<VoiceScenario[]> {
       tryLine: def.tryLine,
       defaultLanguage: profile.languageHint === "tr" ? "Turkish" : "the caller's",
       case: kase,
+      howItWorks: howItWorks(profile),
       needs: kase && def.prerequisite ? await def.prerequisite(kase.id).catch(() => null) : !kase && profile.requiresCase ? { label: "No demo case is ready for this agent." } : null,
     });
   }

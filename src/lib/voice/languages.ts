@@ -38,6 +38,14 @@ export const VOICE_LANGUAGES: VoiceLanguage[] = [
   { code: "th", name: "Thai", native: "ไทย" },
   { code: "ja", name: "Japanese", native: "日本語" },
   { code: "tl", name: "Tagalog", native: "Tagalog" },
+  { code: "ro", name: "Romanian", native: "Română" },
+  { code: "sr", name: "Serbian", native: "Srpski" },
+  { code: "da", name: "Danish", native: "Dansk" },
+  { code: "nl", name: "Dutch", native: "Nederlands" },
+  { code: "el", name: "Greek", native: "Ελληνικά" },
+  { code: "uk", name: "Ukrainian", native: "Українська" },
+  { code: "fa", name: "Persian", native: "فارسی" },
+  { code: "ur", name: "Urdu", native: "اردو" },
 ];
 
 /** The language by English name or code, case-insensitively. */

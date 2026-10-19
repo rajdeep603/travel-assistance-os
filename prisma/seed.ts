@@ -60,8 +60,8 @@ const json = (value: unknown) => value as Prisma.InputJsonValue;
 async function main() {
   // --if-empty: a database that already has demo data keeps it as it is, so
   // restarts and deploys don't reset what was changed during a demo (cases
-  // worked, letters sent, …). Only patients, policies, providers and cases
-  // added to the demo since it was seeded are created.
+  // worked, letters sent, …). Only patients, policies, providers, cases and
+  // calls added to the demo since it was seeded are created.
   const addOnly = process.argv.includes("--if-empty") && (await prisma.patient.count()) > 0;
   const keep = <T>(data: T) => (addOnly ? {} : data);
   console.log(
@@ -136,6 +136,7 @@ async function main() {
   }
   console.log(`  cases: ${caseIds.size}`);
   if (addOnly) {
+    await seedCallHistory(SEED_CLOCK, caseIds, { onlyMissing: true });
     await syncRefSequences(prisma);
     console.log("Added the missing demo records; everything else is as it was.");
     return;
@@ -406,11 +407,13 @@ async function seedBillHistory({ patientIds, caseIds }: Pick<SeedIds, "patientId
   console.log(`  bill reviews: ${BILL_HISTORY.length}`);
 }
 
+const SEED_CLOCK: SeedClock = {
+  date: (n) => zonedToday(n),
+  spoken: (n) => formatPlainDate(zonedToday(n), { weekday: "long", day: "numeric", month: "long" }),
+};
+
 async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDocumentIds }: SeedIds): Promise<void> {
-  const clock: SeedClock = {
-    date: (n) => zonedToday(n),
-    spoken: (n) => formatPlainDate(zonedToday(n), { weekday: "long", day: "numeric", month: "long" }),
-  };
+  const clock = SEED_CLOCK;
   const patientOfCase = (caseRef: string) => patientIds.get(CASES.find((c) => c.ref === caseRef)!.patientRef)!;
   const messages = seedInboundMessages(clock);
 
@@ -668,9 +671,22 @@ async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDo
   }
   console.log(`  letters of guarantee: ${letters.length}`);
 
-  // --- Calls (phone and browser) with their transcripts -------------------------------
+  await seedCallHistory(clock, caseIds);
+}
+
+
+/**
+ * Calls (phone and browser) with their transcripts and timeline entries. With
+ * onlyMissing, as on a deploy, calls already in the database are left exactly
+ * as they are and only calls added to the demo since are created.
+ */
+async function seedCallHistory(clock: SeedClock, caseIds: Map<string, string>, opts: { onlyMissing?: boolean } = {}): Promise<void> {
   const calls = seedCalls(clock);
-  for (const c of calls) {
+  const existingRefs = opts.onlyMissing
+    ? new Set((await prisma.call.findMany({ where: { ref: { in: calls.map((c) => c.ref) } }, select: { ref: true } })).map((c) => c.ref))
+    : new Set<string>();
+  const added = calls.filter((c) => !existingRefs.has(c.ref));
+  for (const c of added) {
     const profile = getAgent(c.agentProfile);
     if (!profile) throw new Error(`${c.ref}: unknown agent profile "${c.agentProfile}"`);
     const startedAt = at(c.when);
@@ -739,7 +755,7 @@ async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDo
       at: endedAt,
     });
   }
-  console.log(`  calls: ${calls.length}`);
+  console.log(`  calls: ${opts.onlyMissing ? `${added.length} added` : calls.length}`);
 }
 
 main()

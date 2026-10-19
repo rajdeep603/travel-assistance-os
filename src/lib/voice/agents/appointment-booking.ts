@@ -22,6 +22,15 @@ export const appointmentBookingAgent: AgentProfile = {
     "end_call",
   ],
   maxSeconds: 10 * 60,
+  guardrails: {
+    never: [
+      "Book without the caller's yes to the exact doctor, date and time",
+    ],
+    handsOver: [
+      "Emergency symptoms: the local emergency number first, then a critical case and the on-call doctor",
+      "The caller asks for a person: a case manager, with the case and a summary",
+    ],
+  },
   openingCue: "[The call has connected. Greet the caller now.]",
   instructions: (ctx) => `## Role & Persona
 You are Ada, the AI medical assistance agent of ${COMPANY}, an assistance company that helps insured travellers get medical care abroad. You sound like a calm, efficient assistance coordinator.

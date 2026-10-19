@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Brings a message in by hand: a saved e-mail (.eml) with its attachments, or
- * a received fax (PDF). Runs the same intake pipeline as the e-mail and fax
+ * a received fax (a PDF, or a photo of a document, which only the live model reads). Runs the same intake pipeline as the e-mail and fax
  * webhooks.
  */
 export const POST = withErrorHandling(async (req: Request) => {
@@ -18,12 +18,13 @@ export const POST = withErrorHandling(async (req: Request) => {
     throw badRequest("Expected a file upload.");
   });
   const file = form.get("file");
-  if (!(file instanceof File) || file.size === 0) throw badRequest("Choose an .eml e-mail or a fax PDF.");
+  if (!(file instanceof File) || file.size === 0) throw badRequest("Choose an .eml e-mail, a fax PDF or a photo of a document.");
   if (file.size > env.maxUploadBytes * 2) throw badRequest(`"${file.name}" is too large.`);
   const buffer = Buffer.from(await file.arrayBuffer());
 
   let input: InboundInput;
-  if (sniffType(buffer) === "application/pdf") {
+  const type = sniffType(buffer);
+  if (type === "application/pdf" || type?.startsWith("image/")) {
     // A fax: the sender's number, when given, lets a cost estimate find its hospital.
     const given = typeof form.get("from") === "string" ? (form.get("from") as string).trim() : "";
     const base = file.name.replace(/\s*\(\d+\)(?=\.pdf$)/i, "");
@@ -32,7 +33,7 @@ export const POST = withErrorHandling(async (req: Request) => {
   } else if (looksLikeEml(buffer, file.name)) {
     input = await parseEml(buffer);
   } else {
-    throw badRequest(`"${file.name}": import an .eml e-mail or a fax PDF.`);
+    throw badRequest(`"${file.name}": import an .eml e-mail, a fax PDF or a photo of a document.`);
   }
 
   const message = await receiveInbound(input);

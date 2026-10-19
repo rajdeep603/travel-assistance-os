@@ -16,6 +16,7 @@ import {
   type QuoteMeta,
 } from "@/lib/business-case";
 import { formatMoney } from "@/lib/format";
+import { PILOT_BILLING_NOTE, PILOT_DAYS, PILOT_PHASES } from "@/lib/pilots";
 import { fontPath } from "./guarantee-pdf";
 
 // ---------------------------------------------------------------------------
@@ -183,6 +184,24 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
     } else {
       doc.font(R).fontSize(9.5).fillColor(C.muted).text("No one-time service charges in this quotation.", left, doc.y + 2, { width });
       doc.moveDown(1.6);
+    }
+
+    if (quote.pilot) {
+      heading(`${PILOT_DAYS}-day pilot: ${quote.pilot.label}`, "One flow first, judged on agreed measures, before any wider roll-out", 160);
+      doc.font(R).fontSize(9.5).fillColor(C.ink).text(quote.pilot.scope, left, doc.y + 2, { width, lineGap: 1.5 });
+      doc.font(R).fontSize(9).fillColor(C.muted).text(PILOT_BILLING_NOTE, left, doc.y + 3, { width });
+      doc.moveDown(0.6);
+      doc.font(B).fontSize(9).fillColor(C.ink).text("Judged on", left, doc.y, { width });
+      doc.font(R).fontSize(9).list(quote.pilot.measures, left, doc.y + 2, { width, bulletRadius: 1.6, textIndent: 10, paragraphGap: 2 });
+      doc.moveDown(0.6);
+      doc.font(B).fontSize(9).fillColor(C.ink).text("Plan", left, doc.y, { width });
+      table(
+        [
+          { title: "", width: 84 },
+          { title: "", width: width - 84 },
+        ],
+        PILOT_PHASES.map((p) => [p.days, p.what])
+      );
     }
 
     heading("Terms", undefined, 90);

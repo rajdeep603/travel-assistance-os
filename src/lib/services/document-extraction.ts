@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { detectLanguage } from "@/lib/intake/language";
 import { processingErrorMessage } from "@/lib/uploads";
-import { getAIService, runAI } from "./ai";
+import { isSampleFile } from "@/lib/samples/fingerprints";
+import { getAIService, runAI, withOfflineAI } from "./ai";
 import { extractTextFromFile } from "./pdf";
 import type { MedicalExtractionResult } from "./types";
 
@@ -20,6 +21,14 @@ export function hasReadableText(text: string): boolean {
  * original isn't English) → persisted extraction record.
  */
 export async function processDocument(
+  documentId: string,
+  buffer: Buffer
+): Promise<Document & { extraction: DocumentExtraction | null }> {
+  // The demo's own samples stay on the offline rules, so rehearsed figures hold.
+  return (await isSampleFile(buffer)) ? withOfflineAI(() => runPipeline(documentId, buffer)) : runPipeline(documentId, buffer);
+}
+
+async function runPipeline(
   documentId: string,
   buffer: Buffer
 ): Promise<Document & { extraction: DocumentExtraction | null }> {

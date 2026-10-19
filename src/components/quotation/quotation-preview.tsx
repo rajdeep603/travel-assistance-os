@@ -14,6 +14,7 @@ import {
   type QuoteMeta,
 } from "@/lib/business-case";
 import { formatMoney } from "@/lib/format";
+import { PILOT_BILLING_NOTE, PILOT_DAYS, PILOT_PHASES } from "@/lib/pilots";
 
 // ---------------------------------------------------------------------------
 // The quotation as a page on screen: the same sections, figures and wording
@@ -166,6 +167,34 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
           <p className="text-sm text-muted">No one-time service charges in this quotation.</p>
         )}
       </Section>
+
+      {quote.pilot ? (
+        <Section title={`${PILOT_DAYS}-day pilot: ${quote.pilot.label}`} sub="One flow first, judged on agreed measures, before any wider roll-out">
+          <p className="text-[13px] text-ink">{quote.pilot.scope}</p>
+          <p className="mt-1 text-[13px] text-muted">{PILOT_BILLING_NOTE}</p>
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold">Judged on</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[13px]">
+                {quote.pilot.measures.map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-semibold">Plan</p>
+              <dl className="mt-1 space-y-1 text-[13px]">
+                {PILOT_PHASES.map((p) => (
+                  <div key={p.days} className="grid grid-cols-[84px_minmax(0,1fr)] gap-2">
+                    <dt className="tabular-nums text-muted">{p.days}</dt>
+                    <dd>{p.what}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
+        </Section>
+      ) : null}
 
       <Section title="Terms">
         <ul className="list-disc space-y-0.5 pl-5 text-[13px] text-ink">

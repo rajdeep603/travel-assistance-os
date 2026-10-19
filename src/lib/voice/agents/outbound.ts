@@ -47,6 +47,14 @@ export const hospitalCoordinationAgent: AgentProfile = {
   languageHint: "tr",
   tools: ["record_hospital_update", "add_case_note", "transfer_to_human", "end_call"],
   maxSeconds: 8 * 60,
+  guardrails: {
+    never: [
+      "Accept a figure or a date without repeating it back",
+    ],
+    handsOver: [
+      "The patient is critical or deteriorating: a case manager, straight away",
+    ],
+  },
   keyterms: ["yatış", "servis", "tahmini maliyet", "epikriz", "TL", "Euro"],
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
@@ -108,6 +116,14 @@ export const appointmentReminderAgent: AgentProfile = {
   voice: "eve",
   tools: ["confirm_appointment", "cancel_appointment", "search_providers", "book_appointment", "add_case_note", "transfer_to_human", "end_call"],
   maxSeconds: 6 * 60,
+  guardrails: {
+    never: [
+      "Change or cancel a booking without the traveller's yes",
+    ],
+    handsOver: [
+      "The traveller feels worse: the on-call doctor",
+    ],
+  },
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const kase = await caseWithPeople(caseId);
@@ -168,6 +184,14 @@ export const wellbeingFollowupAgent: AgentProfile = {
   voice: "eve",
   tools: ["record_followup", "add_case_note", "search_providers", "book_appointment", "transfer_to_human", "end_call"],
   maxSeconds: 6 * 60,
+  guardrails: {
+    never: [
+      "Reassure someone whose symptoms are getting worse",
+    ],
+    handsOver: [
+      "Worse or new red-flag symptoms: recorded, then the on-call doctor",
+    ],
+  },
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const kase = await caseWithPeople(caseId);
@@ -225,6 +249,15 @@ export const claimMissingInfoAgent: AgentProfile = {
   voice: "eve",
   tools: ["get_claim_status", "send_upload_link", "add_case_note", "transfer_to_human", "end_call"],
   maxSeconds: 6 * 60,
+  guardrails: {
+    never: [
+      "Promise that a claim will be approved, or an amount",
+      "Argue about a complaint or a dispute",
+    ],
+    handsOver: [
+      "A dispute, a complaint or a legal threat: a case manager, with a note",
+    ],
+  },
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const kase = await caseWithPeople(caseId);
@@ -286,6 +319,14 @@ export const logConfirmationAgent: AgentProfile = {
   languageHint: "tr",
   tools: ["confirm_log_receipt", "add_case_note", "transfer_to_human", "end_call"],
   maxSeconds: 5 * 60,
+  guardrails: {
+    never: [
+      "Change the guaranteed amount or promise more",
+    ],
+    handsOver: [
+      "A request to raise the guarantee: a case manager decides",
+    ],
+  },
   keyterms: ["garanti mektubu", "ödeme taahhüdü", "faks", "LOG"],
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
@@ -349,6 +390,17 @@ export const billNegotiationAgent: AgentProfile = {
   languageHint: "tr",
   tools: ["record_bill_agreement", "add_case_note", "transfer_to_human", "end_call"],
   maxSeconds: 8 * 60,
+  guardrails: {
+    never: [
+      "Reveal or hint at its private limit, or agree above it",
+      "Agree without the hospital confirming the patient won't be billed the difference",
+      "Threaten, or imply the patient will pay",
+    ],
+    handsOver: [
+      "A question of medical necessity: noted for a doctor on our side",
+      "No agreement within its limit: a counter-offer is recorded for a case manager",
+    ],
+  },
   keyterms: ["fatura", "indirim", "tarife", "hasta", "fark", "muhasebe", "MHC-INV"],
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
@@ -417,6 +469,15 @@ export const medicalTransportAgent: AgentProfile = {
   voice: "ara",
   tools: ["record_transport_assessment", "add_case_note", "transfer_to_human", "end_call"],
   maxSeconds: 8 * 60,
+  guardrails: {
+    never: [
+      "Suggest a lower level of care than the treating doctor recommends",
+      "Override the doctor's medical judgement",
+    ],
+    handsOver: [
+      "The patient is deteriorating: a case manager, straight away",
+    ],
+  },
   keyterms: ["stretcher", "oxygen", "MEDIF", "fit to fly", "sedye", "oksijen", "uçuşa elverişli", "ambulans uçak"],
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {

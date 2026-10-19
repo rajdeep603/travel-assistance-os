@@ -81,6 +81,6 @@ describe("inbox import", () => {
   it("refuses files that are neither e-mail nor PDF", async () => {
     const res = await importFile(Buffer.from("just some notes"), "notes.txt", "text/plain");
     expect(res.status).toBe(400);
-    expect((await res.json()).error.message).toMatch(/\.eml e-mail or a fax PDF/);
+    expect((await res.json()).error.message).toMatch(/\.eml e-mail, a fax PDF or a photo/);
   });
 });

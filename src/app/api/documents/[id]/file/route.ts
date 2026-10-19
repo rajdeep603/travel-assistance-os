@@ -4,6 +4,7 @@ import { withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { notFound } from "@/lib/errors";
+import { ALLOWED_UPLOAD_TYPES, type UploadType } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export const GET = withErrorHandling(async (_req: Request, { params }: { params:
   });
   return new Response(new Uint8Array(bytes), {
     headers: {
-      "content-type": doc.mimeType === "application/pdf" ? "application/pdf" : "text/plain; charset=utf-8",
+      "content-type": doc.mimeType === "text/plain" || !ALLOWED_UPLOAD_TYPES.has(doc.mimeType as UploadType) ? "text/plain; charset=utf-8" : doc.mimeType,
       "content-disposition": `inline; filename="${doc.filename.replace(/[^a-zA-Z0-9._-]/g, "_")}"`,
       "cache-control": "private, max-age=300",
     },

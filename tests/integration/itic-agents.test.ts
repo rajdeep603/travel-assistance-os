@@ -199,7 +199,8 @@ describe("e-mail: status and guarantee enquiries", () => {
     const msg = await receive("hospital-gop-enquiry");
     expect(msg.status).toBe("REPLIED");
     const reply = mail.sent.at(-1)!;
-    expect(reply.text).toContain("Letter of Guarantee LOG-0902: €11,850.00, valid until 21 October 2026");
+    // The seed sets the validity relative to the day it runs.
+    expect(reply.text).toMatch(/Letter of Guarantee LOG-0902: €11,850\.00, valid until \d{1,2} \w+ \d{4}/);
     expect(reply.attachments?.map((a) => a.filename)).toEqual(["letter-of-guarantee-log-0902.pdf"]);
   });
 

@@ -153,12 +153,12 @@ export default function InboxPage() {
           </Button>
           <span className="text-xs text-muted">or</span>
           <Button variant="secondary" onClick={() => importInput.current?.click()} disabled={busy}>
-            <Upload size={15} aria-hidden /> Import .eml or fax PDF
+            <Upload size={15} aria-hidden /> Import .eml, fax or photo
           </Button>
           <input
             ref={importInput}
             type="file"
-            accept=".eml,message/rfc822,application/pdf"
+            accept=".eml,message/rfc822,application/pdf,image/jpeg,image/png,image/webp"
             aria-label="Import an e-mail or fax"
             className="hidden"
             onChange={(e) => {
@@ -169,7 +169,7 @@ export default function InboxPage() {
           />
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Runs the same pipeline as real e-mails and faxes. Import a message saved from any mail app, or a received fax.
+          Runs the same pipeline as real e-mails and faxes. Import a message saved from any mail app, a received fax, or a photo of a bill or report.
         </p>
         <SampleFiles section="inbox" className="mt-3 border-t border-line pt-3" />
         {pipeline.visible ? (
@@ -220,7 +220,14 @@ export default function InboxPage() {
         </Card>
         <div className="min-w-0 lg:col-span-3">
           {selected ? (
-            <MessageDetailPanel id={selected} onChanged={() => void load()} />
+            <MessageDetailPanel
+              id={selected}
+              onChanged={() => void load()}
+              onDeleted={() => {
+                setSelected(null);
+                void load();
+              }}
+            />
           ) : (
             <EmptyState title="Select a message" />
           )}

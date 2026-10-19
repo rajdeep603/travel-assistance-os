@@ -18,6 +18,7 @@ import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { SampleFiles } from "@/components/sample-files";
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { formatEnum } from "@/lib/format";
 import { useQueryParam } from "@/lib/client/use-query-param";
 
@@ -206,16 +207,16 @@ export default function DocumentsPage() {
             >
               <UploadCloud size={28} />
               <span className="text-sm font-medium">
-                Click to choose a PDF (max 10 MB)
+                Click to choose a PDF or a photo (max 10 MB)
               </span>
               <span className="text-xs text-slate-400">
-                PDF or plain text · processed immediately
+                PDF, photo (JPEG, PNG) or plain text · processed immediately
               </span>
             </button>
             <input
               ref={fileInput}
               type="file"
-              accept="application/pdf,text/plain"
+              accept="application/pdf,text/plain,image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={(ev) => {
                 const f = ev.target.files?.[0];
@@ -247,8 +248,31 @@ export default function DocumentsPage() {
           </Card>
 
           <Card>
-            <SectionTitle>Document viewer</SectionTitle>
-            {current?.storagePath && (current.mimeType === "application/pdf" || /\.pdf$/i.test(current.filename)) ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <SectionTitle>Document viewer</SectionTitle>
+              {current && !processing ? (
+                <ConfirmDelete
+                  key={current.id}
+                  label="Delete document"
+                  question="Delete this document, what was read from it and its bill review? Use this for a visitor's own file after the meeting."
+                  onConfirm={async () => {
+                    const res = await fetch(`/api/documents/${current.id}`, { method: "DELETE" });
+                    if (!res.ok) throw new Error(await readApiError(res, "The document couldn't be deleted."));
+                    setCurrent(null);
+                    void loadRecent();
+                  }}
+                />
+              ) : null}
+            </div>
+            {current?.storagePath && current.mimeType?.startsWith("image/") ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a stored upload, served by the API
+              <img
+                key={current.id}
+                src={`/api/documents/${current.id}/file`}
+                alt={`Photo of ${current.filename}`}
+                className="mt-3 max-h-[430px] w-full rounded-lg border border-line object-contain"
+              />
+            ) : current?.storagePath && (current.mimeType === "application/pdf" || /\.pdf$/i.test(current.filename)) ? (
               <iframe
                 key={current.id}
                 title="Document preview"
@@ -268,7 +292,7 @@ export default function DocumentsPage() {
               <div className="mt-3">
                 <EmptyState
                   title="No document selected"
-                  hint="Upload a PDF or pick a sample to see it here."
+                  hint="Upload a PDF or a photo, or pick a sample to see it here."
                 />
               </div>
             )}

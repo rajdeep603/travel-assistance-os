@@ -689,6 +689,14 @@ model Lead {
   firstYearCost   Decimal    @db.Decimal(12, 2)
   netAnnualSaving Decimal    @db.Decimal(14, 2)
   status          LeadStatus @default(NEW)
+  /// Meeting notes, kept with the quotation: who they are (LEAD_SEGMENTS), what hurts (LEAD_PAINS), the pilot chosen (src/lib/pilots.ts).
+  segment         String?
+  pains           String[]   @default([])
+  pilot           String?
+  notes           String?
+  nextStep        String?
+  nextStepOn      DateTime?  @db.Date
+  followUpSentAt  DateTime?
   createdBy       String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

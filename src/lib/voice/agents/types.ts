@@ -23,6 +23,13 @@ export interface AgentContext {
   language?: string | null;
 }
 
+export interface AgentGuardrails {
+  /** What it never does, beyond the rules every agent shares (BASE_NEVER). */
+  never: string[];
+  /** When, and to whom, it hands the call to a person. */
+  handsOver: string[];
+}
+
 /**
  * A voice agent is data: who it is (instructions, voice), what it may do
  * (tools) and its limits. The same profile runs on the phone and in a browser.
@@ -38,6 +45,11 @@ export interface AgentProfile {
   tools: string[];
   /** Hard stop for the session (cost and safety cap). */
   maxSeconds: number;
+  /**
+   * Its limits in plain words, for people judging the agent ("How this agent
+   * works" on the Voice Agents page). The instructions are what enforce them.
+   */
+  guardrails?: AgentGuardrails;
   reasoningEffort?: "high" | "none";
   /** Recognition hints beyond the defaults (districts, refs). */
   keyterms?: string[];

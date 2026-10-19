@@ -44,6 +44,7 @@ export const BusinessCaseInputSchema = z.object({
       email: z.union([z.literal(""), z.string().trim().email().max(200)]).default(""),
       phone: z.string().trim().max(40).default(""),
       services: z.array(z.object({ description: z.string().trim().max(160), amount: num })).max(20).default([]),
+      pilot: z.string().trim().max(40).optional(),
     })
     .default(EMPTY_QUOTE),
 });

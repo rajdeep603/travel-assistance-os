@@ -7,6 +7,10 @@ import { BRAND } from "@/lib/brand";
 // so the wording keeps those plain. Written to public/samples/intake/ by
 // `npm run demo:samples`.
 
+/** The one-line request behind "Use sample request" on the Cases page. */
+export const QUICK_SAMPLE_REQUEST =
+  "My husband is travelling in Istanbul and has developed severe stomach pain. We are staying near Taksim. We need help finding a hospital.";
+
 export interface IntakeRequest {
   file: string;
   text: string;

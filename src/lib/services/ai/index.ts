@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { DocumentKind } from "@prisma/client";
 import { env } from "@/lib/env";
 import type {
@@ -32,6 +33,17 @@ function getProviders(): Providers {
   return providers;
 }
 
+const offlineScope = new AsyncLocalStorage<true>();
+
+/**
+ * Runs fn with every AI operation inside it on the offline rules, even when
+ * a live model is configured: the demo's own sample files keep the figures a
+ * presenter has rehearsed (see src/lib/samples/fingerprints.ts).
+ */
+export function withOfflineAI<T>(fn: () => Promise<T>): Promise<T> {
+  return offlineScope.run(true, fn);
+}
+
 /**
  * Runs an AI operation on the live provider, falling back to the
  * deterministic demo provider on any failure (timeout, refusal, invalid
@@ -42,7 +54,7 @@ export async function runAI<T>(
   fn: (svc: AIService) => Promise<T>
 ): Promise<{ value: T; source: AISource }> {
   const { primary, fallback } = getProviders();
-  if (primary) {
+  if (primary && !offlineScope.getStore()) {
     try {
       return { value: await fn(primary), source: "claude" };
     } catch (err) {

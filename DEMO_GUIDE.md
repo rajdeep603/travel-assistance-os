@@ -26,7 +26,8 @@ people make the decisions.*
 Open the **Voice Agents** page (`/voice`) before they sit down. Pick the
 agent and **set the language to theirs** (Spanish, Arabic, Turkish, German,
 Italian, French, Portuguese, Russian, Polish, Czech, Swedish, Norwegian,
-Hindi or English): the agent greets them in it. Outbound agents run here
+Hindi, Romanian, Serbian, Danish, Dutch, Greek, Ukrainian, Persian, Urdu,
+the Asian languages or English): the agent greets them in it. Outbound agents run here
 too: you play the hospital, the doctor or the traveller being called, on a
 ready demo case. Press **⌘K** (Ctrl K) anywhere to jump to a case, a
 guarantee (`LOG-0902`), a call or a voice agent.
@@ -43,6 +44,31 @@ guarantee (`LOG-0902`), a call or a voice agent.
 Before each meeting: if you'll show the bill negotiation, receive
 **Hospital bills the final invoice against a guarantee (overbilled)** first
 (the voice page offers it), so there's a reviewed bill to negotiate.
+
+Moments that answer what a veteran asks first:
+- **"What stops it saying something wrong?"** Open **How this agent works**
+  under the agent picker: what it can do, what it never does, when a person
+  takes over. Then **Trust & Integration** in the sidebar for procurement and
+  IT: decisions the AI never takes, the audit trail, data and hosting, and how
+  it sits beside their systems (pilot and roadmap items are labelled).
+- **Alarm centres and night shifts** (the "2am calls"): the overview's
+  **While your team slept** panel shows one night shift, 20:00 to 08:00, by
+  date: calls the AI closed in six languages, the emergency it put through to
+  the doctor, the hospital's top-up request. The arrows step through other
+  nights.
+- **"Try one of ours."** With the live model on, a visitor's own anonymised
+  invoice, report or GOP request (PDF, or a phone photo) goes through
+  **Medical Document AI** or **Inbox → Import**; the bundled samples still
+  give the rehearsed figures. Afterwards, **Delete document** / **Delete
+  message** removes it with everything read from it.
+
+## After each meeting
+
+Open the lead (or submit the quotation as one) and fill in **Meeting notes**:
+who they are, what hurts, the pilot that fits, the next step. **Write the
+follow-up** drafts a recap from those notes; edit it and send it with the
+quotation the same evening. For large groups and hospitals, pick a
+**60-day pilot** in the quotation: it adds the measures and a four-phase plan.
 
 ## If they mention… call volumes, seasonal spikes, emergencies
 

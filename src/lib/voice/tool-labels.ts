@@ -44,3 +44,17 @@ export function toolActivityLabel(name: string): string {
 export function toolChipLabel(name: string): string {
   return LABELS[name]?.[1] ?? fallback(name);
 }
+
+const ABILITY_VERBS: Record<string, string> = {
+  Searching: "Searches", Booking: "Books", Confirming: "Confirms", Cancelling: "Cancels", Opening: "Opens",
+  Adding: "Adds", Looking: "Looks", Finding: "Finds", Checking: "Checks", Recording: "Records",
+  Sending: "Sends", "Re-sending": "Re-sends", Planning: "Plans", Handing: "Hands", Ending: "Ends",
+};
+
+/** "check_coverage" → "Checks the policy coverage": what an agent with this tool can do. */
+export function toolAbilityLabel(name: string): string {
+  const activity = toolActivityLabel(name);
+  const [first, ...rest] = activity.split(" ");
+  const verb = ABILITY_VERBS[first];
+  return verb ? [verb, ...rest].join(" ") : activity;
+}

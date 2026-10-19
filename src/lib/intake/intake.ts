@@ -10,7 +10,7 @@ import { reviewBillForDocument } from "@/lib/services/bill-review-service";
 import { draftFromCostEstimate, letterPdf } from "@/lib/services/guarantee-letter";
 import { sendEmail } from "@/lib/services/outbox";
 import { utcToZoned } from "@/lib/time";
-import { processingErrorMessage, sniffType, storeUpload } from "@/lib/uploads";
+import { ALLOWED_UPLOAD_TYPES, processingErrorMessage, sniffType, storeUpload } from "@/lib/uploads";
 import { MATCH_THRESHOLD, matchCase, type CaseCandidate } from "./case-matching";
 import { LANGUAGE_NAMES, detectLanguage, languageCode } from "./language";
 import { guaranteeEnquiryReply, missingItem, travellerReply, type MissingItem, type TravellerFacts } from "./replies";
@@ -77,14 +77,14 @@ export async function receiveInbound(input: InboundInput): Promise<InboundMessag
   );
   for (const file of input.files) {
     const mimeType = sniffType(file.buffer);
-    const ok = mimeType === "application/pdf" || mimeType === "text/plain";
+    const ok = mimeType !== null && ALLOWED_UPLOAD_TYPES.has(mimeType);
     await prisma.document.create({
       data: {
         filename: file.filename.slice(0, 200),
         mimeType: mimeType ?? "application/octet-stream",
         sizeBytes: file.buffer.length,
         status: ok && file.buffer.length <= MAX_BYTES ? "UPLOADED" : "FAILED",
-        error: ok ? (file.buffer.length > MAX_BYTES ? "Attachment too large." : null) : "Only PDF and plain-text attachments are processed.",
+        error: ok ? (file.buffer.length > MAX_BYTES ? "Attachment too large." : null) : "Only PDF, plain-text and photo (JPEG, PNG) attachments are processed.",
         storagePath: ok ? await storeUpload(file.filename, file.buffer) : null,
         source: input.channel,
         inboundMessageId: message.id,

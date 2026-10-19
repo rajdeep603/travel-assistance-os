@@ -19,6 +19,7 @@ import {
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { SampleFiles } from "@/components/sample-files";
 import { formatEnum } from "@/lib/format";
+import { QUICK_SAMPLE_REQUEST } from "@/lib/samples/intake-requests";
 
 const ANALYSIS_STAGES = [
   "Reading the request",
@@ -99,8 +100,6 @@ function HighlightedRequest({
   );
 }
 
-const SAMPLE_REQUEST =
-  "My husband is travelling in Istanbul and has developed severe stomach pain. We are staying near Taksim. We need help finding a hospital.";
 
 interface Analysis {
   patient: string | null;
@@ -263,7 +262,7 @@ export default function CasesPage() {
             <Button
               variant="secondary"
               onClick={() => {
-                setText(SAMPLE_REQUEST);
+                setText(QUICK_SAMPLE_REQUEST);
                 setError(null);
               }}
             >

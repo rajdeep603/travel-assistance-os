@@ -21,11 +21,13 @@ import { CountUp } from "@/components/count-up";
 import { JourneyRoute, type RouteStop } from "@/components/dashboard/journey-route";
 import { MoneyPanel } from "@/components/dashboard/money-panel";
 import { NeedsPerson, type Decision } from "@/components/dashboard/needs-person";
+import { NightShift } from "@/components/dashboard/night-shift";
 import { StatusMix } from "@/components/dashboard/status-mix";
 import { LiveRefresh } from "@/components/live-refresh";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { formatShortDuration, getOutcomes, type Outcomes } from "@/lib/services/outcomes";
 import { getMoneyOutcomes } from "@/lib/services/exposure";
+import { getShiftHandover } from "@/lib/services/shift-handover";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +56,10 @@ const CLAIM_IN_REVIEW = ["SUBMITTED", "PROCESSING", "NEEDS_REVIEW", "INFO_REQUES
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
-async function getStats() {
+async function getStats(night: string | null) {
   try {
     const now = new Date();
-    const [casesByStatus, claimsByStatus, upcomingAppointments, documentsProcessed, draftLetters, proposedReview, escalatedCase, outcomes, money] =
+    const [casesByStatus, claimsByStatus, upcomingAppointments, documentsProcessed, draftLetters, proposedReview, escalatedCase, outcomes, money, handover] =
       await Promise.all([
         prisma.case.groupBy({ by: ["status"], _count: { _all: true } }),
         prisma.claim.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -72,6 +74,7 @@ async function getStats() {
         prisma.case.findFirst({ where: { status: "ESCALATED" }, orderBy: { updatedAt: "desc" }, select: { id: true } }),
         getOutcomes(30),
         getMoneyOutcomes(30),
+        getShiftHandover({ night }),
       ]);
     const caseCounts = Object.fromEntries(casesByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
     const claimCounts = Object.fromEntries(claimsByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
@@ -104,6 +107,7 @@ async function getStats() {
       reviewHref,
       outcomes,
       money,
+      handover,
     };
   } catch {
     return null;
@@ -263,8 +267,9 @@ function ModuleGrid() {
   );
 }
 
-export default async function DashboardPage() {
-  const stats = await getStats();
+export default async function DashboardPage({ searchParams }: { searchParams: { night?: string } }) {
+  const night = typeof searchParams.night === "string" && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.night) ? searchParams.night : null;
+  const stats = await getStats(night);
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <Hero stats={stats} />
@@ -277,6 +282,7 @@ export default async function DashboardPage() {
             </div>
             <NeedsPerson decisions={stats.decisions} />
           </div>
+          {stats.handover ? <NightShift handover={stats.handover} waiting={stats.decisions.reduce((n, d) => n + d.count, 0)} /> : null}
           <div className="grid gap-5 lg:grid-cols-2">
             <StatusMix title="Caseload" noun="cases" counts={stats.caseCounts} order={CASE_STATUS_ORDER} href="/cases" columns={3} />
             <StatusMix title="Claims pipeline" noun="claims" counts={stats.claimCounts} order={CLAIM_STATUS_ORDER} href="/claims" columns={4} />

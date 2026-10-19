@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AlertTriangle, ExternalLink, FileText, Languages, ScanLine, Send } from "lucide-react";
 import { AISourceBadge, Button, Card, ErrorBanner, KeyValue, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
+import { ConfirmDelete } from "@/components/confirm-delete";
 import { formatDateTime, formatEnum } from "@/lib/format";
 
 interface Doc {
@@ -64,7 +65,7 @@ export interface MessageDetail {
   replies: Reply[];
 }
 
-export function MessageDetailPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
+export function MessageDetailPanel({ id, onChanged, onDeleted }: { id: string; onChanged: () => void; onDeleted: () => void }) {
   const [m, setM] = useState<MessageDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -127,6 +128,18 @@ export function MessageDetailPanel({ id, onChanged }: { id: string; onChanged: (
           <StatusBadge value={m.status} />
         </div>
         {m.summary ? <p className="mt-3 text-sm text-slate-700">{m.summary}</p> : null}
+        <div className="mt-3">
+          <ConfirmDelete
+            key={m.id}
+            label="Delete message"
+            question="Delete this message with its attachments, what was read from them, replies and timeline entries? Use this for a visitor's own file after the meeting."
+            onConfirm={async () => {
+              const res = await fetch(`/api/inbox/${m.id}`, { method: "DELETE" });
+              if (!res.ok) throw new Error(await readApiError(res, "The message couldn't be deleted."));
+              onDeleted();
+            }}
+          />
+        </div>
         {m.error ? (
           <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-800">
             <AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden /> {m.error}

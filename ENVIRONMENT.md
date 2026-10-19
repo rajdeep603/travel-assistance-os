@@ -63,6 +63,7 @@ git-ignored) and never put secrets in source code or Docker images.
 |---|---|---|---|
 | `SENDGRID_API_KEY` | for e-mail | empty | Twilio SendGrid key for replies and letters. Empty = mock outbox (recorded, not sent). |
 | `EMAIL_FROM` | no | `claims@demo-assistance.example` | Sender address (must be a verified SendGrid sender). |
+| `FOLLOW_UP_REPLY_TO` | no | empty | Reply-To on meeting follow-ups sent from a lead, so a visitor's reply reaches a presenter's own mailbox instead of the no-reply sender. |
 | `INBOUND_EMAIL_SECRET` | for inbound e-mail | empty | Secret path segment of the Inbound Parse webhook (`/api/inbound/email/<secret>`). |
 | `INBOUND_FAX_SECRET` | for inbound fax | empty | Secret path segment of the fax webhook (`/api/inbound/fax/<secret>`). |
 | `FAX_PROVIDER` | no | `mock` | Outbound fax provider (Twilio Programmable Fax was retired in 2021; adapters plug into `src/lib/services/fax.ts`). |
