@@ -57,7 +57,8 @@ const DISTRICTS = [
   "Taksim", "Beyoglu", "Sisli", "Besiktas", "Kadikoy", "Uskudar",
   "Fatih", "Sultanahmet", "Levent", "Bakirkoy", "Nisantasi", "Atasehir",
 ];
-const LANGUAGES = ["English", "German", "French", "Russian", "Arabic", "Spanish", "Turkish"];
+const LANGUAGES = ["English", "German", "French", "Russian", "Arabic", "Spanish", "Turkish", "Mandarin", "Malay", "Thai"];
+const CITIES = ["Istanbul", "Ankara", "Antalya", "Singapore", "Kuala Lumpur", "Bangkok", "Shanghai"];
 
 /** Theoretical maximum of the ranking score — used to show a match %. */
 const MAX_SCORE = 110;
@@ -260,7 +261,7 @@ export default function ProvidersPage() {
               }
               className={selectCls}
             >
-              {["Istanbul", "Ankara", "Antalya"].map((c) => (
+              {CITIES.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
@@ -317,7 +318,7 @@ export default function ProvidersPage() {
           </Button>
           {form.city !== "Istanbul" ? (
             <p className="text-xs text-slate-400">
-              The provider network is Istanbul-focused; other cities have limited coverage.
+              The demo network is largest in Istanbul; other cities have a few providers.
             </p>
           ) : null}
         </div>

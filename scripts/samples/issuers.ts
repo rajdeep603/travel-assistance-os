@@ -66,6 +66,36 @@ export const BESIKTAS_SPORTS: Issuer = {
   registry: "Ministry of Health licence 34-ÖH-0017 · Beşiktaş Tax Office 0000000017",
 };
 
+// Asia-Pacific letterheads, for the Singapore demo storyline.
+
+export const PUDONG_INTERNATIONAL: Issuer = {
+  name: "Pudong Demo Medical Center",
+  tagline: "International Medical Services · Neurology",
+  address: ["Demo Road No. 88, Pudong New Area", "Shanghai 200120, China"],
+  phone: "+86 0000 2026",
+  fax: "+86 0000 2096",
+  email: "ims@pudong-demo.example",
+  web: "www.pudong-demo.example",
+  color: "#7c2d12",
+  tint: "#fff7ed",
+  logo: "cross",
+  registry: "Medical institution licence DEMO-310115-0026 · Unified credit code 00000000000000026X",
+};
+
+export const SUKHUMVIT_INTERNATIONAL: Issuer = {
+  name: "Sukhumvit Demo International Hospital",
+  tagline: "International Patient Services",
+  address: ["Sukhumvit Soi 3, Khlong Toei Nuea, Watthana", "Bangkok 10110, Thailand"],
+  phone: "+66 0000 2024",
+  fax: "+66 0000 2094",
+  email: "ips@sukhumvit-demo.example",
+  web: "www.sukhumvit-demo.example",
+  color: "#6d28d9",
+  tint: "#f5f3ff",
+  logo: "arc",
+  registry: "Hospital licence DEMO-10110-0024 · Tax ID 0000000000024",
+};
+
 const INK_BLUE = "#27408b";
 const INK_RED = "#b3202a";
 
@@ -79,6 +109,19 @@ export const paid = (issuer: Issuer, date: string): Stamp => ({
   ring: `${issuer.name.toUpperCase()} • VEZNE •`,
   center: ["TAHSİL EDİLDİ", "PAID", date],
   color: INK_RED,
+});
+
+/** English-only stamps for hospitals outside Türkiye. */
+export const certifiedCopy = (issuer: Issuer, city: string): Stamp => ({
+  ring: `${issuer.name.toUpperCase()} • ${city.toUpperCase()} •`,
+  center: ["CERTIFIED", "TRUE COPY"],
+  color: INK_BLUE,
+});
+
+export const patientAccounts = (issuer: Issuer): Stamp => ({
+  ring: `${issuer.name.toUpperCase()} • PATIENT ACCOUNTS •`,
+  center: ["BILLING", "OFFICE"],
+  color: INK_BLUE,
 });
 
 export const billingOffice = (issuer: Issuer): Stamp => ({

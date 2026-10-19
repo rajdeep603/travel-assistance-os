@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  countryOf,
+  emergencyNumber,
   findCity,
   findDistrict,
   findEmail,
@@ -25,6 +27,24 @@ describe("NLU: locations", () => {
     expect(findCity("I'm in Antalya")).toBe("Antalya");
     expect(findCity("staying near Sisli")).toBe("Istanbul");
     expect(findCity("somewhere in the alps")).toBeNull();
+  });
+
+  it("finds Asia-Pacific cities as whole words, after the Turkish ones", () => {
+    expect(findCity("a Singapore resident in hospital in Shanghai")).toBe("Shanghai");
+    expect(findCity("flying home to Singapore")).toBe("Singapore");
+    expect(findCity("staying in Kuala Lumpur")).toBe("Kuala Lumpur");
+    expect(findCity("globalisation of care")).toBeNull();
+    expect(findCity("from Bangkok to Istanbul")).toBe("Istanbul");
+  });
+
+  it("knows each city's country and emergency number", () => {
+    expect(countryOf("Shanghai")).toBe("China");
+    expect(countryOf("Antalya")).toBe("Turkiye");
+    expect(countryOf(null)).toBeNull();
+    expect(emergencyNumber("Singapore")).toBe("995");
+    expect(emergencyNumber("China")).toBe("120");
+    expect(emergencyNumber("Turkiye")).toBe("112");
+    expect(emergencyNumber(null)).toBe("112");
   });
 });
 

@@ -1,7 +1,11 @@
 // ---------------------------------------------------------------------------
 // Fictional demo seed data for the ITIC Global demonstration platform.
 // Every person, hospital, policy and phone number here is invented.
-// Istanbul-heavy on purpose: the platform is demonstrated at ITIC Global.
+// Istanbul-heavy on purpose: the platform is demonstrated at ITIC Global,
+// with a few Asia-Pacific records (marked below) so the same flows show for
+// assistance companies run out of Singapore. Their refs sit below the ITIC
+// data and the live sequences (PAT-095x, CASE-100x, PRV-202x), so they never
+// collide with records the running app creates.
 // ---------------------------------------------------------------------------
 
 export const PATIENTS = [
@@ -15,6 +19,9 @@ export const PATIENTS = [
   { ref: "PAT-1008", firstName: "Irina", lastName: "Volkova", dateOfBirth: "1990-08-23", nationality: "Russia", language: "Russian", phone: "+7 900 000 0108", email: "irina.volkova@example.com", policyNumber: "POL-TR-100951" },
   { ref: "PAT-1009", firstName: "Carlos", lastName: "Garcia", dateOfBirth: "1973-04-30", nationality: "Spain", language: "Spanish", phone: "+34 600 000 109", email: "carlos.garcia@example.com", policyNumber: "POL-TR-100952" },
   { ref: "PAT-1010", firstName: "Siobhan", lastName: "Murphy", dateOfBirth: "1969-06-11", nationality: "Ireland", language: "English", phone: "+353 85 000 0110", email: "siobhan.murphy@example.com", policyNumber: "POL-TR-100953" },
+  // Asia-Pacific
+  { ref: "PAT-0951", firstName: "Daniel", lastName: "Tan", dateOfBirth: "1964-03-03", nationality: "Singapore", language: "English", phone: "+65 0000 0951", email: "daniel.tan@example.com", policyNumber: "POL-SG-200101" },
+  { ref: "PAT-0952", firstName: "Rachel", lastName: "Lim", dateOfBirth: "1991-08-17", nationality: "Singapore", language: "English", phone: "+65 0000 0952", email: "rachel.lim@example.com", policyNumber: "POL-SG-200102" },
 ];
 
 // Weekly availability templates (expanded to concrete dates at query time),
@@ -66,6 +73,13 @@ export const PROVIDERS = [
   { ref: "PRV-2018", name: "Dr. Leyla Ozkan", facility: "Sultanahmet Demo Health House", specialty: "General Medicine", address: "Divanyolu Cd. 3", district: "Sultanahmet", city: "Istanbul", latitude: 41.006, longitude: 28.976, languages: ["Turkish", "English", "Arabic"], phone: "+90 212 000 2018", email: "l.ozkan@demo-health.example", rating: 4.3, availability: LATE },
   { ref: "PRV-2019", name: "Dr. Kaan Simsek", facility: "Antalya Demo Coastal Clinic", specialty: "General Medicine", address: "Konyaalti Cd. 55", district: "Konyaalti", city: "Antalya", latitude: 36.886, longitude: 30.63, languages: ["Turkish", "English", "German", "Russian"], phone: "+90 242 000 2019", email: "k.simsek@demo-coastal.example", rating: 4.6, availability: RESORT },
   { ref: "PRV-2020", name: "Dr. Berna Tan", facility: "Ankara Demo Central Hospital", specialty: "Cardiology", address: "Ataturk Blv. 200", district: "Cankaya", city: "Ankara", latitude: 39.918, longitude: 32.854, languages: ["Turkish", "English"], phone: "+90 312 000 2020", email: "b.tan@demo-central.example", rating: 4.7, availability: SPECIALIST },
+  // Asia-Pacific
+  { ref: "PRV-2021", name: "Dr. Chua Wei Ming", facility: "Orchard Demo Neuroscience Centre", specialty: "Neurology", address: "Orchard Rd 290", district: "Orchard", city: "Singapore", country: "Singapore", latitude: 1.3048, longitude: 103.8318, languages: ["English", "Mandarin", "Malay"], phone: "+65 0000 2021", email: "w.chua@demo-neuro.example", rating: 4.9, availability: SPECIALIST },
+  { ref: "PRV-2022", name: "Dr. Siti Rahman", facility: "Novena Demo Medical Centre", specialty: "General Medicine", address: "Irrawaddy Rd 10", district: "Novena", city: "Singapore", country: "Singapore", latitude: 1.3204, longitude: 103.8438, languages: ["English", "Malay", "Mandarin"], phone: "+65 0000 2022", email: "s.rahman@demo-novena.example", rating: 4.7, availability: LATE },
+  { ref: "PRV-2023", name: "Dr. Arjun Menon", facility: "Marina Demo Heart Clinic", specialty: "Cardiology", address: "Marina Blvd 12", district: "Marina Bay", city: "Singapore", country: "Singapore", latitude: 1.28, longitude: 103.854, languages: ["English", "Hindi"], phone: "+65 0000 2023", email: "a.menon@demo-marina.example", rating: 4.8, availability: SPECIALIST },
+  { ref: "PRV-2024", name: "Dr. Kanya Srisuk", facility: "Sukhumvit Demo International Hospital", specialty: "General Medicine", address: "Sukhumvit Soi 3", district: "Watthana", city: "Bangkok", country: "Thailand", latitude: 13.74, longitude: 100.556, languages: ["Thai", "English"], phone: "+66 0000 2024", email: "k.srisuk@demo-sukhumvit.example", rating: 4.6, availability: LATE },
+  { ref: "PRV-2025", name: "Dr. Farid Hassan", facility: "Ampang Demo Medical Centre", specialty: "Emergency Medicine", address: "Jalan Ampang 50", district: "KLCC", city: "Kuala Lumpur", country: "Malaysia", latitude: 3.1579, longitude: 101.712, languages: ["Malay", "English", "Mandarin"], phone: "+60 0000 2025", email: "f.hassan@demo-ampang.example", rating: 4.5, availability: LATE },
+  { ref: "PRV-2026", name: "Dr. Zhang Wei", facility: "Pudong Demo Medical Center", specialty: "Neurology", address: "Demo Rd 88", district: "Pudong", city: "Shanghai", country: "China", latitude: 31.2304, longitude: 121.544, languages: ["Mandarin", "English"], phone: "+86 0000 2026", email: "z.wei@demo-pudong.example", rating: 4.8, availability: SPECIALIST },
 ];
 
 export interface SeedCase {
@@ -74,6 +88,8 @@ export interface SeedCase {
   title: string;
   description: string;
   location: string;
+  /** Turkiye unless set. */
+  country?: string;
   assistanceType: "MEDICAL" | "DENTAL" | "HOSPITALIZATION" | "EVACUATION" | "REPATRIATION" | "GENERAL";
   priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   status: "NEW" | "IN_PROGRESS" | "PENDING_INFO" | "ESCALATED" | "RESOLVED" | "CLOSED";
@@ -102,6 +118,8 @@ export const CASES: SeedCase[] = [
   { ref: "CASE-1022", patientRef: "PAT-1003", title: "Chest pain — Sisli", description: "Traveller admitted from hotel with acute chest pain; cardiology workup performed.", location: "Sisli, Istanbul", assistanceType: "HOSPITALIZATION", priority: "CRITICAL", status: "ESCALATED", symptoms: ["Chest pain"], aiSummary: "Lena Koch admitted with unstable angina at Marmara Demo Heart Center. Letter of Guarantee LOG-0902 approved by the senior desk and confirmed by the hospital. Needs cardiology clearance before flying; medical escort under evaluation.", suggestedActions: ["Obtain fit-to-fly assessment", "Evaluate medical escort", "Keep family informed"], assignedTo: "Senior Desk — Dr. Arda Yavuz", daysAgo: 3, openedAt: "07:05" },
   { ref: "CASE-1023", patientRef: "PAT-1006", title: "Repatriation assessment — Istanbul", description: "Assessment for early return home after hospital treatment.", location: "Istanbul", assistanceType: "REPATRIATION", priority: "MEDIUM", status: "PENDING_INFO", symptoms: [], aiSummary: "Emma Van Dijk requests early repatriation on medical grounds; awaiting treating physician's report.", suggestedActions: ["Request medical report", "Check airline requirements"], assignedTo: "Sofia Rossi (Case Manager)", daysAgo: 2, openedAt: "11:15" },
   { ref: "CASE-1024", patientRef: "PAT-1007", title: "Hospital admission: cardiac observation — Sisli", description: "Traveller admitted for overnight cardiac observation after episode of chest tightness at hotel.", location: "Sisli, Istanbul", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Chest pain"], aiSummary: "Oliver Bennett admitted for cardiac observation at Marmara Demo Heart Center (coronary care unit). Guarantee of payment issued (LOG-0903, sent by fax); monitoring results awaited.", suggestedActions: ["Follow up on test results", "Extend guarantee of payment if required", "Plan discharge and the cardiology follow-up"], assignedTo: "Elif Demirtas (Case Manager)", daysAgo: 1, openedAt: "18:49" },
+  // Asia-Pacific: the hospital's final invoice (final-invoice-rachel-lim-bangkok.pdf) is added during the demo.
+  { ref: "CASE-1006", patientRef: "PAT-0952", title: "Hospitalization: dengue fever — Bangkok", description: "Traveller admitted with dengue fever with warning signs at a private hospital in Bangkok; the hospital bills the insurer directly.", location: "Bangkok", country: "Thailand", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Fever / infection"], aiSummary: "Rachel Lim was admitted with dengue fever with warning signs at Sukhumvit Demo International Hospital, Bangkok, from 9 to 12 October. Discharged stable; the hospital's final invoice needs a bill review before it is paid.", suggestedActions: ["Review the final invoice line by line", "Confirm the stay dates with the hospital", "Keep the traveller updated"], assignedTo: "Aisha Rahman (Case Manager)", daysAgo: 11, openedAt: "09:30" },
 ];
 
 export interface SeedClaim {
@@ -297,7 +315,7 @@ export const POLICY_PLANS: Record<"Essential" | "Plus" | "Premier", { medicalLim
 };
 
 /** Which plan each fictional patient holds, and how much of the medical limit is used. */
-export const PATIENT_POLICIES: { patientRef: string; plan: keyof typeof POLICY_PLANS; medicalUsed: number }[] = [
+export const PATIENT_POLICIES: { patientRef: string; plan: keyof typeof POLICY_PLANS; medicalUsed: number; currency?: string }[] = [
   { patientRef: "PAT-1001", plan: "Plus", medicalUsed: 4200 },
   { patientRef: "PAT-1002", plan: "Premier", medicalUsed: 0 },
   { patientRef: "PAT-1003", plan: "Essential", medicalUsed: 1850 },
@@ -308,6 +326,9 @@ export const PATIENT_POLICIES: { patientRef: string; plan: keyof typeof POLICY_P
   { patientRef: "PAT-1008", plan: "Essential", medicalUsed: 46200 },
   { patientRef: "PAT-1009", plan: "Plus", medicalUsed: 980 },
   { patientRef: "PAT-1010", plan: "Premier", medicalUsed: 0 },
+  // Asia-Pacific: limits in SGD.
+  { patientRef: "PAT-0951", plan: "Premier", medicalUsed: 0, currency: "SGD" },
+  { patientRef: "PAT-0952", plan: "Plus", medicalUsed: 0, currency: "SGD" },
 ];
 
 // --- Activity history: calls, e-mail & fax intake, Letters of Guarantee -------

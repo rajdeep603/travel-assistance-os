@@ -82,11 +82,15 @@ export const searchProvidersTool = defineTool({
       options: options.map((o) => ({ ...o, date })),
     });
     if (options.length === 0) {
+      // A city outside the demo network: another day won't help.
+      const covered = await prisma.provider.count({ where: { city: { equals: where.city, mode: "insensitive" } } });
       return {
         date,
         date_spoken: spokenDate(date),
         options: [],
-        advice: "Nothing is free then. Offer another day or time of day and search again.",
+        advice: covered
+          ? "Nothing is free then. Offer another day or time of day and search again."
+          : `There are no doctors in ${where.city} in this demonstration network. Don't search again: open a case and tell the caller a case manager will find a doctor there and call them back.`,
       };
     }
     return { date, date_spoken: spokenDate(date), location: where.label, options, ...(note ? { note } : {}) };

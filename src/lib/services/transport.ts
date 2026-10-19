@@ -5,14 +5,17 @@
 // indicative cost for every option. The most expensive mistake in
 // assistance is an air ambulance where a stretcher or an escorted seat on a
 // scheduled flight would do; the doctor still decides, the rules show the
-// options. Prices are a fictional demo table, not quotes.
+// options. Prices are a fictional demo table, not quotes: in EUR from
+// Istanbul, or converted to SGD for a case in Asia, planned from Singapore.
 // ---------------------------------------------------------------------------
 
 export type Mobility = "SEATED" | "WHEELCHAIR" | "STRETCHER";
 export type Monitoring = "NONE" | "BASIC" | "CONTINUOUS";
 export type Escort = "NONE" | "NURSE" | "DOCTOR";
 export type TransportModeCode = "COMMERCIAL" | "COMMERCIAL_ESCORTED" | "COMMERCIAL_STRETCHER" | "AIR_AMBULANCE" | "NOT_FIT_TO_FLY";
-export type Distance = "SHORT_HAUL" | "LONG_HAUL";
+export type Distance = "SHORT_HAUL" | "MEDIUM_HAUL" | "LONG_HAUL";
+/** Where transport is planned from: Istanbul, or Singapore for Asia. */
+export type OriginHub = "IST" | "SIN";
 
 export interface TransportAssessment {
   diagnosis: string;
@@ -30,6 +33,8 @@ export interface TransportAssessment {
   /** Where the patient goes: city or hospital at home. */
   destination?: string | null;
   destinationCountry?: string | null;
+  /** The country the patient is in now; a case in Asia is planned from Singapore. */
+  originCountry?: string | null;
   notes?: string | null;
 }
 
@@ -46,7 +51,8 @@ export interface TransportRecommendation {
   label: string;
   reasons: string[];
   distance: Distance;
-  currency: "EUR";
+  origin: OriginHub;
+  currency: "EUR" | "SGD";
   options: TransportOption[];
   /** Indicative cost range of the recommended mode (0 when not fit to fly). */
   low: number;
@@ -67,13 +73,20 @@ export const MODE_LABELS: Record<TransportModeCode, string> = {
   NOT_FIT_TO_FLY: "Not fit to fly yet",
 };
 
-/** Indicative one-way cost, bed to bed, from Istanbul (EUR). */
+/** Indicative one-way cost, bed to bed (EUR). */
 const PRICES: Record<Distance, Record<(typeof MODES)[number], [number, number]>> = {
   SHORT_HAUL: {
     COMMERCIAL: [350, 900],
     COMMERCIAL_ESCORTED: [3000, 5500],
     COMMERCIAL_STRETCHER: [9000, 15000],
     AIR_AMBULANCE: [25000, 45000],
+  },
+  // Within Asia-Pacific from Singapore, e.g. Shanghai or Tokyo.
+  MEDIUM_HAUL: {
+    COMMERCIAL: [600, 1600],
+    COMMERCIAL_ESCORTED: [5000, 9000],
+    COMMERCIAL_STRETCHER: [16000, 28000],
+    AIR_AMBULANCE: [55000, 100000],
   },
   LONG_HAUL: {
     COMMERCIAL: [900, 2500],
@@ -86,14 +99,49 @@ const PRICES: Record<Distance, Record<(typeof MODES)[number], [number, number]>>
 /** Europe, the Middle East and North Africa are short haul from Istanbul. */
 const LONG_HAUL = /\b(usa|united states|america|canada|mexico|brazil|argentina|chile|colombia|peru|australia|new zealand|japan|china|korea|india|thailand|singapore|indonesia|philippines|malaysia|vietnam|south africa|kenya|nigeria)\b/i;
 
-export function distanceFor(country: string | null | undefined): Distance {
-  return country && LONG_HAUL.test(country) ? "LONG_HAUL" : "SHORT_HAUL";
+// Prefixes, so nationalities match too ("Singaporean", "Chinese").
+const SOUTHEAST_ASIA = /\b(singapor|malaysia|thai|indonesia|bali|philippin|filipin|vietnam|cambodia|myanmar|brunei|lao)/i;
+const EAST_ASIA = /\b(china|chinese|hong kong|macau|taiwan|japan|korea)/i;
+const OTHER_ASIA_PACIFIC = /\b(india|sri lanka|bangladesh|nepal|maldives|australia|new zealand)/i;
+
+type AsiaRegion = "SOUTHEAST" | "EAST" | "OTHER" | null;
+
+function asiaRegion(place: string | null | undefined): AsiaRegion {
+  if (!place) return null;
+  if (SOUTHEAST_ASIA.test(place)) return "SOUTHEAST";
+  if (EAST_ASIA.test(place)) return "EAST";
+  if (OTHER_ASIA_PACIFIC.test(place)) return "OTHER";
+  return null;
 }
+
+/** Singapore for a patient in South-East or East Asia; Istanbul otherwise. */
+export function originHub(country: string | null | undefined): OriginHub {
+  const region = asiaRegion(country);
+  return region === "SOUTHEAST" || region === "EAST" ? "SIN" : "IST";
+}
+
+export function distanceFor(destination: string | null | undefined, originCountry?: string | null): Distance {
+  if (originHub(originCountry) === "IST") {
+    return destination && LONG_HAUL.test(destination) ? "LONG_HAUL" : "SHORT_HAUL";
+  }
+  const to = asiaRegion(destination);
+  if (!destination || to === asiaRegion(originCountry)) return "SHORT_HAUL";
+  return to ? "MEDIUM_HAUL" : "LONG_HAUL";
+}
+
+/** EUR table → SGD, rounded to 500 so it reads as an indication, not a quote. */
+const toSgd = (eur: number) => Math.round((eur * 1.47) / 500) * 500;
 
 const rank = (m: (typeof MODES)[number]) => MODES.indexOf(m);
 
 export function recommendTransport(a: TransportAssessment): TransportRecommendation {
-  const distance = distanceFor(a.destinationCountry ?? a.destination);
+  const origin = originHub(a.originCountry);
+  const distance = distanceFor(a.destinationCountry ?? a.destination, a.originCountry);
+  const currency = origin === "SIN" ? "SGD" : "EUR";
+  const price = (m: (typeof MODES)[number]): [number, number] => {
+    const [low, high] = PRICES[distance][m];
+    return origin === "SIN" ? [toSgd(low), toSgd(high)] : [low, high];
+  };
   const reasons: string[] = [];
   let mode: (typeof MODES)[number];
 
@@ -135,11 +183,11 @@ export function recommendTransport(a: TransportAssessment): TransportRecommendat
   const options: TransportOption[] = MODES.map((m) => ({
     mode: m,
     label: MODE_LABELS[m],
-    low: PRICES[distance][m][0],
-    high: PRICES[distance][m][1],
+    low: price(m)[0],
+    high: price(m)[1],
     suitable: rank(m) >= rank(mode),
   }));
-  const mid = (m: (typeof MODES)[number]) => (PRICES[distance][m][0] + PRICES[distance][m][1]) / 2;
+  const mid = (m: (typeof MODES)[number]) => (price(m)[0] + price(m)[1]) / 2;
 
   if (!a.fitToFly) {
     return {
@@ -147,20 +195,22 @@ export function recommendTransport(a: TransportAssessment): TransportRecommendat
       label: MODE_LABELS.NOT_FIT_TO_FLY,
       reasons: [`Not fit to fly yet${a.fitFrom ? `; the doctor expects ${a.fitFrom}` : ""}. Reassess then; when fit: ${MODE_LABELS[mode].toLowerCase()}.`, ...reasons.slice(1).filter((r) => !r.startsWith("Fit to fly from"))],
       distance,
-      currency: "EUR",
+      origin,
+      currency,
       options,
       low: 0,
       high: 0,
       avoidedVsAirAmbulance: 0,
     };
   }
-  const [low, high] = PRICES[distance][mode];
+  const [low, high] = price(mode);
   return {
     mode,
     label: MODE_LABELS[mode],
     reasons,
     distance,
-    currency: "EUR",
+    origin,
+    currency,
     options,
     low,
     high,

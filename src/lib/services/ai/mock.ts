@@ -15,6 +15,8 @@ import { ApiError } from "@/lib/errors";
 import { detectLanguage } from "@/lib/intake/language";
 import { sampleScanText } from "@/lib/intake/samples";
 import {
+  countryOf,
+  emergencyNumber,
   findCity,
   findDistrict,
   findExistingCaseRef,
@@ -169,6 +171,7 @@ export class MockAIService implements AIService {
     const district = findDistrict(text);
     const city = findCity(text);
     const location = district && city ? `${district}, ${city}` : city ?? district;
+    const country = city ? countryOf(city) : district ? "Turkiye" : null;
 
     const t = text.toLowerCase();
     let patient: string | null = findName(text);
@@ -197,7 +200,7 @@ export class MockAIService implements AIService {
       suggestedActions.push("Arrange appointment");
       suggestedActions.push("Contact provider to confirm availability");
     }
-    if (urgency === "CRITICAL") suggestedActions.unshift("Advise caller to contact local emergency services (112)");
+    if (urgency === "CRITICAL") suggestedActions.unshift(`Advise caller to contact local emergency services (${emergencyNumber(country)})`);
     if (urgency === "HIGH" || urgency === "CRITICAL") suggestedActions.push("Escalate to senior human case manager");
     else suggestedActions.push("Assign to human case manager for review");
 
@@ -213,7 +216,7 @@ export class MockAIService implements AIService {
     return {
       patient,
       location,
-      country: city || district ? "Turkiye" : null,
+      country,
       medicalIssue: issue,
       symptoms: symptoms.map((s) => s.symptom),
       assistanceType,

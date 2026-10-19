@@ -6,8 +6,12 @@ import {
   ISTANBUL_CENTRAL,
   MARMARA_HEART,
   MARMARA_HEART_TR,
+  PUDONG_INTERNATIONAL,
+  SUKHUMVIT_INTERNATIONAL,
   billingOffice,
+  certifiedCopy,
   paid,
+  patientAccounts,
   trueCopy,
 } from "./issuers";
 
@@ -47,6 +51,18 @@ const CARLOS: Field[] = [
   ["Patient Name:", "Carlos Garcia"],
   ["Date of Birth:", "1973-04-30"],
   ["Nationality:", "Spain"],
+];
+
+// Asia-Pacific patients (PAT-0951, PAT-0952).
+const DANIEL: Field[] = [
+  ["Patient Name:", "Daniel Tan"],
+  ["Date of Birth:", "1964-03-03"],
+  ["Nationality:", "Singapore"],
+];
+const RACHEL: Field[] = [
+  ["Patient Name:", "Rachel Lim"],
+  ["Date of Birth:", "1991-08-17"],
+  ["Nationality:", "Singapore"],
 ];
 
 const patient = (left: Field[], right: Field[]): Block => ({ type: "fields", title: "Patient", left, right, split: 0.55 });
@@ -1048,6 +1064,170 @@ const carlosEstimate: SampleDoc = {
   ],
 };
 
+// --- Asia-Pacific: the Singapore demo storyline ---------------------------------
+
+// Daniel Tan: intracerebral haemorrhage in Shanghai; the assistance team plans
+// his repatriation to Singapore. The report states his fitness for transfer,
+// the facts a transport plan is priced on. Not seeded: it is uploaded onto the
+// case the intake e-mail (email-family-shanghai-stroke.txt) creates.
+const danielMedicalReport: SampleDoc = {
+  file: "medical-report-daniel-tan.pdf",
+  dir: "demo-documents",
+  lang: "en",
+  issuer: PUDONG_INTERNATIONAL,
+  title: "MEDICAL REPORT",
+  subtitle: "Neurology · Inpatient progress report",
+  meta: [
+    ["Report No:", "PDI-MR-2026-5108"],
+    ["Report Date:", "2026-10-19"],
+  ],
+  blocks: [
+    patient(DANIEL, [
+      ["Policy Number:", "POL-SG-200101"],
+      ["Patient ID:", "PDI-2026-5108"],
+      ["Sex:", "Male"],
+    ]),
+    {
+      type: "fields",
+      title: "Admission",
+      left: [
+        ["Hospital:", "Pudong Demo Medical Center"],
+        ["Department:", "Neurology"],
+        ["Attending Physician:", "Dr. Zhang Wei"],
+      ],
+      right: [
+        ["Admission Date:", "2026-10-14"],
+        ["Arrived by:", "Ambulance (120)"],
+        ["Ward:", "Neuro HDU, bed 6"],
+      ],
+      split: 0.6,
+      labelWidth: 100,
+    },
+    {
+      type: "section",
+      heading: "Presentation",
+      fields: [["Presenting Symptoms:", "right-sided weakness, slurred speech, BP 192/104"]],
+    },
+    {
+      type: "table",
+      heading: "Investigations",
+      columns: [
+        { label: "Test", width: 0.42 },
+        { label: "Result", width: 0.34, align: "right" },
+        { label: "Reference", width: 0.24, align: "right" },
+      ],
+      rows: [
+        ["CT brain on arrival", "left basal ganglia bleed, 12 mL", ""],
+        ["CT brain, day 3", "stable, no expansion", ""],
+      ],
+    },
+    {
+      type: "section",
+      heading: "Assessment and treatment",
+      fields: [
+        ["Diagnosis:", "Intracerebral haemorrhage, left basal ganglia (ICD-10 I61.0)"],
+        ["Procedures:", "CT brain, blood pressure control, physiotherapy"],
+        ["Medications:", "Amlodipine 10mg, Labetalol 200mg"],
+      ],
+      text: [
+        "Conservative management; no surgery needed. Neurologically stable for 72 hours; fit for transfer home for rehabilitation.",
+      ],
+    },
+    {
+      type: "section",
+      heading: "Fitness for transfer",
+      fields: [
+        ["Fit to Fly:", "Yes, from 2026-10-21"],
+        ["Mobility:", "Stretcher"],
+        ["Oxygen:", "2 L/min"],
+        ["Monitoring:", "Basic (blood pressure, neuro checks)"],
+        ["Escort:", "Doctor"],
+      ],
+    },
+    {
+      type: "signature",
+      caption: "Physician's signature and stamp",
+      name: "Dr. Zhang Wei",
+      role: "Neurologist · Reg. DEMO-31-0626",
+      place: "Shanghai, 2026-10-19",
+      stamp: certifiedCopy(PUDONG_INTERNATIONAL, "Shanghai"),
+    },
+  ],
+};
+
+// Rachel Lim's final bill for a dengue admission in Bangkok (CASE-1006),
+// billed to the insurer in THB. Overbilled the way tourist-area invoices often
+// are: a consultation above the reference, a night more than the stay, a VIP
+// suite, a duplicate laboratory line, consumables far above the reference and
+// comfort items; the dengue serology has no reference price and is queried.
+const rachelFinalInvoice: SampleDoc = {
+  file: "final-invoice-rachel-lim-bangkok.pdf",
+  dir: "demo-documents",
+  lang: "en",
+  issuer: SUKHUMVIT_INTERNATIONAL,
+  title: "INVOICE",
+  subtitle: "Final invoice, inpatient stay",
+  meta: [
+    ["Invoice No:", "SDI-INV-2026-7731"],
+    ["Invoice Date:", "2026-10-13"],
+    ["Case:", "CASE-1006"],
+  ],
+  blocks: [
+    patient(RACHEL, [
+      ["Policy Number:", "POL-SG-200102"],
+      ["Payer:", `${BRAND.name} (direct billing)`],
+      ["Currency:", "THB"],
+    ]),
+    {
+      type: "fields",
+      title: "Stay",
+      left: [
+        ["Hospital:", "Sukhumvit Demo International Hospital"],
+        ["Attending Physician:", "Dr. Kanya Srisuk"],
+        ["Diagnosis:", "Dengue with warning signs (A97.1)"],
+      ],
+      right: [
+        ["Admission Date:", "2026-10-09"],
+        ["Discharge Date:", "2026-10-12"],
+        ["Room:", "Ward 7, room 712"],
+      ],
+      split: 0.6,
+      labelWidth: 100,
+    },
+    {
+      type: "table",
+      heading: "Itemised charges",
+      columns: MONEY,
+      rows: [
+        ["520.020", "Specialist consultation, infectious diseases", "1", "9,800.00", "9,800.00"],
+        ["510.120", "Ward accommodation (per night)", "4", "9,500.00", "38,000.00"],
+        ["510.160", "VIP suite supplement (per night)", "3", "4,500.00", "13,500.00"],
+        ["901.010", "Laboratory: blood count, CRP, electrolytes", "4", "1,950.00", "7,800.00"],
+        ["901.010", "Laboratory: blood count, CRP, electrolytes", "4", "1,950.00", "7,800.00"],
+        ["901.610", "Dengue NS1 antigen and IgM/IgG serology", "1", "3,200.00", "3,200.00"],
+        ["600.200", "Medication and consumables", "1", "14,800.00", "14,800.00"],
+        ["520.080", "Physician fees, daily rounds", "4", "4,200.00", "16,800.00"],
+        ["950.900", "Telephone and television", "1", "1,200.00", "1,200.00"],
+        ["950.920", "Minibar and guest meals", "1", "2,650.00", "2,650.00"],
+      ],
+      totals: [
+        { label: "Subtotal:", value: "115,550.00" },
+        { label: "VAT (medical services):", value: "exempt" },
+        { label: "Total Amount Due:", value: "115,550.00 THB", strong: true },
+      ],
+      note: "Direct billing to the travel insurer's assistance company. Payment within 30 days; please quote the invoice number.",
+    },
+    {
+      type: "signature",
+      caption: "Billing office stamp",
+      name: "Patient Accounts",
+      role: "International Patient Services",
+      place: "Bangkok, 2026-10-13",
+      stamp: patientAccounts(SUKHUMVIT_INTERNATIONAL),
+    },
+  ],
+};
+
 export const SAMPLE_DOCS: SampleDoc[] = [
   aylinMedicalReport,
   aylinInvoice,
@@ -1064,4 +1244,6 @@ export const SAMPLE_DOCS: SampleDoc[] = [
   oliverEstimateFax,
   lenaEpikriz,
   lenaFax,
+  danielMedicalReport,
+  rachelFinalInvoice,
 ];

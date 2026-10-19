@@ -240,7 +240,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
       input: leg.format,
       output: leg.format,
       tools: realtimeTools(profile.tools),
-      languageHint: language?.code ?? profile.languageHint,
+      languageHint: language ? (language.hint === undefined ? language.code : language.hint ?? undefined) : profile.languageHint,
       keyterms: [...DEFAULT_KEYTERMS, ...(profile.keyterms ?? []), ...(call.case ? [call.case.ref] : [])],
       reasoningEffort: profile.reasoningEffort,
     },

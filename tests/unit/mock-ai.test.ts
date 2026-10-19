@@ -83,6 +83,15 @@ describe("MockAIService: assistance request analysis", () => {
     );
     expect(rep.assistanceType).toBe("REPATRIATION");
   });
+
+  it("gives the country and its emergency number for a case in Asia", async () => {
+    const a = await ai.analyzeAssistanceRequest("My wife had a stroke in Bangkok and is in hospital.");
+    expect(a).toMatchObject({ location: "Bangkok", country: "Thailand", urgency: "CRITICAL", medicalIssue: "Stroke / brain bleed" });
+    expect(a.suggestedActions[0]).toBe("Advise caller to contact local emergency services (1669)");
+    const istanbul = await ai.analyzeAssistanceRequest("My husband has chest pain at our hotel in Taksim.");
+    expect(istanbul.country).toBe("Turkiye");
+    expect(istanbul.suggestedActions[0]).toBe("Advise caller to contact local emergency services (112)");
+  });
 });
 
 describe("MockAIService: document classification", () => {

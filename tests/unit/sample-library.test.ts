@@ -50,6 +50,8 @@ describe("sample library", () => {
     "demo-inbound/epikriz-lena-koch.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Lena Koch", policy: "POL-TR-100946" },
     "demo-inbound/fax-cost-estimate-oliver-bennett.pdf": { kind: "COST_ESTIMATE", patient: "Oliver Bennett", policy: "POL-TR-100950", amount: [6850, "EUR"], scanned: true },
     "demo-inbound/fax-medical-report-lena-koch.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Lena Koch", policy: "POL-TR-100946", scanned: true },
+    "demo-documents/medical-report-daniel-tan.pdf": { kind: "MEDICAL_REPORT", patient: "Daniel Tan", policy: "POL-SG-200101" },
+    "demo-documents/final-invoice-rachel-lim-bangkok.pdf": { kind: "HOSPITAL_INVOICE", patient: "Rachel Lim", policy: "POL-SG-200102", amount: [115550, "THB"] },
   };
 
   it("covers every PDF in the library", () => {
@@ -104,6 +106,14 @@ describe("sample library", () => {
     expect(lena.findings.filter((f) => f.saving > 0).map((f) => f.rule).sort()).toEqual(
       ["DUPLICATE", "EXTRA_NIGHTS", "NON_MEDICAL", "NON_MEDICAL", "NON_MEDICAL", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE"]
     );
+    // The same reference tariff, converted to THB, for a Bangkok hospital.
+    const rachel = await review("demo-documents/final-invoice-rachel-lim-bangkok.pdf");
+    expect([rachel.currency, rachel.billed, rachel.recommended, rachel.savings]).toEqual(["THB", 115550, 68787.5, 46762.5]);
+    expect(rachel.savingsEur).toBeCloseTo(46762.5 / 37, 2);
+    expect(rachel.findings.filter((f) => f.saving > 0).map((f) => f.rule).sort()).toEqual(
+      ["DUPLICATE", "EXTRA_NIGHTS", "NON_MEDICAL", "NON_MEDICAL", "NON_MEDICAL", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE"]
+    );
+    expect(rachel.findings.find((f) => f.rule === "NO_REFERENCE")?.line).toBe(5);
   });
 
   it("reads a renamed copy of a fax scan", () => {
@@ -147,12 +157,13 @@ describe("sample e-mails", () => {
 });
 
 describe("sample assistance requests", () => {
-  const want: Record<string, { patient: string; location: string; urgency: string; type: string; caseRef?: string }> = {
-    "call-note-taksim-stomach-pain.txt": { patient: "Traveller's husband", location: "Taksim, Istanbul", urgency: "HIGH", type: "MEDICAL" },
-    "whatsapp-kadikoy-child-fever.txt": { patient: "Emma Van Dijk", location: "Kadikoy, Istanbul", urgency: "MEDIUM", type: "MEDICAL" },
-    "email-hotel-sultanahmet-toothache.txt": { patient: "Marco Bianchi", location: "Sultanahmet, Istanbul", urgency: "HIGH", type: "DENTAL" },
-    "email-tour-operator-case-1013.txt": { patient: "Oliver Bennett", location: "Besiktas, Istanbul", urgency: "MEDIUM", type: "MEDICAL", caseRef: "CASE-1013" },
-    "call-transcript-sisli-chest-pain.txt": { patient: "Thomas Weber", location: "Sisli, Istanbul", urgency: "CRITICAL", type: "MEDICAL" },
+  const want: Record<string, { patient: string; location: string; country: string; urgency: string; type: string; caseRef?: string }> = {
+    "call-note-taksim-stomach-pain.txt": { patient: "Traveller's husband", location: "Taksim, Istanbul", country: "Turkiye", urgency: "HIGH", type: "MEDICAL" },
+    "whatsapp-kadikoy-child-fever.txt": { patient: "Emma Van Dijk", location: "Kadikoy, Istanbul", country: "Turkiye", urgency: "MEDIUM", type: "MEDICAL" },
+    "email-hotel-sultanahmet-toothache.txt": { patient: "Marco Bianchi", location: "Sultanahmet, Istanbul", country: "Turkiye", urgency: "HIGH", type: "DENTAL" },
+    "email-tour-operator-case-1013.txt": { patient: "Oliver Bennett", location: "Besiktas, Istanbul", country: "Turkiye", urgency: "MEDIUM", type: "MEDICAL", caseRef: "CASE-1013" },
+    "call-transcript-sisli-chest-pain.txt": { patient: "Thomas Weber", location: "Sisli, Istanbul", country: "Turkiye", urgency: "CRITICAL", type: "MEDICAL" },
+    "email-family-shanghai-stroke.txt": { patient: "Daniel Tan", location: "Shanghai", country: "China", urgency: "CRITICAL", type: "REPATRIATION" },
   };
 
   it("are all in the library and on disk, as written", () => {
@@ -164,7 +175,7 @@ describe("sample assistance requests", () => {
     it(`analyses ${r.file} offline`, async () => {
       const a = await ai.analyzeAssistanceRequest(r.text);
       const w = want[r.file];
-      expect({ patient: a.patient, location: a.location, urgency: a.urgency, type: a.assistanceType, caseRef: a.existingCaseRef ?? undefined }).toEqual({
+      expect({ patient: a.patient, location: a.location, country: a.country, urgency: a.urgency, type: a.assistanceType, caseRef: a.existingCaseRef ?? undefined }).toEqual({
         ...w,
         caseRef: w.caseRef,
       });

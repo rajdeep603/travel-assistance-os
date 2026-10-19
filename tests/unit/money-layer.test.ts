@@ -149,6 +149,8 @@ describe("guarantee limits with open guarantees", () => {
   it("converts between currencies through EUR", () => {
     expect(convert(38, "TRY", "EUR")).toBeCloseTo(1, 6);
     expect(convert(100, "EUR", "EUR")).toBe(100);
+    expect(convert(1.47, "SGD", "EUR")).toBeCloseTo(1, 6);
+    expect(convert(37, "THB", "SGD")).toBeCloseTo(1.47, 6);
   });
 });
 

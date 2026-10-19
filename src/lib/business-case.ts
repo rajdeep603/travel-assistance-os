@@ -90,7 +90,7 @@ export const DEFAULT_ASSUMPTIONS: Assumptions = {
   inboundAutomatedPct: 70,
 };
 
-// Modest, round figures for three typical visitors.
+// Modest, round figures for typical visitors, smallest first.
 export const PRESETS: readonly Preset[] = [
   {
     id: "specialist",
@@ -126,6 +126,27 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 5,
       costPerHour: 30,
       productiveHoursPerMonth: 140,
+    },
+  },
+  {
+    // Six alarm centres across Singapore, Malaysia, Thailand, the Philippines,
+    // Japan and China: more volume than a regional company, at a blended
+    // Asia-Pacific staff cost.
+    id: "apac",
+    label: "Asia-Pacific assistance group",
+    inputs: {
+      monthlyCases: 4_200,
+      monthlyCalls: 16_000,
+      afterHoursCallPct: 40,
+      callMinutes: 7,
+      monthlyClaims: 3_000,
+      claimReviewMinutes: 15,
+      monthlyLetters: 900,
+      letterHours: 1.5,
+      monthlyInbound: 11_000,
+      inboundMinutes: 5,
+      costPerHour: 18,
+      productiveHoursPerMonth: 150,
     },
   },
   {
@@ -345,6 +366,7 @@ export const DEFAULT_COST_CONTAINMENT: CostContainmentInputs = {
 export const PRESET_MEDICAL_SPEND: Record<string, number> = {
   specialist: 2_500_000,
   regional: 12_000_000,
+  apac: 40_000_000,
   large: 60_000_000,
 };
 

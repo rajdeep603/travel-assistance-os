@@ -206,6 +206,13 @@ describe("presets", () => {
     const savings = PRESETS.map((p) => calculateBusinessCase(p.inputs, DEFAULT_ASSUMPTIONS).annualSaving);
     expect([...savings].sort((a, b) => a - b)).toEqual(savings);
   });
+
+  it("size an Asia-Pacific assistance group between the regional company and the large insurer", () => {
+    const r = calculateBusinessCase(PRESETS.find((p) => p.id === "apac")!.inputs, DEFAULT_ASSUMPTIONS);
+    expect(Math.round(r.hoursFreed)).toBe(3441);
+    expect(r.fte).toBeCloseTo(22.9, 1);
+    expect(Math.round(r.annualSaving)).toBe(743_184);
+  });
 });
 
 describe("wording", () => {

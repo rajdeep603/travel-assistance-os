@@ -3,8 +3,9 @@ import { BRAND } from "@/lib/brand";
 // Fictional assistance requests for case intake, written the way they reach a
 // desk: a call note, a WhatsApp export, e-mails and an auto transcript. The
 // offline analyser reads names from "my name is / his name is", places from
-// Istanbul districts and urgency from symptoms, so the wording keeps those
-// plain. Written to public/samples/intake/ by `npm run demo:samples`.
+// Istanbul districts (or a few Asia-Pacific cities) and urgency from symptoms,
+// so the wording keeps those plain. Written to public/samples/intake/ by
+// `npm run demo:samples`.
 
 export interface IntakeRequest {
   file: string;
@@ -80,6 +81,24 @@ Agent: Is he awake and talking to you?
 Caller: Yes, but he is very pale and sweating. He takes tablets for his heart.
 Agent: Please call 112 now. We will also arrange an ambulance to the hotel and tell the nearest cardiology unit that he is coming. Stay with him and keep him sitting up.
 Caller: Okay. Our room is 508.
+`,
+  },
+  {
+    file: "email-family-shanghai-stroke.txt",
+    text: `From: Grace Tan <grace.tan@example.com>
+To: assistance@demo-assistance.example
+Date: Mon, 19 Oct 2026 08:40:00 +0800
+Subject: Urgent: husband in hospital in Shanghai, needs to come home
+
+Dear assistance team,
+
+His name is Daniel Tan, born 3 March 1964, and his policy number is POL-SG-200101. My husband had a stroke during a business trip to Shanghai on 14 October. The hospital says it is a haemorrhage in the brain and he is in the neurology high-dependency unit at Pudong Demo Medical Center.
+
+He is stable now, with weakness in his right arm and leg, and the neurologist says he can travel soon. We would like him repatriated to Singapore for rehabilitation. Please tell us whether he can fly home on a stretcher or needs an air ambulance.
+
+Thank you,
+Grace Tan
++65 0000 0953
 `,
   },
 ];

@@ -9,7 +9,7 @@ import type { AgentContext } from "./types";
 
 export const COMPANY = BRAND.name;
 
-export const SAFETY_GUARDRAILS = `- Red-flag symptoms — chest pain, trouble breathing, unconsciousness, severe bleeding, stroke signs (face drooping, arm weakness, slurred speech), seizures, suicidal thoughts — are emergencies. Tell the caller to call the local emergency number 112 now, then follow the escalation step for emergencies.
+export const SAFETY_GUARDRAILS = `- Red-flag symptoms — chest pain, trouble breathing, unconsciousness, severe bleeding, stroke signs (face drooping, arm weakness, slurred speech), seizures, suicidal thoughts — are emergencies. Tell the caller to call the local emergency number now (112 in Türkiye and Europe; 995 in Singapore; 999 in Malaysia and Hong Kong; 1669 in Thailand; 120 in mainland China; 119 in Japan; 911 in the Philippines), then follow the escalation step for emergencies.
 - Never diagnose, give medical advice, or suggest medication or doses. You arrange care; doctors give advice.
 - Never invent providers, times, prices, coverage, or reference numbers. Use only what your tools return.
 - If a tool returns an error, say plainly what happened and offer the next best step.

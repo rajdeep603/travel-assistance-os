@@ -58,13 +58,17 @@ const later = (d: Date, seconds: number) => new Date(d.getTime() + seconds * 100
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 
 async function main() {
-  // --if-empty: only seed a fresh database, so restarts and deploys don't
-  // reset what was changed during a demo (cases worked, letters sent, …).
-  if (process.argv.includes("--if-empty") && (await prisma.patient.count()) > 0) {
-    console.log("Database already has demo data — skipping seed (AUTO_SEED=always re-seeds).");
-    return;
-  }
-  console.log("Seeding fictional demo data …");
+  // --if-empty: a database that already has demo data keeps it as it is, so
+  // restarts and deploys don't reset what was changed during a demo (cases
+  // worked, letters sent, …). Only patients, policies, providers and cases
+  // added to the demo since it was seeded are created.
+  const addOnly = process.argv.includes("--if-empty") && (await prisma.patient.count()) > 0;
+  const keep = <T>(data: T) => (addOnly ? {} : data);
+  console.log(
+    addOnly
+      ? "Database already has demo data: adding only the demo records it lacks (AUTO_SEED=always re-seeds) …"
+      : "Seeding fictional demo data …"
+  );
 
   // --- Patients --------------------------------------------------------------
   const patientIds = new Map<string, string>();
@@ -72,30 +76,31 @@ async function main() {
     const row = await prisma.patient.upsert({
       where: { ref: p.ref },
       create: { ...p, dateOfBirth: new Date(p.dateOfBirth) },
-      update: { ...p, dateOfBirth: new Date(p.dateOfBirth) },
+      update: keep({ ...p, dateOfBirth: new Date(p.dateOfBirth) }),
     });
     patientIds.set(p.ref, row.id);
   }
-  console.log(`  patients: ${PATIENTS.length}`);
+  console.log(`  patients: ${patientIds.size}`);
 
   // --- Policies (one per patient) -----------------------------------------------
   for (const pp of PATIENT_POLICIES) {
     const patient = PATIENTS.find((p) => p.ref === pp.patientRef)!;
     const plan = POLICY_PLANS[pp.plan];
+    const currency = pp.currency ?? "EUR";
     const data = {
       plan: pp.plan,
       // A fixed start before every sample's treatment date, so date checks don't drift as the seed ages.
       validFrom: new Date("2026-08-01T00:00:00Z"),
       validTo: new Date(Math.max(Date.parse("2027-07-31T23:59:59Z"), daysAgo(-305).getTime())),
-      currency: "EUR",
+      currency,
       medicalLimit: plan.medicalLimit,
       medicalUsed: pp.medicalUsed,
-      benefits: plan.benefits,
+      benefits: plan.benefits.map((b) => (b.unit ? { ...b, unit: b.unit.replace(/^EUR\b/, currency) } : b)),
     };
     await prisma.policy.upsert({
       where: { number: patient.policyNumber },
       create: { number: patient.policyNumber, ...data },
-      update: data,
+      update: keep(data),
     });
   }
   console.log(`  policies: ${PATIENT_POLICIES.length}`);
@@ -106,11 +111,11 @@ async function main() {
     const row = await prisma.provider.upsert({
       where: { ref: p.ref },
       create: p,
-      update: p,
+      update: keep(p),
     });
     providerIds.set(p.ref, row.id);
   }
-  console.log(`  providers: ${PROVIDERS.length}`);
+  console.log(`  providers: ${providerIds.size}`);
 
   // --- Cases -------------------------------------------------------------------
   const caseIds = new Map<string, string>();
@@ -118,18 +123,23 @@ async function main() {
     const { patientRef, daysAgo: ago, openedAt, ...rest } = c;
     const data = {
       ...rest,
-      country: "Turkiye",
+      country: c.country ?? "Turkiye",
       patientId: patientIds.get(patientRef)!,
       createdAt: slotAt(-ago, openedAt),
     };
     const row = await prisma.case.upsert({
       where: { ref: c.ref },
       create: data,
-      update: data,
+      update: keep(data),
     });
     caseIds.set(c.ref, row.id);
   }
-  console.log(`  cases: ${CASES.length}`);
+  console.log(`  cases: ${caseIds.size}`);
+  if (addOnly) {
+    await syncRefSequences(prisma);
+    console.log("Added the missing demo records; everything else is as it was.");
+    return;
+  }
 
   // --- Claims --------------------------------------------------------------------
   const claimIds = new Map<string, string>();

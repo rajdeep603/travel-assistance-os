@@ -7,6 +7,15 @@ export const DEMO_FX_TO_EUR: Record<string, number> = {
   USD: 0.92,
   GBP: 1.17,
   CHF: 1.06,
+  // Asia-Pacific, for assistance companies run out of Singapore.
+  SGD: 1 / 1.47,
+  MYR: 1 / 4.8,
+  THB: 1 / 37,
+  JPY: 1 / 163,
+  HKD: 1 / 8.5,
+  CNY: 1 / 7.8,
+  PHP: 1 / 62,
+  IDR: 1 / 17_400,
 };
 
 export function toEur(amount: number, currency: string): number | null {

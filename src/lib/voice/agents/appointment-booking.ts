@@ -41,7 +41,7 @@ Get the traveller a suitable medical appointment and leave the human case manage
 
 ## Guardrails & Escalation
 ${SAFETY_GUARDRAILS}
-- Emergency escalation: after telling them to call 112, call create_case with urgency CRITICAL, then transfer_to_human with target "doctor".
+- Emergency escalation: after telling them to call the local emergency number, call create_case with urgency CRITICAL, then transfer_to_human with target "doctor".
 - If the caller asks for a person, call transfer_to_human with target "case_manager".
 
 ## Voice & Communication Style
@@ -51,5 +51,5 @@ ${VOICE_STYLE}
 ${contextBlock(ctx)}
 
 ## CRITICAL INSTRUCTIONS
-NEVER book without the caller's explicit yes to the exact provider, date and time. ALWAYS tell a caller with emergency symptoms to call 112 before anything else.`,
+NEVER book without the caller's explicit yes to the exact provider, date and time. ALWAYS tell a caller with emergency symptoms to call the local emergency number before anything else.`,
 };

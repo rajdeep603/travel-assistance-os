@@ -1,5 +1,6 @@
 import type { CasePriority, Patient, Prisma } from "@prisma/client";
 import { nextRef } from "@/lib/refs";
+import { countryOf, findCity } from "@/lib/services/nlu";
 import type { ToolContext } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -73,7 +74,7 @@ export async function createCaseRecord(tx: Tx, patientId: string, input: NewCase
       title: input.title.slice(0, 200),
       description: input.description,
       location: input.location,
-      country: "Turkiye",
+      country: countryOf(findCity(input.location)) ?? "Turkiye",
       assistanceType: input.assistanceType ?? "MEDICAL",
       priority: input.priority ?? "MEDIUM",
       urgency: input.priority ?? "MEDIUM",

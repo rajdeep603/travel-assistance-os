@@ -6,8 +6,10 @@
 // ---------------------------------------------------------------------------
 
 export interface VoiceLanguage {
-  /** ISO 639-1, also the recogniser's language hint. */
+  /** ISO 639 code, also the recogniser's language hint unless `hint` says otherwise. */
   code: string;
+  /** The recogniser's hint when it differs from `code`; null lets it detect the language. */
+  hint?: string | null;
   /** English name: stored on the call and given to the agent. */
   name: string;
   /** What a speaker calls it, for the picker. */
@@ -29,6 +31,13 @@ export const VOICE_LANGUAGES: VoiceLanguage[] = [
   { code: "sv", name: "Swedish", native: "Svenska" },
   { code: "no", name: "Norwegian", native: "Norsk" },
   { code: "hi", name: "Hindi", native: "हिन्दी" },
+  { code: "zh", name: "Mandarin", native: "普通话" },
+  { code: "yue", name: "Cantonese", native: "廣東話", hint: null },
+  { code: "ms", name: "Malay", native: "Bahasa Melayu" },
+  { code: "id", name: "Indonesian", native: "Bahasa Indonesia" },
+  { code: "th", name: "Thai", native: "ไทย" },
+  { code: "ja", name: "Japanese", native: "日本語" },
+  { code: "tl", name: "Tagalog", native: "Tagalog" },
 ];
 
 /** The language by English name or code, case-insensitively. */

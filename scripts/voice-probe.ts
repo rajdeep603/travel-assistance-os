@@ -11,13 +11,15 @@
 // barge-in, idle timers and playback waits behave as on a real call.
 // Options: --hold 40000 (stay silent after the last turn), --case CASE-1024 (outbound agents and case-linked sessions),
 // --language "Spanish" (the session's opening language), --debug (model
-// events). Prints the transcript, tool activity and the call's outcome.
+// events), --save agent.wav (the agent's audio, to listen to). Prints the
+// transcript, what the recogniser heard the caller say, tool activity and the
+// call's outcome.
 // Needs XAI_API_KEY and macOS; development only.
 // ---------------------------------------------------------------------------
 
 import "dotenv/config";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Prisma } from "@prisma/client";
@@ -31,11 +33,12 @@ import type { AudioFormat } from "@/lib/voice/realtime/xai-session";
 const VOICES: Record<string, string> = {
   en: "Samantha", tr: "Yelda", es: "Mónica", ar: "Majed", de: "Anna", it: "Alice", sv: "Alva", nb: "Nora", no: "Nora",
   hi: "Lekha", ru: "Milena", fr: "Thomas", pl: "Zosia", cs: "Zuzana", pt: "Luciana",
+  zh: "Tingting", yue: "Sinji", ja: "Kyoko", th: "Kanya", ms: "Amira", id: "Damayanti",
 };
 
 function args() {
   const a = process.argv.slice(2);
-  const out = { agent: "inbound-hotline", channel: "PHONE" as "PHONE" | "BROWSER", lang: "en", language: "", caseRef: "", turns: [] as { text: string; typed: boolean }[], debug: false, gapMs: 1200, holdMs: 0 };
+  const out = { agent: "inbound-hotline", channel: "PHONE" as "PHONE" | "BROWSER", lang: "en", language: "", caseRef: "", turns: [] as { text: string; typed: boolean }[], debug: false, gapMs: 1200, holdMs: 0, save: "" };
   for (let i = 0; i < a.length; i++) {
     const v = a[i + 1];
     switch (a[i]) {
@@ -49,6 +52,7 @@ function args() {
       case "--gap": out.gapMs = Number(v); i++; break;
       case "--hold": out.holdMs = Number(v); i++; break;
       case "--debug": out.debug = true; break;
+      case "--save": out.save = v; i++; break;
     }
   }
   return out;
@@ -82,6 +86,10 @@ class ProbeLeg implements VoiceLeg {
   playUntil = 0;
   lastAgentAudio = 0;
   closed = false;
+  /** The agent's audio as sent, for --save. */
+  agentAudio: Buffer[] = [];
+  /** What the recogniser heard, per caller utterance (it grows while they speak). */
+  heard = new Map<string, string>();
   private bytesPerMs: number;
   private silence: NodeJS.Timeout;
 
@@ -125,7 +133,9 @@ class ProbeLeg implements VoiceLeg {
   onDtmf() {}
   onClose(h: (reason: string) => void) { this.closers.push(h); }
   sendAudio(b64: string) {
-    const ms = Buffer.from(b64, "base64").length / this.bytesPerMs;
+    const frame = Buffer.from(b64, "base64");
+    if (opts.save) this.agentAudio.push(frame);
+    const ms = frame.length / this.bytesPerMs;
     this.playUntil = Math.max(Date.now(), this.playUntil) + ms;
     this.lastAgentAudio = Date.now();
   }
@@ -141,6 +151,7 @@ class ProbeLeg implements VoiceLeg {
     switch (e.type) {
       case "transcript":
         if (e.role === "agent") log(`agent ◀ ${e.text}  [audio queued ${(Math.max(0, this.playUntil - Date.now()) / 1000).toFixed(1)}s]`);
+        else if (e.role === "user" && typeof e.line === "string") this.heard.set(e.line, String(e.text));
         break;
       case "tool":
         log(`tool  ${e.name} ${e.status}${e.summary ? ` — ${e.summary}` : ""}`);
@@ -170,6 +181,25 @@ class ProbeLeg implements VoiceLeg {
       await new Promise((r) => setTimeout(r, Math.min(busy, 250)));
     }
   }
+}
+
+/** A WAV file around raw frames: μ-law 8 kHz on the phone, 16-bit PCM 24 kHz in the browser. */
+function wav(data: Buffer, phone: boolean): Buffer {
+  const [format, rate, bits] = phone ? [7, 8000, 8] : [1, 24_000, 16];
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + data.length, 4);
+  header.write("WAVEfmt ", 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(format, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE((rate * bits) / 8, 28);
+  header.writeUInt16LE(bits / 8, 32);
+  header.writeUInt16LE(bits, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(data.length, 40);
+  return Buffer.concat([header, data]);
 }
 
 async function main() {
@@ -218,6 +248,11 @@ async function main() {
     await leg.quiet(1500);
   }
   if (!leg.closed) leg.close("caller hung up");
+  for (const text of leg.heard.values()) log(`heard ▷ ${text}`);
+  if (opts.save) {
+    writeFileSync(opts.save, wav(Buffer.concat(leg.agentAudio), leg.phone));
+    log(`agent audio saved to ${opts.save}`);
+  }
   // Resolves once the session has saved its outcome and summary.
   await session;
   const done = await prisma.call.findUniqueOrThrow({ where: { id: call.id } });

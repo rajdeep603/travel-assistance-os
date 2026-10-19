@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
 import { sendEmail } from "./outbox";
-import { MODE_LABELS, TRANSPORT_TARIFF_VERSION, recommendTransport, type TransportAssessment } from "./transport";
+import { MODE_LABELS, TRANSPORT_TARIFF_VERSION, recommendTransport, type OriginHub, type TransportAssessment } from "./transport";
 
 // ---------------------------------------------------------------------------
 // Saves a medical transport plan on a case and, when the recommended mode
@@ -11,10 +11,12 @@ import { MODE_LABELS, TRANSPORT_TARIFF_VERSION, recommendTransport, type Transpo
 // clinical facts a provider prices on, never the patient's name.
 // ---------------------------------------------------------------------------
 
-/** Fictional transport providers that quote for each mode. */
-export const TRANSPORT_VENDORS: { name: string; email: string; modes: string[] }[] = [
-  { name: "Demo Air Ambulance Europe", email: "quotes@demo-airambulance.example", modes: ["AIR_AMBULANCE", "COMMERCIAL_STRETCHER"] },
-  { name: "Demo MedEscort", email: "ops@demo-medescort.example", modes: ["COMMERCIAL_ESCORTED", "COMMERCIAL_STRETCHER"] },
+/** Fictional transport providers that quote for each mode, by planning hub. */
+export const TRANSPORT_VENDORS: { name: string; email: string; modes: string[]; hub: OriginHub }[] = [
+  { name: "Demo Air Ambulance Europe", email: "quotes@demo-airambulance.example", modes: ["AIR_AMBULANCE", "COMMERCIAL_STRETCHER"], hub: "IST" },
+  { name: "Demo MedEscort", email: "ops@demo-medescort.example", modes: ["COMMERCIAL_ESCORTED", "COMMERCIAL_STRETCHER"], hub: "IST" },
+  { name: "Demo Air Ambulance Asia", email: "quotes@demo-airambulance-asia.example", modes: ["AIR_AMBULANCE", "COMMERCIAL_STRETCHER"], hub: "SIN" },
+  { name: "Demo MedEscort Asia", email: "ops@demo-medescort-asia.example", modes: ["COMMERCIAL_ESCORTED", "COMMERCIAL_STRETCHER"], hub: "SIN" },
 ];
 
 const initials = (first: string, last: string) => `${first[0] ?? ""}.${last[0] ?? ""}.`;
@@ -27,8 +29,9 @@ export async function createTransportPlan(
   const kase = await prisma.case.findUnique({ where: { id: caseId }, include: { patient: true } });
   if (!kase) throw notFound("Case");
   const destination = assessment.destinationCountry ?? kase.patient.nationality ?? null;
-  const rec = recommendTransport({ ...assessment, destinationCountry: destination });
-  const vendors = TRANSPORT_VENDORS.filter((v) => v.modes.includes(rec.mode));
+  const rec = recommendTransport({ ...assessment, destinationCountry: destination, originCountry: kase.country });
+  const vendors = TRANSPORT_VENDORS.filter((v) => v.hub === rec.origin && v.modes.includes(rec.mode));
+  const from = rec.origin === "IST" ? { city: "Istanbul", country: "Türkiye" } : { city: kase.location, country: kase.country ?? "" };
 
   const plan = await withRef("transport", (ref) =>
     prisma.transportPlan.create({
@@ -39,7 +42,7 @@ export async function createTransportPlan(
         assessment: { ...assessment, destinationCountry: destination, tariff: TRANSPORT_TARIFF_VERSION } as unknown as Prisma.InputJsonValue,
         mode: rec.mode,
         reasons: rec.reasons,
-        options: { distance: rec.distance, options: rec.options, avoidedVsAirAmbulance: rec.avoidedVsAirAmbulance } as unknown as Prisma.InputJsonValue,
+        options: { distance: rec.distance, origin: rec.origin, options: rec.options, avoidedVsAirAmbulance: rec.avoidedVsAirAmbulance } as unknown as Prisma.InputJsonValue,
         currency: rec.currency,
         estimateLow: rec.low,
         estimateHigh: rec.high,
@@ -52,13 +55,13 @@ export async function createTransportPlan(
   for (const v of vendors) {
     await sendEmail({
       to: `${v.name} <${v.email}>`,
-      subject: `Quote request ${plan.ref}: ${MODE_LABELS[rec.mode].toLowerCase()}, Istanbul → ${assessment.destination ?? destination ?? "home"}`,
+      subject: `Quote request ${plan.ref}: ${MODE_LABELS[rec.mode].toLowerCase()}, ${from.city || from.country} → ${assessment.destination ?? destination ?? "home"}`,
       text: [
         `Please quote for ${MODE_LABELS[rec.mode].toLowerCase()}, bed to bed.`,
         "",
         `Patient: ${initials(kase.patient.firstName, kase.patient.lastName)}, ${age} years`,
         `Diagnosis: ${assessment.diagnosis}`,
-        `From: ${kase.location || "Istanbul"}, Türkiye`,
+        `From: ${kase.location || from.city}, ${from.country}`,
         `To: ${assessment.destination ?? destination ?? "to be confirmed"}`,
         `Fit to fly: ${assessment.fitToFly ? "yes" : `not yet${assessment.fitFrom ? ` (expected ${assessment.fitFrom})` : ""}`}`,
         `Mobility: ${assessment.mobility.toLowerCase()}; oxygen: ${assessment.oxygenLpm ? `${assessment.oxygenLpm} L/min` : "none"}; monitoring: ${assessment.monitoring.toLowerCase()}; escort: ${assessment.escort.toLowerCase()}`,
@@ -78,10 +81,10 @@ export async function createTransportPlan(
     data: {
       caseId,
       type: "TRANSPORT",
-      title: `Medical transport ${plan.ref}: ${rec.label.toLowerCase()}${rec.low ? ` (indicative ${rec.low.toLocaleString("en-GB")}–${rec.high.toLocaleString("en-GB")} EUR)` : ""}`,
+      title: `Medical transport ${plan.ref}: ${rec.label.toLowerCase()}${rec.low ? ` (indicative ${rec.low.toLocaleString("en-GB")}–${rec.high.toLocaleString("en-GB")} ${rec.currency})` : ""}`,
       body: [
         ...rec.reasons,
-        rec.avoidedVsAirAmbulance > 0 ? `About ${Math.round(rec.avoidedVsAirAmbulance).toLocaleString("en-GB")} EUR less than an air ambulance.` : null,
+        rec.avoidedVsAirAmbulance > 0 ? `About ${Math.round(rec.avoidedVsAirAmbulance).toLocaleString("en-GB")} ${rec.currency} less than an air ambulance.` : null,
         vendors.length ? `Quote requests sent to ${vendors.map((v) => v.name).join(" and ")}.` : null,
       ]
         .filter(Boolean)

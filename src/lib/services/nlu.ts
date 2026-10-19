@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
 // Deterministic NLU dictionaries and helpers shared by the demo AI provider,
-// the voice agent and provider search. All geography is Istanbul-centric
-// because the platform is demonstrated at ITIC Global.
+// the voice agent and provider search. Geography is Istanbul-centric because
+// the platform is demonstrated at ITIC Global, with a short list of
+// Asia-Pacific cities for assistance companies run out of Singapore.
 // ---------------------------------------------------------------------------
 
 import { addDays, weekdayIndex, zonedToday } from "@/lib/time";
@@ -23,6 +24,31 @@ export const ISTANBUL_DISTRICTS: Record<string, { lat: number; lng: number }> = 
 
 export const CITIES = ["istanbul", "ankara", "antalya", "izmir", "bodrum"];
 
+// Checked after the Turkish cities, with whole-word matching. Singapore comes
+// last: "a Singapore resident in Shanghai" is a case in Shanghai.
+export const APAC_CITIES: readonly { key: string; name: string; country: string }[] = [
+  { key: "shanghai", name: "Shanghai", country: "China" },
+  { key: "xiamen", name: "Xiamen", country: "China" },
+  { key: "shenzhen", name: "Shenzhen", country: "China" },
+  { key: "hong kong", name: "Hong Kong", country: "Hong Kong" },
+  { key: "bangkok", name: "Bangkok", country: "Thailand" },
+  { key: "bali", name: "Bali", country: "Indonesia" },
+  { key: "kuala lumpur", name: "Kuala Lumpur", country: "Malaysia" },
+  { key: "selayang", name: "Selayang", country: "Malaysia" },
+  { key: "manila", name: "Manila", country: "Philippines" },
+  { key: "tokyo", name: "Tokyo", country: "Japan" },
+  { key: "osaka", name: "Osaka", country: "Japan" },
+  { key: "beijing", name: "Beijing", country: "China" },
+  { key: "guangzhou", name: "Guangzhou", country: "China" },
+  { key: "phuket", name: "Phuket", country: "Thailand" },
+  { key: "chiang mai", name: "Chiang Mai", country: "Thailand" },
+  { key: "penang", name: "Penang", country: "Malaysia" },
+  { key: "jakarta", name: "Jakarta", country: "Indonesia" },
+  { key: "cebu", name: "Cebu", country: "Philippines" },
+  { key: "hanoi", name: "Hanoi", country: "Vietnam" },
+  { key: "singapore", name: "Singapore", country: "Singapore" },
+];
+
 export interface SymptomRule {
   keywords: string[];
   symptom: string;
@@ -33,6 +59,7 @@ export interface SymptomRule {
 export const SYMPTOM_RULES: SymptomRule[] = [
   { keywords: ["chest pain", "heart", "cardiac"], symptom: "Chest pain", specialty: "Cardiology", urgency: "CRITICAL" },
   { keywords: ["unconscious", "not breathing", "collapsed"], symptom: "Loss of consciousness", specialty: "Emergency Medicine", urgency: "CRITICAL" },
+  { keywords: ["stroke", "haemorrhage", "hemorrhage", "brain bleed", "bleed in the brain"], symptom: "Stroke / brain bleed", specialty: "Neurology", urgency: "CRITICAL" },
   { keywords: ["stomach pain", "abdominal", "stomach ache", "food poisoning", "vomiting", "nausea", "diarrhea", "diarrhoea"], symptom: "Abdominal pain", specialty: "Gastroenterology", urgency: "HIGH" },
   { keywords: ["broken", "fracture", "sprain", "fell", "fall", "ankle", "wrist injury"], symptom: "Suspected fracture / injury", specialty: "Orthopedics", urgency: "HIGH" },
   { keywords: ["fever", "flu", "cold", "cough", "sore throat", "infection"], symptom: "Fever / infection", specialty: "General Medicine", urgency: "MEDIUM" },
@@ -68,6 +95,7 @@ export const LANGUAGES = [
   "Arabic",
   "Russian",
   "Spanish",
+  "Mandarin",
 ];
 
 const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "");
@@ -82,6 +110,8 @@ export function findDistrict(text: string): string | null {
   return null;
 }
 
+const apacCityRe = new Map(APAC_CITIES.map((c) => [c.key, new RegExp(`\\b${c.key}\\b`)]));
+
 export function findCity(text: string): string | null {
   const t = norm(text);
   for (const city of CITIES) {
@@ -89,7 +119,33 @@ export function findCity(text: string): string | null {
   }
   // Any known district implies Istanbul.
   if (findDistrict(text)) return "Istanbul";
+  for (const city of APAC_CITIES) {
+    if (apacCityRe.get(city.key)!.test(t)) return city.name;
+  }
   return null;
+}
+
+/** The country of a city findCity returns; null for anything else. */
+export function countryOf(city: string | null): string | null {
+  if (!city) return null;
+  if (CITIES.includes(city.toLowerCase())) return "Turkiye";
+  return APAC_CITIES.find((c) => c.name === city)?.country ?? null;
+}
+
+const EMERGENCY_NUMBERS: Record<string, string> = {
+  Singapore: "995",
+  Malaysia: "999",
+  Thailand: "1669",
+  China: "120",
+  "Hong Kong": "999",
+  Japan: "119",
+  Philippines: "911",
+  Indonesia: "118",
+};
+
+/** The local ambulance number; 112 across Turkiye and Europe. */
+export function emergencyNumber(country: string | null): string {
+  return (country && EMERGENCY_NUMBERS[country]) || "112";
 }
 
 const keywordRe = new Map<string, RegExp>();

@@ -43,6 +43,8 @@ export const SAMPLE_KITS: SampleKit[] = [
       { path: doc("final-invoice-lena-koch.pdf"), title: "Overbilled invoice", note: "Lena Koch · 12,385 EUR · open CASE-1022 first to review it against the guarantee" },
       { path: inbound("epikriz-lena-koch.pdf"), title: "Turkish discharge summary", note: "Epikriz · translated to English" },
       { path: inbound("fax-medical-report-lena-koch.pdf"), title: "Handwritten fax", note: "Image only · read with OCR" },
+      { path: doc("medical-report-daniel-tan.pdf"), title: "Report with fitness to fly", note: "Daniel Tan · brain bleed in Shanghai · load the Shanghai e-mail in Cases first" },
+      { path: doc("final-invoice-rachel-lim-bangkok.pdf"), title: "Overbilled invoice (THB)", note: "Rachel Lim · 115,550 THB · open CASE-1006 first to review it" },
     ],
   },
   {
@@ -84,6 +86,13 @@ export const SAMPLE_KITS: SampleKit[] = [
     title: "Overbilled final invoice",
     description: "Lena Koch's October stay, billed above her guarantee LOG-0902. Bill review finds the overcharges line by line. Open CASE-1022 and add it there, or import the hospital's e-mail in the Inbox.",
     files: [{ path: doc("final-invoice-lena-koch.pdf"), title: "Final invoice", note: "12,385 EUR · VIP suite, duplicate CT, an extra night" }],
+  },
+  {
+    id: "claim-overbilled-bangkok",
+    section: "claims",
+    title: "Overbilled invoice, Bangkok",
+    description: "Rachel Lim's dengue admission in Bangkok, billed in THB. Bill review finds the overcharges line by line. Open CASE-1006 and add it there.",
+    files: [{ path: doc("final-invoice-rachel-lim-bangkok.pdf"), title: "Final invoice", note: "115,550 THB · VIP suite, duplicate lab line, an extra night" }],
   },
   {
     id: "inbox-emails",
@@ -168,6 +177,7 @@ export const SAMPLE_KITS: SampleKit[] = [
       { path: "samples/intake/email-hotel-sultanahmet-toothache.txt", title: "Hotel e-mail", note: "Guest with toothache · dental" },
       { path: "samples/intake/email-tour-operator-case-1013.txt", title: "Tour operator follow-up", note: "Quotes an existing case" },
       { path: "samples/intake/call-transcript-sisli-chest-pain.txt", title: "Emergency call", note: "Chest pain in Şişli · critical" },
+      { path: "samples/intake/email-family-shanghai-stroke.txt", title: "Family e-mail, Shanghai", note: "Brain bleed · repatriation to Singapore · critical" },
     ],
   },
 ];

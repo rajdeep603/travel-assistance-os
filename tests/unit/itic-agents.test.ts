@@ -78,6 +78,27 @@ describe("medical transport rules", () => {
     expect(waiting.reasons[0]).toMatch(/Not fit to fly yet; the doctor expects next week/);
     expect(recommendTransport({ ...base, destinationCountry: "United States" })).toMatchObject({ distance: "LONG_HAUL", low: 900, high: 2500 });
   });
+
+  it("plans from Istanbul in EUR unless the patient is in Asia", () => {
+    for (const destinationCountry of ["Germany", "United States", "Japan"]) {
+      const ist = recommendTransport({ ...base, destinationCountry });
+      expect(ist).toMatchObject({ origin: "IST", currency: "EUR" });
+      for (const originCountry of ["Turkiye", "Unknown", null]) {
+        expect(recommendTransport({ ...base, destinationCountry, originCountry })).toEqual(ist);
+      }
+    }
+  });
+
+  it("plans a case in Asia from Singapore, in SGD", () => {
+    const stretcher = { ...base, mobility: "STRETCHER" as const, oxygenLpm: 2, monitoring: "BASIC" as const, escort: "DOCTOR" as const };
+    // Shanghai to Singapore: East to South-East Asia.
+    const shanghai = recommendTransport({ ...stretcher, originCountry: "China", destinationCountry: "Singapore" });
+    expect(shanghai).toMatchObject({ origin: "SIN", currency: "SGD", distance: "MEDIUM_HAUL", mode: "COMMERCIAL_STRETCHER", low: 23500, high: 41000 });
+    expect(shanghai.avoidedVsAirAmbulance).toBe(81750);
+    // Within South-East Asia, nationalities count as places too.
+    expect(recommendTransport({ ...stretcher, originCountry: "Malaysia", destinationCountry: "Singaporean" })).toMatchObject({ distance: "SHORT_HAUL", low: 13000, high: 22000 });
+    expect(recommendTransport({ ...stretcher, originCountry: "Thailand", destinationCountry: "Germany" })).toMatchObject({ distance: "LONG_HAUL", currency: "SGD" });
+  });
 });
 
 describe("bill negotiation numbers", () => {
@@ -165,6 +186,9 @@ describe("voice languages and summaries", () => {
     expect(voiceLanguage("spanish")?.code).toBe("es");
     expect(voiceLanguage("ar")?.name).toBe("Arabic");
     expect(voiceLanguage("Klingon")).toBeNull();
+    expect(voiceLanguage("Mandarin")).toMatchObject({ code: "zh" });
+    // Cantonese has no recogniser hint of its own: the recogniser detects it.
+    expect(voiceLanguage("yue")).toMatchObject({ name: "Cantonese", hint: null });
   });
 
   it("summarises what the new agents recorded", () => {
