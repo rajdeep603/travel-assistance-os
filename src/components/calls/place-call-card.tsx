@@ -99,7 +99,7 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
                 <p className="text-xs text-amber-700">No numbers are approved for AI calls yet, so nothing can be called.</p>
               ) : (
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Number to call</span>
+                  <span className="mb-1 block text-xs font-medium text-muted">Number to call</span>
                   <select
                     value={to}
                     onChange={(e) => setTo(e.target.value)}

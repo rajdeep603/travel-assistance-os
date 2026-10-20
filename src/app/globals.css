@@ -54,6 +54,48 @@ body {
   outline-offset: 2px;
 }
 
+/*
+ * One select arrow everywhere. WebKit on iPad draws its own arrow over long
+ * option text; this one has room kept for it and cuts the text off cleanly.
+ */
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 0.625rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  padding-right: 2.25rem;
+  text-overflow: ellipsis;
+}
+
+/*
+ * iPad browsers (all WebKit, Chrome included) draw date and time fields as
+ * centred buttons, taller and wider than the selects beside them. Make them
+ * ordinary left-aligned fields; tapping one still opens the native picker.
+ */
+input:is([type="date"], [type="time"], [type="datetime-local"]) {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  text-align: left;
+}
+input::-webkit-date-and-time-value {
+  margin: 0;
+  min-height: 1lh;
+  text-align: left;
+}
+/* Touch WebKit shows no calendar button in the field, so draw one: it should read as a date. */
+@supports (-webkit-touch-callout: none) {
+  input:is([type="date"], [type="datetime-local"]) {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 2v4M16 2v4'/%3E%3Crect width='18' height='18' x='3' y='4' rx='2'/%3E%3Cpath d='M3 10h18'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+    padding-right: 2.25rem;
+  }
+}
+
 /* Markdown styling inside chat bubbles (no typography plugin needed). */
 .prose-chat p + p {
   margin-top: 0.5rem;

@@ -20,6 +20,19 @@ export interface RouteStop {
 
 const DRAW_MS = 1100;
 
+/** Narrow stops (an iPad in portrait) must not break "e-mail" into "e-" and "mail". */
+function keepHyphenated(label: string) {
+  return label.split(/(\S+-\S+)/).map((part, i) =>
+    i % 2 ? (
+      <span key={i} className="whitespace-nowrap">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+}
+
 function StopMarker({ stop, delay }: { stop: RouteStop; delay: number }) {
   const Icon = stop.icon;
   const tone =
@@ -69,11 +82,11 @@ export function JourneyRoute({ stops }: { stops: RouteStop[] }) {
               </span>
               <span className="animate-fade-in min-w-0 md:mt-2 md:px-1" style={{ animationDelay: `${delay + 80}ms` }}>
                 <span
-                  className={`block text-sm font-semibold leading-snug text-stage-ink ${stop.href ? "group-hover:text-white group-hover:underline group-hover:underline-offset-4" : ""}`}
+                  className={`block text-sm font-semibold leading-snug text-stage-ink md:text-xs lg:text-sm ${stop.href ? "group-hover:text-white group-hover:underline group-hover:underline-offset-4" : ""}`}
                 >
-                  {stop.label}
+                  {keepHyphenated(stop.label)}
                 </span>
-                <span className={`mt-0.5 block text-xs leading-snug tabular-nums ${stop.kind ? "text-stage-muted" : "font-medium text-brand-2"}`}>
+                <span className={`mt-0.5 block text-xs leading-snug tabular-nums md:text-[11px] lg:text-xs ${stop.kind ? "text-stage-muted" : "font-medium text-brand-2"}`}>
                   {stop.detail}
                 </span>
               </span>

@@ -237,13 +237,13 @@ export default function ClaimsPage() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4 font-semibold">Claim</th>
-                  <th className="py-2 pr-4 font-semibold">Patient</th>
-                  <th className="py-2 pr-4 font-semibold">Case</th>
-                  <th className="py-2 pr-4 font-semibold">Amount</th>
-                  <th className="py-2 pr-4 font-semibold">Documents</th>
-                  <th className="py-2 font-semibold">Status</th>
+                <tr className="border-b border-line text-xs text-muted">
+                  <th className="py-2 pr-4 font-medium">Claim</th>
+                  <th className="py-2 pr-4 font-medium">Patient</th>
+                  <th className="py-2 pr-4 font-medium">Case</th>
+                  <th className="py-2 pr-4 font-medium">Amount</th>
+                  <th className="py-2 pr-4 font-medium">Documents</th>
+                  <th className="py-2 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

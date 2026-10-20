@@ -390,13 +390,13 @@ export default function CasesPage() {
             {/* Portrait tablets drop "Assigned to" so the other columns keep one line each. */}
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-4 font-semibold">Case</th>
-                  <th className="py-2 pr-4 font-semibold">Patient</th>
-                  <th className="py-2 pr-4 font-semibold">Location</th>
-                  <th className="py-2 pr-4 font-semibold">Priority</th>
-                  <th className="py-2 pr-4 font-semibold">Status</th>
-                  <th className="hidden py-2 font-semibold lg:table-cell">Assigned to</th>
+                <tr className="border-b border-line text-xs text-muted">
+                  <th className="py-2 pr-4 font-medium">Case</th>
+                  <th className="py-2 pr-4 font-medium">Patient</th>
+                  <th className="py-2 pr-4 font-medium">Location</th>
+                  <th className="py-2 pr-4 font-medium">Priority</th>
+                  <th className="py-2 pr-4 font-medium">Status</th>
+                  <th className="hidden py-2 font-medium lg:table-cell">Assigned to</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

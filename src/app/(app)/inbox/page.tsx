@@ -131,7 +131,7 @@ export default function InboxPage() {
             aria-label="Sample message"
             value={sample}
             onChange={(e) => setSample(e.target.value)}
-            className="min-w-[280px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+            className="min-w-[280px] flex-1 basis-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 lg:basis-0"
           >
             <optgroup label="E-mails">
               {samples?.emails.map((e) => (

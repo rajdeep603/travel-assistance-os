@@ -235,9 +235,9 @@ export default function DocumentsPage() {
       ) : null}
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
-      {/* Upload and samples side by side, then the document beside what was read from it. */}
+      {/* Upload and samples side by side (stacked on a portrait tablet), then the document beside what was read from it. */}
       <Card className="mb-5">
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-2">
           <div className="flex flex-col">
             <SectionTitle>Upload document</SectionTitle>
             <button

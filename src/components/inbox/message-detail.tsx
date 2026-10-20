@@ -119,7 +119,7 @@ export function MessageDetailPanel({ id, onChanged, onDeleted }: { id: string; o
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="text-xs font-medium text-muted">
               {m.ref} · {m.channel === "EMAIL" ? "E-mail" : "Fax"} · {formatDateTime(m.receivedAt)}
             </p>
             <h2 className="mt-1 text-lg font-semibold text-slate-900">{m.subject ?? (m.channel === "FAX" ? "Incoming fax" : "(no subject)")}</h2>

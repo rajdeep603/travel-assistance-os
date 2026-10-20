@@ -91,7 +91,10 @@ The ITIC demo also runs on an 11-inch iPad (A16) in Chrome, both ways round. Its
 - **Floating assistant.** `main` keeps `pb-24` clear for the floating button. Pages without it mark their root `data-fab-free`.
 - **Touch.** Hide keyboard-only hints with `[@media(hover:none)]:hidden`.
 - **Grids.** Make the last card span the remaining columns, as `lastAgentSpan` does on the Call Center.
-- **Testing.** Test in Chrome at 820 × 1066 and 1180 × 706, with the sidebar shown and hidden, and in present mode. Present mode steps down to 17 px below 1280 px.
+- **WebKit.** Chrome on an iPad is WebKit, not Blink, so form controls render differently from desktop Chrome. `globals.css` makes them match: every select gets the same arrow (with room kept for it), and date fields are left-aligned with a calendar icon. Don't restyle these per page.
+- **Labels.** Form labels and table headings use sentence case, `text-xs font-medium text-muted`, never `uppercase tracking-wide`.
+- **Testing.** Test in Chrome at 820 × 1066 and 1180 × 706, with the sidebar shown and hidden, and in present mode. Present mode steps down to 17 px below 1280 px. Then check the real engine in the iPad (A16) simulator from Xcode: `xcrun simctl openurl` the page, `xcrun simctl io booted screenshot`.
+- **Icons.** `src/app/icon.svg` and `icon1.png` (32 px) for tabs, `apple-icon.png` (180 px, full-bleed) for the home screen, and `public/favicon.ico` for clients that ask for it. Next links the first three with hashed URLs, so a changed icon isn't served stale. Keep `favicon.ico` out of `src/app`: there it gets an unhashed link, which browsers cache.
 
 ## Things to avoid
 

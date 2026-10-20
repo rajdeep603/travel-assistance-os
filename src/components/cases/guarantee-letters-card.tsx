@@ -139,19 +139,19 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
             </div>
             <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
               <div>
-                <dt className="text-[11px] uppercase tracking-wide text-slate-500">Estimate</dt>
+                <dt className="text-xs text-muted">Estimate</dt>
                 <dd className="text-slate-800">{formatMoney(l.estimatedAmount, l.currency)}</dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-wide text-slate-500">Guaranteed</dt>
+                <dt className="text-xs text-muted">Guaranteed</dt>
                 <dd className="font-semibold text-slate-900">{formatMoney(l.guaranteedAmount, l.currency)}</dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-wide text-slate-500">Patient excess</dt>
+                <dt className="text-xs text-muted">Patient excess</dt>
                 <dd className="text-slate-800">{formatMoney(l.excess, l.currency)}</dd>
               </div>
               <div>
-                <dt className="text-[11px] uppercase tracking-wide text-slate-500">Valid until</dt>
+                <dt className="text-xs text-muted">Valid until</dt>
                 <dd className="text-slate-800">{formatPlainDate(l.validUntil.slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</dd>
               </div>
             </dl>

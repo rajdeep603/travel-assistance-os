@@ -182,16 +182,6 @@ export function ProviderMap({
               {reduceMotion ? null : <animate attributeName="r" values="10;20;10" dur="2.4s" repeatCount="indefinite" />}
             </circle>
             <circle cx={originPt.x} cy={originPt.y} r="6" fill="#2563eb" stroke="#fff" strokeWidth="2" />
-            <text
-              x={originPt.x}
-              y={originPt.y + 22}
-              textAnchor="middle"
-              fontSize="11"
-              fontWeight="600"
-              fill="#1e40af"
-            >
-              {origin!.label}
-            </text>
           </g>
         ) : null}
 
@@ -232,6 +222,24 @@ export function ProviderMap({
             </g>
           );
         })}
+
+        {/* The origin's name sits above the pins, with a halo, so a nearby pin can't cover it. */}
+        {originPt ? (
+          <text
+            x={originPt.x + 10}
+            y={originPt.y + 22}
+            fontSize="11"
+            fontWeight="600"
+            fill="#1e40af"
+            stroke="#fff"
+            strokeWidth="3"
+            strokeLinejoin="round"
+            paintOrder="stroke"
+            pointerEvents="none"
+          >
+            {origin!.label}
+          </text>
+        ) : null}
 
         {/* hover / selection label */}
         {activeProvider

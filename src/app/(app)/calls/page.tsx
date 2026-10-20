@@ -175,13 +175,13 @@ export default function CallsPage() {
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-slate-500">
+              <thead className="text-xs text-muted">
                 <tr>
-                  <th className="py-2 pr-3 font-semibold">Call</th>
-                  <th className="py-2 pr-3 font-semibold">Agent · caller</th>
-                  <th className="py-2 pr-3 font-semibold">Started · length</th>
-                  <th className="py-2 pr-3 font-semibold">Case</th>
-                  <th className="py-2 font-semibold">Status</th>
+                  <th className="py-2 pr-3 font-medium">Call</th>
+                  <th className="py-2 pr-3 font-medium">Agent · caller</th>
+                  <th className="py-2 pr-3 font-medium">Started · length</th>
+                  <th className="py-2 pr-3 font-medium">Case</th>
+                  <th className="py-2 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

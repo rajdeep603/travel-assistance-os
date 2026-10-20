@@ -69,7 +69,7 @@ export default function ClaimUploadPage({ params }: { params: { token: string } 
             </p>
             {claim.missing.length ? (
               <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">Still needed</p>
+                <p className="text-sm font-semibold text-amber-800">Still needed</p>
                 <ul className="mt-1.5 list-disc pl-5 text-sm text-amber-900">
                   {claim.missing.map((m) => (
                     <li key={m}>{m}</li>
