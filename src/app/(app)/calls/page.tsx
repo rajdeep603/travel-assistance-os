@@ -44,6 +44,17 @@ function duration(sec: number | null): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
+/** Widens the last agent card so the grid's final row has no empty cells. */
+function lastAgentSpan(count: number): string {
+  const odd = count % 2 === 1; // two columns: portrait tablets and laptops
+  const rest = count % 3; // three columns: landscape tablets
+  return [
+    odd ? "sm:col-span-2" : "",
+    rest === 1 ? "lg:col-span-3" : rest === 2 ? "lg:col-span-2" : "lg:col-span-1",
+    odd ? "xl:col-span-2" : "xl:col-span-1",
+  ].join(" ");
+}
+
 export default function CallsPage() {
   const [config, setConfig] = useState<CallsConfig | null>(null);
   const [calls, setCalls] = useState<CallRow[] | null>(null);
@@ -80,8 +91,9 @@ export default function CallsPage() {
         </div>
       ) : null}
 
-      <div className="mb-5 grid gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      {/* Side by side on laptops; stacked on tablets, so neither card is squeezed. */}
+      <div className="mb-5 grid gap-5 xl:grid-cols-3">
+        <Card className="xl:col-span-1">
           <SectionTitle>24/7 AI assistance hotline</SectionTitle>
           {config?.hotlineNumber ? (
             <>
@@ -112,12 +124,15 @@ export default function CallsPage() {
           <CallScripts doctorOnCall={config?.transferTargets.doctor ?? true} rehearse={config?.voiceConfigured ?? false} />
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="xl:col-span-2">
           <SectionTitle>Voice agents</SectionTitle>
           {config ? (
-            <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-              {config.agents.map((a) => (
-                <li key={a.id} className="rounded-lg border border-slate-200 p-3">
+            <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2">
+              {config.agents.map((a, i) => (
+                <li
+                  key={a.id}
+                  className={`rounded-lg border border-slate-200 p-3 ${i === config.agents.length - 1 ? lastAgentSpan(config.agents.length) : ""}`}
+                >
                   <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                     {a.direction === "outbound" ? (
                       <PhoneOutgoing size={14} className="text-blue-600" aria-hidden />
@@ -159,14 +174,12 @@ export default function CallsPage() {
           </div>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="py-2 pr-3 font-semibold">Call</th>
-                  <th className="py-2 pr-3 font-semibold">Agent</th>
-                  <th className="py-2 pr-3 font-semibold">Caller</th>
-                  <th className="py-2 pr-3 font-semibold">Started</th>
-                  <th className="py-2 pr-3 font-semibold">Length</th>
+                  <th className="py-2 pr-3 font-semibold">Agent · caller</th>
+                  <th className="py-2 pr-3 font-semibold">Started · length</th>
                   <th className="py-2 pr-3 font-semibold">Case</th>
                   <th className="py-2 font-semibold">Status</th>
                 </tr>
@@ -187,13 +200,17 @@ export default function CallsPage() {
                       </Link>
                       {c.summary ? <p className="mt-0.5 line-clamp-2 max-w-md text-xs text-slate-500">{c.summary}</p> : null}
                     </td>
-                    <td className="py-2.5 pr-3 text-slate-700">{c.agentLabel}</td>
-                    <td className="py-2.5 pr-3 text-slate-500">
-                      {(c.direction === "INBOUND" ? c.fromNumber : c.toNumber) ?? (c.channel === "BROWSER" ? "Web" : "—")}
-                    </td>
-                    <td className="py-2.5 pr-3 text-slate-500">{formatDateTime(c.startedAt)}</td>
-                    <td className="py-2.5 pr-3 tabular-nums text-slate-500">{duration(c.durationSec)}</td>
                     <td className="py-2.5 pr-3">
+                      <p className="text-slate-700">{c.agentLabel}</p>
+                      <p className="mt-0.5 whitespace-nowrap text-xs text-slate-500">
+                        {(c.direction === "INBOUND" ? c.fromNumber : c.toNumber) ?? (c.channel === "BROWSER" ? "Web" : "—")}
+                      </p>
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      <p className="whitespace-nowrap text-slate-500">{formatDateTime(c.startedAt)}</p>
+                      <p className="mt-0.5 text-xs tabular-nums text-slate-500">{duration(c.durationSec)}</p>
+                    </td>
+                    <td className="whitespace-nowrap py-2.5 pr-3">
                       {c.case ? (
                         <Link href={`/cases/${c.case.id}`} className="text-blue-600 hover:underline">
                           {c.case.ref}

@@ -264,82 +264,6 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             </div>
           </Card>
 
-          {data.suggestedActions?.length ? (
-            <Card>
-              <SectionTitle>Suggested actions</SectionTitle>
-              <ul className="mt-2 space-y-1.5">
-                {data.suggestedActions.map((a) => (
-                  <li key={a} className="flex items-start gap-2 text-sm text-slate-700">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ) : null}
-
-          <Card>
-            <SectionTitle>Appointments</SectionTitle>
-            {data.appointments.length === 0 ? (
-              <div className="mt-3"><EmptyState title="No appointments linked" /></div>
-            ) : (
-              <div className="mt-2 divide-y divide-slate-100">
-                {data.appointments.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">
-                        {a.ref} · {a.provider.name}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {a.provider.facility}, {a.provider.district} ·{" "}
-                        {formatDateTime(a.scheduledAt)}
-                      </p>
-                    </div>
-                    <StatusBadge value={a.status} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card>
-            <SectionTitle>Claims &amp; documents</SectionTitle>
-            <div className="mt-2 space-y-2">
-              {data.claims.length === 0 && data.documents.length === 0 ? (
-                <EmptyState title="No claims or documents linked" />
-              ) : (
-                <>
-                  {data.claims.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between py-1">
-                      <span className="flex items-center gap-2">
-                        <Link
-                          href={`/claims/${c.ref}`}
-                          className="text-sm font-semibold text-blue-600 hover:underline"
-                        >
-                          {c.ref}
-                        </Link>
-                        {c.signals?.length ? (
-                          <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] font-medium text-ink">
-                            {c.signals.length} integrity {c.signals.length === 1 ? "signal" : "signals"}
-                          </span>
-                        ) : null}
-                      </span>
-                      <StatusBadge value={c.status} />
-                    </div>
-                  ))}
-                  {data.documents.map((d) => (
-                    <div key={d.id} className="flex items-center justify-between py-1">
-                      <span className="truncate text-sm text-slate-700">{d.filename}</span>
-                      <span className="ml-3 shrink-0 text-xs text-slate-400">
-                        {formatEnum(d.kind)}
-                      </span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          </Card>
-
           {data.money ? <MoneyCard money={data.money} /> : null}
 
           {data.documents
@@ -430,7 +354,8 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
 
           <Card>
             <SectionTitle>Case details</SectionTitle>
-            <dl className="mt-2">
+            {/* Two columns when the card spans the page (portrait tablets); one in the side column. */}
+            <dl className="mt-2 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-1">
               <KeyValue label="Case ID" value={data.ref} />
               <KeyValue
                 label="Patient"
@@ -483,6 +408,82 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               Current status is highlighted — click another to move the case.
             </p>
           </Card>
+
+          <Card>
+            <SectionTitle>Appointments</SectionTitle>
+            {data.appointments.length === 0 ? (
+              <div className="mt-3"><EmptyState title="No appointments linked" /></div>
+            ) : (
+              <div className="mt-2 divide-y divide-slate-100">
+                {data.appointments.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">
+                        {a.ref} · {a.provider.name}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {a.provider.facility}, {a.provider.district} ·{" "}
+                        {formatDateTime(a.scheduledAt)}
+                      </p>
+                    </div>
+                    <StatusBadge value={a.status} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <SectionTitle>Claims &amp; documents</SectionTitle>
+            <div className="mt-2 space-y-2">
+              {data.claims.length === 0 && data.documents.length === 0 ? (
+                <EmptyState title="No claims or documents linked" />
+              ) : (
+                <>
+                  {data.claims.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between py-1">
+                      <span className="flex items-center gap-2">
+                        <Link
+                          href={`/claims/${c.ref}`}
+                          className="text-sm font-semibold text-blue-600 hover:underline"
+                        >
+                          {c.ref}
+                        </Link>
+                        {c.signals?.length ? (
+                          <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] font-medium text-ink">
+                            {c.signals.length} integrity {c.signals.length === 1 ? "signal" : "signals"}
+                          </span>
+                        ) : null}
+                      </span>
+                      <StatusBadge value={c.status} />
+                    </div>
+                  ))}
+                  {data.documents.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between py-1">
+                      <span className="truncate text-sm text-slate-700">{d.filename}</span>
+                      <span className="ml-3 shrink-0 text-xs text-slate-400">
+                        {formatEnum(d.kind)}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </Card>
+
+          {data.suggestedActions?.length ? (
+            <Card>
+              <SectionTitle>Suggested actions</SectionTitle>
+              <ul className="mt-2 space-y-1.5">
+                {data.suggestedActions.map((a) => (
+                  <li key={a} className="flex items-start gap-2 text-sm text-slate-700">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                    {a}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
         </div>
       </div>
     </div>

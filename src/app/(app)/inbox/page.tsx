@@ -180,7 +180,8 @@ export default function InboxPage() {
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-5">
-        <Card className="min-w-0 lg:col-span-2">
+        {/* Wide screens: the list stays in view beside the message and scrolls by itself, like a mail app. */}
+        <Card className="min-w-0 lg:sticky lg:top-20 lg:col-span-2 lg:flex lg:max-h-[calc(100dvh-6rem)] lg:flex-col lg:self-start">
           <SectionTitle>Messages</SectionTitle>
           {rows === null ? (
             <div className="mt-3">
@@ -191,7 +192,7 @@ export default function InboxPage() {
               <EmptyState title="Inbox is empty" hint="Receive a sample above, or forward an e-mail to the claims inbox." />
             </div>
           ) : (
-            <ul className="mt-2 divide-y divide-slate-100">
+            <ul className="-mx-1 mt-2 min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto px-1">
               {rows.map((r) => (
                 <li key={r.id}>
                   <button
@@ -229,7 +230,11 @@ export default function InboxPage() {
               }}
             />
           ) : (
-            <EmptyState title="Select a message" />
+            <EmptyState
+              className="flex h-full min-h-[240px] flex-col items-center justify-center"
+              title="Select a message"
+              hint="Pick one from the list to see what the AI read, matched and answered."
+            />
           )}
         </div>
       </div>

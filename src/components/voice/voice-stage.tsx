@@ -6,11 +6,15 @@ import { CalendarCheck2 } from "lucide-react";
 import { Elapsed } from "@/components/elapsed";
 import { Trail } from "@/components/trail";
 import { VoiceOrb, type LevelReader, type OrbState } from "@/components/voice/voice-orb";
+import { useMediaQuery } from "@/lib/client/use-media-query";
 import { toolActivityLabel } from "@/lib/voice/tool-labels";
 import { toolSteps } from "@/lib/voice/tool-steps";
 import type { Booking, ToolActivity, TranscriptLine } from "@/lib/voice/client/use-grok-voice";
 
 const CAPTION_CHARS = 170;
+
+/** Keep in step with the `short` variant in tailwind.config.ts. */
+const SHORT_SCREEN = "(max-height: 820px)";
 
 /** The tail of a long utterance, cut at a word, so the caption stays a few lines. */
 function captionTail(text: string): string {
@@ -67,11 +71,13 @@ export function VoiceStage({
 }) {
   const caption = currentCaption(transcript, partialAgent);
   const steps = toolSteps(tools);
+  // Short screens (an iPad in landscape) get a smaller orb, so the controls stay above the fold.
+  const short = useMediaQuery(SHORT_SCREEN);
 
   return (
     <section
       aria-label="Voice agent"
-      className="relative overflow-hidden rounded-3xl bg-stage text-stage-ink shadow-xl shadow-stage/20"
+      className="relative flex h-full flex-col overflow-hidden rounded-3xl bg-stage text-stage-ink shadow-xl shadow-stage/20"
     >
       {/* A low light behind the orb, so the stage has depth without a pattern. */}
       <div
@@ -96,15 +102,16 @@ export function VoiceStage({
         ) : null}
       </div>
 
-      <div className="relative flex flex-col items-center px-5 pb-6 pt-2 text-center md:px-10">
-        <VoiceOrb state={orb} getLevels={getLevels} size={232} />
+      {/* Centred in whatever height the stage is given. */}
+      <div className="relative flex flex-1 flex-col items-center justify-center px-5 pb-6 pt-2 text-center short:pb-5 md:px-10">
+        <VoiceOrb state={orb} getLevels={getLevels} size={short ? 184 : 232} />
         <p className="-mt-2 text-2xl font-semibold tracking-tight" aria-live="polite">
           {title}
         </p>
         <p className="mt-1 max-w-md text-sm text-stage-muted">{detail}</p>
 
         {/* Live caption: fixed height so the stage doesn't jump as words arrive. */}
-        <div className="mt-5 flex min-h-[5.5rem] w-full max-w-2xl items-center justify-center">
+        <div className="mt-5 flex min-h-[5.5rem] w-full max-w-2xl items-center justify-center short:mt-3 short:min-h-[4.5rem]">
           {caption ? (
             <p
               className={`text-lg font-medium leading-snug md:text-xl ${caption.role === "user" ? "text-live" : "text-stage-ink"}`}
@@ -135,10 +142,10 @@ export function VoiceStage({
           ) : null}
         </AnimatePresence>
 
-        <div className="mt-5 flex items-center justify-center gap-3">{controls}</div>
+        <div className="mt-5 flex items-center justify-center gap-3 short:mt-3">{controls}</div>
       </div>
 
-      <div className="relative border-t border-stage-line/70 px-5 py-5 md:px-7">
+      <div className="relative border-t border-stage-line/70 px-5 py-5 short:py-4 md:px-7">
         <p className="mb-3 text-sm font-medium text-stage-ink">What the agent did</p>
         {steps.length ? (
           <Trail

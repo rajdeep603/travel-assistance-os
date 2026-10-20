@@ -12,6 +12,7 @@ import {
   Inbox,
   Loader2,
   Mic,
+  PanelLeft,
   Phone,
   Plane,
   Presentation,
@@ -24,6 +25,7 @@ import {
 import { OPEN_ASSISTANT_EVENT, type OpenAssistantDetail } from "@/components/assistant/assistant-provider";
 import { NAV_ITEMS } from "@/components/nav";
 import { setPresentMode } from "@/lib/present-mode";
+import { SIDEBAR_TOGGLE_EVENT } from "@/lib/sidebar";
 import type { SearchHit, SearchKind } from "@/lib/services/search";
 
 // ---------------------------------------------------------------------------
@@ -196,6 +198,18 @@ export function CommandPalette() {
       run: () => {
         setPresentMode(document.documentElement.dataset.present !== "on");
         close();
+      },
+    });
+    items.push({
+      id: "action:sidebar",
+      group: "Actions",
+      label: "Show or hide the sidebar",
+      hint: "⌘\\ · more room for the page",
+      icon: PanelLeft,
+      keywords: "sidebar menu navigation hide show collapse full width",
+      run: () => {
+        close();
+        window.dispatchEvent(new Event(SIDEBAR_TOGGLE_EVENT));
       },
     });
     return items;
@@ -391,7 +405,7 @@ export function SearchButton() {
     >
       <Search size={15} aria-hidden />
       <span className="hidden flex-1 text-left md:inline">Search or jump to…</span>
-      <kbd className="hidden rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] text-muted sm:inline">{mac ? "⌘K" : "Ctrl K"}</kbd>
+      <kbd className="hidden rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] text-muted sm:inline [@media(hover:none)]:hidden">{mac ? "⌘K" : "Ctrl K"}</kbd>
     </button>
   );
 }

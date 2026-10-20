@@ -345,10 +345,12 @@ export default function ProvidersPage() {
       ) : (
         <div className="grid gap-5 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <Card className="lg:sticky lg:top-20">
+            {/* On wide screens the map fills the visible height and stays beside the list. */}
+            <Card className="lg:sticky lg:top-20 lg:flex lg:h-[calc(100dvh-6rem)] lg:max-h-[52rem] lg:flex-col">
               <SectionTitle>Network map</SectionTitle>
-              <div className="mt-3">
+              <div className="mt-3 flex min-h-0 flex-1 flex-col">
                 <ProviderMap
+                  className="lg:aspect-auto lg:flex-1"
                   providers={results.map((r) => ({
                     id: r.provider.id,
                     name: r.provider.name,

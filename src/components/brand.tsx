@@ -1,8 +1,8 @@
 /** The platform logo mark — matches src/app/icon.svg. */
-export function BrandMark({ size = 28 }: { size?: number }) {
-  // One id per size: the sidebar's mark is display:none on phones, and a
-  // gradient defined inside a hidden SVG can't paint the header's copy.
-  const gradientId = `brand-g-${size}`;
+export function BrandMark({ size = 28, idSuffix = "" }: { size?: number; idSuffix?: string }) {
+  // One id per size (and suffix): the sidebar's mark is display:none on smaller
+  // screens, and a gradient defined inside a hidden SVG can't paint another copy.
+  const gradientId = `brand-g-${size}${idSuffix}`;
   return (
     <svg
       width={size}

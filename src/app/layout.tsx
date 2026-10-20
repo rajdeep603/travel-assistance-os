@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { PRESENT_STORAGE_KEY } from "@/lib/present-mode";
+import { SIDEBAR_STORAGE_KEY } from "@/lib/sidebar";
 import { MotionProvider } from "@/components/motion-provider";
 import "./globals.css";
 
@@ -16,9 +17,9 @@ export const metadata: Metadata = {
   description: `${BRAND.name}: ${BRAND.tagline}. ${POWERED_BY}.`,
 };
 
-// Presentation mode is a per-browser setting; applying it before the first
-// paint keeps pages from rendering small and then jumping to the larger size.
-const presentModeScript = `try{if(localStorage.getItem(${JSON.stringify(PRESENT_STORAGE_KEY)})==="on")document.documentElement.dataset.present="on"}catch(e){}`;
+// Presentation mode and a hidden sidebar are per-browser settings; applying
+// them before the first paint keeps pages from rendering one way and then jumping.
+const displayScript = `try{var d=document.documentElement;if(localStorage.getItem(${JSON.stringify(PRESENT_STORAGE_KEY)})==="on")d.dataset.present="on";if(localStorage.getItem(${JSON.stringify(SIDEBAR_STORAGE_KEY)})==="hidden")d.dataset.sidebar="hidden"}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -26,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: presentModeScript }} />
+        <script dangerouslySetInnerHTML={{ __html: displayScript }} />
       </head>
       <body className={`${geistSans.variable} font-sans`}>
         <a

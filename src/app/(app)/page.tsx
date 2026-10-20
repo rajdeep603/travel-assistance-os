@@ -241,11 +241,12 @@ function ModuleGrid() {
         <h2 id="modules-title" className="text-base font-semibold text-ink">
           Every module, live
         </h2>
-        <p className="text-xs text-muted">
+        {/* Keyboard hint: not on touch-only screens (an iPad without a keyboard). */}
+        <p className="text-xs text-muted [@media(hover:none)]:hidden">
           Press <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] font-medium text-ink">⌘K</kbd> to jump to any record or agent
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:sidebar-hidden:grid-cols-4 xl:grid-cols-4">
         {MODULES.map(({ href, icon: Icon, title, description, tone, tag }) => (
           <Link
             key={href}

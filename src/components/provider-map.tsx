@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 
 // ---------------------------------------------------------------------------
 // Offline network map: plots the search origin and the ranked providers on an
 // SVG plane with real distance rings. No tile server — the demo stays fully
 // offline — but positions, distances and rings come from the true lat/lng.
+// The plane is drawn at the box's real pixel size, so pins and labels stay
+// legible in a narrow column and the map can fill whatever height it is given.
 // ---------------------------------------------------------------------------
 
 export interface MapProvider {
@@ -22,23 +24,42 @@ interface Point {
   y: number;
 }
 
-const W = 640;
-const H = 400;
+/** Drawing size before the box is measured (16:10). */
+const DEFAULT_SIZE = { w: 640, h: 400 };
 const PAD = 52;
 
+/**
+ * The map is 16:10 by default; give it `className` such as `lg:aspect-auto lg:flex-1`
+ * to let it fill a taller box instead.
+ */
 export function ProviderMap({
   providers,
   origin,
   selectedId,
   onSelect,
+  className = "",
 }: {
   providers: MapProvider[];
   origin: { lat: number; lng: number; label: string } | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  className?: string;
 }) {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const reduceMotion = useReducedMotion();
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [{ w: W, h: H }, setSize] = useState(DEFAULT_SIZE);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setSize({ w: Math.round(width), h: Math.round(height) });
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
 
   const layout = useMemo(() => {
     const pts = [
@@ -77,7 +98,7 @@ export function ProviderMap({
     };
     const pxPerKm = 1 / span;
     return { project, pxPerKm };
-  }, [providers, origin]);
+  }, [providers, origin, W, H]);
 
   if (!layout) return null;
   const { project, pxPerKm } = layout;
@@ -96,146 +117,148 @@ export function ProviderMap({
   const activeProvider = providers.find((p) => p.id === active);
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="h-auto w-full rounded-xl border border-slate-200 bg-slate-50"
-      role="img"
-      aria-label={`Map of ${providers.length} matched providers${origin ? ` around ${origin.label}` : ""}`}
-    >
-      {/* subtle plane grid */}
-      <defs>
-        <pattern id="map-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-          <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#e2e8f0" strokeWidth="1" />
-        </pattern>
-      </defs>
-      <rect width={W} height={H} fill="url(#map-grid)" />
+    <div ref={boxRef} className={`relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 ${className}`}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="absolute inset-0 h-full w-full"
+        role="img"
+        aria-label={`Map of ${providers.length} matched providers${origin ? ` around ${origin.label}` : ""}`}
+      >
+        {/* subtle plane grid */}
+        <defs>
+          <pattern id="map-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+            <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#e2e8f0" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width={W} height={H} fill="url(#map-grid)" />
 
-      {/* distance rings around the patient */}
-      {originPt
-        ? rings.map((km) => (
-            <g key={km}>
-              <circle
-                cx={originPt.x}
-                cy={originPt.y}
-                r={km * pxPerKm}
-                fill="none"
-                stroke="#cbd5e1"
-                strokeDasharray="4 5"
-              />
-              <text
-                x={originPt.x + km * pxPerKm + 4}
-                y={originPt.y - 4}
-                fontSize="10"
-                fill="#94a3b8"
-              >
-                {km} km
-              </text>
-            </g>
-          ))
-        : null}
-
-      {/* connection line origin → selected provider */}
-      {originPt && activeProvider
-        ? (() => {
-            const p = project({ lat: activeProvider.latitude, lng: activeProvider.longitude });
-            return (
-              <line
-                x1={originPt.x}
-                y1={originPt.y}
-                x2={p.x}
-                y2={p.y}
-                stroke="#2563eb"
-                strokeWidth="1.5"
-                strokeDasharray="3 4"
-                opacity="0.6"
-              />
-            );
-          })()
-        : null}
-
-      {/* patient origin */}
-      {originPt ? (
-        <g>
-          <circle cx={originPt.x} cy={originPt.y} r="14" fill="#2563eb" opacity="0.12">
-            {reduceMotion ? null : <animate attributeName="r" values="10;20;10" dur="2.4s" repeatCount="indefinite" />}
-          </circle>
-          <circle cx={originPt.x} cy={originPt.y} r="6" fill="#2563eb" stroke="#fff" strokeWidth="2" />
-          <text
-            x={originPt.x}
-            y={originPt.y + 22}
-            textAnchor="middle"
-            fontSize="11"
-            fontWeight="600"
-            fill="#1e40af"
-          >
-            {origin!.label}
-          </text>
-        </g>
-      ) : null}
-
-      {/* ranked provider pins */}
-      {providers.map((p, i) => {
-        const pt = project({ lat: p.latitude, lng: p.longitude });
-        const isActive = p.id === active;
-        return (
-          <g
-            key={p.id}
-            onClick={() => onSelect(p.id)}
-            onMouseEnter={() => setHoverId(p.id)}
-            onMouseLeave={() => setHoverId(null)}
-            className="map-pin animate-pop-in cursor-pointer"
-            style={{ animationDelay: `${i * 90}ms` }}
-          >
-            {isActive ? (
-              <circle cx={pt.x} cy={pt.y} r="17" fill="#2563eb" opacity="0.15" />
-            ) : null}
-            <circle
-              cx={pt.x}
-              cy={pt.y}
-              r={isActive ? 12 : 10}
-              fill={isActive ? "#1d4ed8" : "#3b82f6"}
-              stroke="#fff"
-              strokeWidth="2"
-            />
-            <text
-              x={pt.x}
-              y={pt.y + 4}
-              textAnchor="middle"
-              fontSize="11"
-              fontWeight="700"
-              fill="#fff"
-            >
-              {i + 1}
-            </text>
-          </g>
-        );
-      })}
-
-      {/* hover / selection label */}
-      {activeProvider
-        ? (() => {
-            const pt = project({
-              lat: activeProvider.latitude,
-              lng: activeProvider.longitude,
-            });
-            const label = activeProvider.name;
-            const sub = activeProvider.facility;
-            const w = Math.max(label.length, sub.length) * 6.2 + 20;
-            const x = Math.min(Math.max(pt.x - w / 2, 6), W - w - 6);
-            const y = pt.y > 64 ? pt.y - 58 : pt.y + 18;
-            return (
-              <g pointerEvents="none">
-                <rect x={x} y={y} width={w} height="40" rx="8" fill="#0f172a" opacity="0.92" />
-                <text x={x + 10} y={y + 17} fontSize="11.5" fontWeight="600" fill="#fff">
-                  {label}
-                </text>
-                <text x={x + 10} y={y + 31} fontSize="10" fill="#cbd5e1">
-                  {sub}
+        {/* distance rings around the patient */}
+        {originPt
+          ? rings.map((km) => (
+              <g key={km}>
+                <circle
+                  cx={originPt.x}
+                  cy={originPt.y}
+                  r={km * pxPerKm}
+                  fill="none"
+                  stroke="#cbd5e1"
+                  strokeDasharray="4 5"
+                />
+                <text
+                  x={originPt.x + km * pxPerKm + 4}
+                  y={originPt.y - 4}
+                  fontSize="10"
+                  fill="#94a3b8"
+                >
+                  {km} km
                 </text>
               </g>
-            );
-          })()
-        : null}
-    </svg>
+            ))
+          : null}
+
+        {/* connection line origin → selected provider */}
+        {originPt && activeProvider
+          ? (() => {
+              const p = project({ lat: activeProvider.latitude, lng: activeProvider.longitude });
+              return (
+                <line
+                  x1={originPt.x}
+                  y1={originPt.y}
+                  x2={p.x}
+                  y2={p.y}
+                  stroke="#2563eb"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 4"
+                  opacity="0.6"
+                />
+              );
+            })()
+          : null}
+
+        {/* patient origin */}
+        {originPt ? (
+          <g>
+            <circle cx={originPt.x} cy={originPt.y} r="14" fill="#2563eb" opacity="0.12">
+              {reduceMotion ? null : <animate attributeName="r" values="10;20;10" dur="2.4s" repeatCount="indefinite" />}
+            </circle>
+            <circle cx={originPt.x} cy={originPt.y} r="6" fill="#2563eb" stroke="#fff" strokeWidth="2" />
+            <text
+              x={originPt.x}
+              y={originPt.y + 22}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="600"
+              fill="#1e40af"
+            >
+              {origin!.label}
+            </text>
+          </g>
+        ) : null}
+
+        {/* ranked provider pins */}
+        {providers.map((p, i) => {
+          const pt = project({ lat: p.latitude, lng: p.longitude });
+          const isActive = p.id === active;
+          return (
+            <g
+              key={p.id}
+              onClick={() => onSelect(p.id)}
+              onMouseEnter={() => setHoverId(p.id)}
+              onMouseLeave={() => setHoverId(null)}
+              className="map-pin animate-pop-in cursor-pointer"
+              style={{ animationDelay: `${i * 90}ms` }}
+            >
+              {isActive ? (
+                <circle cx={pt.x} cy={pt.y} r="17" fill="#2563eb" opacity="0.15" />
+              ) : null}
+              <circle
+                cx={pt.x}
+                cy={pt.y}
+                r={isActive ? 12 : 10}
+                fill={isActive ? "#1d4ed8" : "#3b82f6"}
+                stroke="#fff"
+                strokeWidth="2"
+              />
+              <text
+                x={pt.x}
+                y={pt.y + 4}
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="700"
+                fill="#fff"
+              >
+                {i + 1}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* hover / selection label */}
+        {activeProvider
+          ? (() => {
+              const pt = project({
+                lat: activeProvider.latitude,
+                lng: activeProvider.longitude,
+              });
+              const label = activeProvider.name;
+              const sub = activeProvider.facility;
+              const w = Math.max(label.length, sub.length) * 6.2 + 20;
+              const x = Math.min(Math.max(pt.x - w / 2, 6), W - w - 6);
+              const y = pt.y > 64 ? pt.y - 58 : pt.y + 18;
+              return (
+                <g pointerEvents="none">
+                  <rect x={x} y={y} width={w} height="40" rx="8" fill="#0f172a" opacity="0.92" />
+                  <text x={x + 10} y={y + 17} fontSize="11.5" fontWeight="600" fill="#fff">
+                    {label}
+                  </text>
+                  <text x={x + 10} y={y + 31} fontSize="10" fill="#cbd5e1">
+                    {sub}
+                  </text>
+                </g>
+              );
+            })()
+          : null}
+      </svg>
+    </div>
   );
 }

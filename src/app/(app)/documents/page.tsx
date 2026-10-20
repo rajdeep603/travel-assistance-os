@@ -80,6 +80,46 @@ interface Doc {
   billReview?: BillReview | null;
 }
 
+/** The fields the AI reads from a document; before one is processed they show as blanks. */
+function ExtractionFields({ e, kind }: { e: Extraction | null; kind: string | null }) {
+  return (
+    <dl className={`mt-2 grid grid-cols-2 gap-x-4 ${e ? "animate-fade-up" : ""}`}>
+      <KeyValue label="Patient name" value={e?.patientName} />
+      <KeyValue label="Date of birth" value={e?.dateOfBirth} />
+      <KeyValue label="Hospital" value={e?.hospital} />
+      <KeyValue label="Doctor" value={e?.doctor} />
+      <KeyValue label="Diagnosis" value={e?.diagnosis} />
+      <KeyValue
+        label="Symptoms"
+        value={e?.symptoms.length ? e.symptoms.join(", ") : null}
+      />
+      <KeyValue label="Admission date" value={e?.admissionDate} />
+      <KeyValue label="Discharge date" value={e?.dischargeDate} />
+      <KeyValue
+        label="Procedures"
+        value={e?.procedures.length ? e.procedures.join(", ") : null}
+      />
+      <KeyValue
+        label="Medications"
+        value={e?.medications.length ? e.medications.join(", ") : null}
+      />
+      <KeyValue
+        label="Invoice amount"
+        value={
+          e?.invoiceAmount != null
+            ? `${Number(e.invoiceAmount).toLocaleString()} ${e.currency ?? ""}`
+            : null
+        }
+      />
+      <KeyValue label="Policy / claim reference" value={e?.policyReference} />
+      <KeyValue
+        label="Document type"
+        value={kind}
+      />
+    </dl>
+  );
+}
+
 export default function DocumentsPage() {
   const [samples, setSamples] = useState<string[]>([]);
   const [recent, setRecent] = useState<Doc[]>([]);
@@ -195,15 +235,15 @@ export default function DocumentsPage() {
       ) : null}
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* Left: upload + viewer */}
-        <div className="space-y-5">
-          <Card>
+      {/* Upload and samples side by side, then the document beside what was read from it. */}
+      <Card className="mb-5">
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="flex flex-col">
             <SectionTitle>Upload document</SectionTitle>
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
-              className="mt-3 flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-slate-500 transition-all hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-600"
+              className="mt-3 flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center text-slate-500 transition-all hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-600"
             >
               <UploadCloud size={28} />
               <span className="text-sm font-medium">
@@ -224,30 +264,36 @@ export default function DocumentsPage() {
                 ev.target.value = "";
               }}
             />
-            <div className="mt-4">
-              <SectionTitle>Or use a fictional sample document</SectionTitle>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {samples.length === 0 ? (
-                  <p className="text-xs text-slate-400">No sample documents found.</p>
-                ) : (
-                  samples.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => handleSample(s)}
-                      disabled={processing != null}
-                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
-                    >
-                      {sampleLabel(s)}
-                    </button>
-                  ))
-                )}
-              </div>
-              <SampleFiles section="documents" className="mt-4 border-t border-line pt-3" />
+          </div>
+          <div>
+            <SectionTitle>Or use a fictional sample document</SectionTitle>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {samples.length === 0 ? (
+                <p className="text-xs text-slate-400">No sample documents found.</p>
+              ) : (
+                samples.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => handleSample(s)}
+                    disabled={processing != null}
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+                  >
+                    {sampleLabel(s)}
+                  </button>
+                ))
+              )}
             </div>
-          </Card>
+          </div>
+        </div>
+        <SampleFiles section="documents" className="mt-4 border-t border-line pt-3" />
+      </Card>
 
-          <Card>
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* Left: the document. Before one is chosen it matches the fields beside it;
+            after, it stays in view (wide screens) while the results scroll past. */}
+        <div>
+          <Card className={current ? "lg:sticky lg:top-20" : "flex h-full flex-col"}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <SectionTitle>Document viewer</SectionTitle>
               {current && !processing ? (
@@ -270,46 +316,36 @@ export default function DocumentsPage() {
                 key={current.id}
                 src={`/api/documents/${current.id}/file`}
                 alt={`Photo of ${current.filename}`}
-                className="mt-3 max-h-[430px] w-full rounded-lg border border-line object-contain"
+                className="mt-3 max-h-[min(72dvh,640px)] w-full rounded-lg border border-line object-contain"
               />
             ) : current?.storagePath && (current.mimeType === "application/pdf" || /\.pdf$/i.test(current.filename)) ? (
               <iframe
                 key={current.id}
                 title="Document preview"
                 src={current.storagePath.startsWith("demo-") ? `/${current.storagePath}` : `/api/documents/${current.id}/file`}
-                className="mt-3 h-[430px] w-full rounded-lg border border-slate-200"
+                className="mt-3 h-[min(72dvh,640px)] w-full rounded-lg border border-slate-200"
               />
             ) : current?.textContent ? (
               <div className="mt-3">
                 <p className="mb-2 text-xs text-slate-400">
                   Text extracted from the uploaded document:
                 </p>
-                <pre className="h-[400px] w-full overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+                <pre className="h-[min(66dvh,600px)] w-full overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
                   {current.textContent}
                 </pre>
               </div>
             ) : (
-              <div className="mt-3">
-                <EmptyState
-                  title="No document selected"
-                  hint="Upload a PDF or a photo, or pick a sample to see it here."
-                />
-              </div>
+              <EmptyState
+                className="mt-3 flex flex-1 flex-col items-center justify-center"
+                title="No document selected"
+                hint="Upload a PDF or a photo, or pick a sample to see it here."
+              />
             )}
           </Card>
-
-          {current?.translatedText ? (
-            <Card>
-              <SectionTitle>English translation ({current.language?.toUpperCase()} original)</SectionTitle>
-              <pre className="mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
-                {current.translatedText}
-              </pre>
-            </Card>
-          ) : null}
         </div>
 
         {/* Right: extraction results */}
-        <div className="space-y-5">
+        <div className="flex flex-col gap-5">
           <Card>
             <div className="flex items-center justify-between">
               <SectionTitle>Structured extraction</SectionTitle>
@@ -338,49 +374,23 @@ export default function DocumentsPage() {
                 />
               </div>
             ) : e ? (
-              <dl className="animate-fade-up mt-2 grid grid-cols-2 gap-x-4">
-                <KeyValue label="Patient name" value={e.patientName} />
-                <KeyValue label="Date of birth" value={e.dateOfBirth} />
-                <KeyValue label="Hospital" value={e.hospital} />
-                <KeyValue label="Doctor" value={e.doctor} />
-                <KeyValue label="Diagnosis" value={e.diagnosis} />
-                <KeyValue
-                  label="Symptoms"
-                  value={e.symptoms.length ? e.symptoms.join(", ") : null}
-                />
-                <KeyValue label="Admission date" value={e.admissionDate} />
-                <KeyValue label="Discharge date" value={e.dischargeDate} />
-                <KeyValue
-                  label="Procedures"
-                  value={e.procedures.length ? e.procedures.join(", ") : null}
-                />
-                <KeyValue
-                  label="Medications"
-                  value={e.medications.length ? e.medications.join(", ") : null}
-                />
-                <KeyValue
-                  label="Invoice amount"
-                  value={
-                    e.invoiceAmount != null
-                      ? `${Number(e.invoiceAmount).toLocaleString()} ${e.currency ?? ""}`
-                      : null
-                  }
-                />
-                <KeyValue label="Policy / claim reference" value={e.policyReference} />
-                <KeyValue
-                  label="Document type"
-                  value={current ? formatEnum(current.kind) : null}
-                />
-              </dl>
+              <ExtractionFields e={e} kind={current ? formatEnum(current.kind) : null} />
             ) : (
-              <div className="mt-4">
-                <EmptyState
-                  title="No extraction yet"
-                  hint="Process a document to see the structured fields."
-                />
-              </div>
+              <>
+                <p className="mt-1 text-sm text-muted">Pick a sample or upload a document; the AI fills in these fields.</p>
+                <ExtractionFields e={null} kind={null} />
+              </>
             )}
           </Card>
+
+          {current?.translatedText ? (
+            <Card>
+              <SectionTitle>English translation ({current.language?.toUpperCase()} original)</SectionTitle>
+              <pre className="mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+                {current.translatedText}
+              </pre>
+            </Card>
+          ) : null}
 
           {e && current?.billReview ? (
             <BillReviewCard

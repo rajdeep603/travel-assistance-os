@@ -26,10 +26,11 @@ export function MoneyCard({ money: m }: { money: CaseMoney }) {
   return (
     <Card>
       <SectionTitle>Money on this case</SectionTitle>
-      <ol className="mt-3 flex flex-wrap items-stretch gap-y-2">
+      {/* One row from estimate to payment on tablets and up; phones wrap. */}
+      <ol className="mt-3 flex flex-wrap items-stretch gap-y-2 sm:flex-nowrap">
         {steps.map((s, i) => (
-          <li key={s.label} className="flex items-center">
-            <div className={`min-w-[6.5rem] rounded-lg px-3 py-2 ${s.value > 0 ? "bg-canvas" : ""}`}>
+          <li key={s.label} className="flex min-w-0 items-center sm:flex-1">
+            <div className={`min-w-[6.5rem] rounded-lg px-3 py-2 sm:min-w-0 sm:flex-1 sm:px-2.5 ${s.value > 0 ? "bg-canvas" : ""}`}>
               <p className="text-xs text-muted">{s.label}</p>
               <p className={`text-base font-semibold tabular-nums ${s.value > 0 ? "text-ink" : "text-muted"}`}>{s.value > 0 ? eur(s.value) : "—"}</p>
               {s.note ? <p className="text-[11px] text-muted">{s.note}</p> : null}

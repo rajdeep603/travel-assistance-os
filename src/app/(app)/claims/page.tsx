@@ -170,7 +170,7 @@ export default function ClaimsPage() {
               aria-label="Patient"
               value={patientId}
               onChange={(e) => setPatientId(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none"
+              className="min-w-0 flex-1 basis-48 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-blue-500 focus:outline-none"
             >
               <option value="">Select patient…</option>
               {patients.map((p) => (
@@ -195,16 +195,19 @@ export default function ClaimsPage() {
           <Button onClick={submitClaim} busy={uploading && files.length > 0}>
             Create &amp; analyse claim
           </Button>
-          <span className="text-xs text-slate-400">or</span>
-          <Button
-            variant="secondary"
-            onClick={submitSamplePack}
-            busy={uploading && files.length === 0}
-            disabled={uploading}
-          >
-            <Sparkles size={15} aria-hidden />
-            Use sample claim pack
-          </Button>
+          {/* "or" stays with the sample button when the row wraps */}
+          <span className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">or</span>
+            <Button
+              variant="secondary"
+              onClick={submitSamplePack}
+              busy={uploading && files.length === 0}
+              disabled={uploading}
+            >
+              <Sparkles size={15} aria-hidden />
+              Use sample claim pack
+            </Button>
+          </span>
         </div>
         {pipeline.visible ? (
           <div className="mt-4 border-t border-slate-100 pt-4">
@@ -232,7 +235,7 @@ export default function ClaimsPage() {
           <div className="mt-3"><EmptyState title="No claims yet" /></div>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[680px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-4 font-semibold">Claim</th>

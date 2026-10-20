@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import defaultTheme from "tailwindcss/defaultTheme";
+import plugin from "tailwindcss/plugin";
 
 /** A colour role read from a CSS variable in globals.css (space-separated RGB). */
 const token = (name: string) => `rgb(var(--c-${name}) / <alpha-value>)`;
@@ -39,6 +40,14 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(({ addVariant }) => {
+      // Styles for when the operator has hidden the docked sidebar (see src/lib/sidebar.ts).
+      addVariant("sidebar-hidden", 'html[data-sidebar="hidden"] &');
+      // Short viewports, such as an iPad in landscape: tighter vertical spacing. A variant,
+      // not a screen, so the arbitrary min-[…] breakpoints keep working.
+      addVariant("short", "@media (max-height: 820px)");
+    }),
+  ],
 };
 export default config;

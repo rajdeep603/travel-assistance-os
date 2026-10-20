@@ -116,30 +116,12 @@ export default function VoicePage() {
   }, [live, busy]);
 
   return (
-    <div className="mx-auto max-w-7xl">
+    // No floating assistant here (see AssistantLauncher), so no room kept for it.
+    <div data-fab-free className="mx-auto max-w-7xl">
       <PageHeader
         title="Voice Agents"
         subtitle="Pick an agent and a language, then play the other side: a traveller, a hospital desk or a treating doctor. Every call is filed on the case."
       />
-
-      {catalog ? (
-        <AgentPicker
-          catalog={catalog}
-          agentId={agentId}
-          language={language}
-          onAgent={(id) => {
-            setAgentId(id);
-            remember({ agent: id });
-          }}
-          onLanguage={(name) => {
-            setLanguage(name);
-            remember({ lang: name });
-          }}
-          onPrepared={loadCatalog}
-          disabled={live || busy}
-          caseOverride={urlCaseId && linkedCase ? { id: linkedCase.id, ref: linkedCase.ref } : null}
-        />
-      ) : null}
 
       {linkedCase && urlCaseId ? <CaseContextBanner kase={linkedCase} action="This voice session works" /> : null}
 
@@ -161,8 +143,30 @@ export default function VoicePage() {
         </div>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-5">
-        <div className="lg:col-span-3">
+      {/* Phones and portrait tablets: picker, stage, transcript. Wider: the stage on the left
+          from the top of the page, the picker above the transcript beside it. */}
+      <div className="grid gap-5 lg:grid-cols-5 lg:grid-rows-[auto_minmax(0,1fr)]">
+        <div className="min-w-0 lg:col-span-2 lg:col-start-4 lg:row-start-1">
+          {catalog ? (
+            <AgentPicker
+              catalog={catalog}
+              agentId={agentId}
+              language={language}
+              onAgent={(id) => {
+                setAgentId(id);
+                remember({ agent: id });
+              }}
+              onLanguage={(name) => {
+                setLanguage(name);
+                remember({ lang: name });
+              }}
+              onPrepared={loadCatalog}
+              disabled={live || busy}
+              caseOverride={urlCaseId && linkedCase ? { id: linkedCase.id, ref: linkedCase.ref } : null}
+            />
+          ) : null}
+        </div>
+        <div className="min-w-0 lg:col-span-3 lg:col-start-1 lg:row-span-2 lg:row-start-1">
           <VoiceStage
             orb={orbState(state)}
             getLevels={getLevels}
@@ -211,8 +215,8 @@ export default function VoicePage() {
             }
           />
         </div>
-        {/* The transcript fills the stage's height and scrolls, never stretches the row. */}
-        <div className="relative lg:col-span-2">
+        {/* The transcript fills the height left beside the stage and scrolls, never stretches the row. */}
+        <div className="relative min-w-0 lg:col-span-2 lg:col-start-4 lg:row-start-2 lg:min-h-[260px]">
           <TranscriptPanel
             lines={state.transcript}
             partial={state.partial}

@@ -16,19 +16,22 @@ export default function AssistantPage() {
   // The chat first; the list sits alongside on wide screens.
   useEffect(() => setView("chat"), [setView]);
 
+  // On tablets and up the page fills the screen below the header exactly (header
+  // 4rem + 1px, page padding 3rem; data-fab-free keeps the bottom padding at 1.5rem,
+  // as there is no floating assistant here): the chat takes what is left, no page scroll.
   return (
-    <div className="mx-auto max-w-7xl">
+    <div data-fab-free className="mx-auto flex max-w-7xl flex-col md:h-[calc(100dvh-7rem-1px)]">
       <PageHeader
         title="Internal AI Assistant"
         subtitle="Answers from your operating procedures, cases and provider network, always with sources. Type, or switch on voice and ask out loud."
       />
-      <div className="flex max-w-5xl gap-4">
-        <Card className="hidden w-72 shrink-0 flex-col lg:flex lg:h-[66vh] lg:min-h-[480px]">
+      <div className="flex min-h-0 flex-1 gap-4">
+        <Card className="hidden w-72 shrink-0 flex-col lg:flex">
           <p className="mb-3 text-sm font-semibold text-ink">Conversations</p>
           <AssistantHistory className="flex-1" />
         </Card>
 
-        <Card className="flex h-[66vh] min-h-[480px] min-w-0 flex-1 flex-col">
+        <Card className="flex h-[66vh] min-h-[480px] min-w-0 flex-1 flex-col md:h-auto md:min-h-[360px]">
           <div className="mb-3 flex items-center gap-2 border-b border-line pb-3">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
               {showHistory ? "Conversations" : threadId && title !== NEW_TITLE ? title : "New conversation"}
@@ -64,7 +67,7 @@ export default function AssistantPage() {
         </Card>
       </div>
 
-      <p className="mt-3 max-w-5xl text-xs text-slate-400">
+      <p className="mt-3 text-xs text-slate-400">
         Answers come only from the knowledge base and platform records. The assistant does not give medical advice. Conversations are kept for you
         under History.
       </p>

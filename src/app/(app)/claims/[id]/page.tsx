@@ -324,10 +324,12 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
           ) : null}
         </div>
 
-        <div className="space-y-5">
+        {/* Details and the decision stay in view (wide screens) while the documents scroll. */}
+        <div className="space-y-5 lg:sticky lg:top-20 lg:self-start">
           <Card>
             <SectionTitle>Claim details</SectionTitle>
-            <dl className="mt-2">
+            {/* Side by side when the card spans the page (portrait tablets); stacked in the side column. */}
+            <dl className="mt-2 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-1">
               <KeyValue label="Claim" value={claim.ref} />
               <KeyValue
                 label="Amount"
@@ -359,7 +361,7 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
 
           <Card>
             <SectionTitle>Review actions</SectionTitle>
-            <div className="mt-3 flex flex-col gap-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
               <Button
                 variant="success"
                 onClick={() => act("APPROVE")}

@@ -65,8 +65,9 @@ export function AgentPicker({
   }
 
   return (
-    <Card className="mb-4">
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+    // From lg up the picker sits in the narrow column beside the stage: fields stack there.
+    <Card>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-cols-1">
         <label className="block min-w-0">
           <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
             <UserRound size={13} aria-hidden /> Voice agent
@@ -153,7 +154,7 @@ function HowItWorksPanel({ how }: { how: HowItWorks }) {
         How this agent works
         <ChevronDown size={14} className="ml-auto text-muted transition-transform duration-150 group-open:rotate-180" aria-hidden />
       </summary>
-      <div className="grid gap-4 border-t border-line px-3 py-3 md:grid-cols-3">
+      <div className="grid gap-4 border-t border-line px-3 py-3 md:grid-cols-3 lg:grid-cols-1">
         {columns.map((c) => (
           <div key={c.title} className="min-w-0">
             <p className="mb-1.5 font-semibold text-ink">{c.title}</p>

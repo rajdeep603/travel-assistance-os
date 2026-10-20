@@ -118,7 +118,8 @@ export default function CallDetailPage({ params }: { params: { id: string } }) {
         <div className="space-y-5">
           <Card>
             <SectionTitle>Call details</SectionTitle>
-            <dl className="mt-2">
+            {/* Side by side when the card spans the page (portrait tablets); stacked in the side column. */}
+            <dl className="mt-2 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-1">
               <KeyValue label="Started" value={formatDateTime(call.startedAt)} />
               <KeyValue label="Ended" value={call.endedAt ? formatDateTime(call.endedAt) : null} />
               <KeyValue label="Length" value={call.durationSec != null ? `${Math.floor(call.durationSec / 60)}m ${call.durationSec % 60}s` : null} />

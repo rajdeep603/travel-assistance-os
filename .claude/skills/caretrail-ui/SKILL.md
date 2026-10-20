@@ -80,6 +80,19 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 - Module colours say where a module sits on the journey: teal (`live`) for talking (voice, calls, assistant), sky (`brand-2`) for reading (inbox, documents), cobalt (`brand`) for acting (cases, providers, claims). Never random pastels.
 - Whole cards are links; don't add "Open" buttons inside them.
 
+## Tablets (iPad)
+
+The ITIC demo also runs on an 11-inch iPad (A16) in Chrome, both ways round. Its viewport is 820 × 1180 CSS px (about 820 × 1066 in portrait and 1180 × 706 in landscape with Chrome's toolbars).
+
+- **Sidebar.** It is docked from `lg` (1024 px, `SIDEBAR_DOCK_QUERY` in `src/lib/sidebar.ts`) and slides in as a drawer below that. The header's `SidebarToggle`, ⌘\ and the command palette hide or show it, and the choice is remembered and applied before paint (`html[data-sidebar="hidden"]`). Use the `sidebar-hidden:` variant for layouts that can use the extra width, as the dashboard's modules do with `lg:sidebar-hidden:grid-cols-4`.
+- **No gaps in two-column pages.** When one column is short, either make it sticky (`lg:sticky lg:top-20 lg:self-start`, only if it fits in the landscape height) or let it fill its cell (`h-full`) with useful content. Don't leave a lone empty-state box beside a long column. For an empty result, show the fields the AI will fill, with dashes.
+- **Short screens.** Use the `short:` variant (`max-height: 820px`) to tighten vertical spacing; the voice stage uses it, with a smaller orb, to keep its controls above the fold.
+- **Full-height pages** use `dvh`, never `vh` or `h-screen`, because iPad toolbars make `100vh` too tall.
+- **Floating assistant.** `main` keeps `pb-24` clear for the floating button. Pages without it mark their root `data-fab-free`.
+- **Touch.** Hide keyboard-only hints with `[@media(hover:none)]:hidden`.
+- **Grids.** Make the last card span the remaining columns, as `lastAgentSpan` does on the Call Center.
+- **Testing.** Test in Chrome at 820 × 1066 and 1180 × 706, with the sidebar shown and hidden, and in present mode. Present mode steps down to 17 px below 1280 px.
+
 ## Things to avoid
 
 The generic AI-generated tells listed in `frontend-design`:
@@ -92,4 +105,4 @@ The generic AI-generated tells listed in `frontend-design`:
 ## Before you finish a UI change
 
 - Run `npm run typecheck`, `npm run lint` and `npm run test:unit`.
-- Look at the page at 1440 px and at phone width, in present mode (`data-present="on"`), and with macOS "Reduce motion" on.
+- Look at the page at 1440 px, at both iPad sizes and at phone width, in present mode (`data-present="on"`), and with macOS "Reduce motion" on.

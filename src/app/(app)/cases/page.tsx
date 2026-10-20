@@ -245,7 +245,8 @@ export default function CasesPage() {
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card>
+        {/* The request stays in view (wide screens) while the analysis beside it scrolls. */}
+        <Card className="lg:sticky lg:top-20 lg:self-start">
           <SectionTitle>Incoming assistance request</SectionTitle>
           <textarea
             value={text}
@@ -290,7 +291,7 @@ export default function CasesPage() {
 
         <div className="space-y-5">
           {pipeline.visible ? (
-            <Card>
+            <Card className="h-full">
               <AIPipeline stages={ANALYSIS_STAGES} active={pipeline.active} />
             </Card>
           ) : analysis ? (
@@ -363,11 +364,16 @@ export default function CasesPage() {
               </Card>
             </>
           ) : (
-            <Card>
-              <EmptyState
-                title="No analysis yet"
-                hint="Paste a request on the left and click “Analyse with AI”."
-              />
+            <Card className="h-full">
+              <SectionTitle>What the AI will extract</SectionTitle>
+              <p className="mt-1 text-sm text-muted">
+                Paste a request, or use the sample, and click “Analyse with AI”.
+              </p>
+              <dl className="mt-2 grid grid-cols-2 gap-x-4">
+                {["Patient", "Location", "Medical issue", "Assistance type", "Urgency", "Requested action"].map((label) => (
+                  <KeyValue key={label} label={label} value={null} />
+                ))}
+              </dl>
             </Card>
           )}
         </div>
@@ -381,7 +387,8 @@ export default function CasesPage() {
           <div className="mt-3"><EmptyState title="No cases yet" /></div>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            {/* Portrait tablets drop "Assigned to" so the other columns keep one line each. */}
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-4 font-semibold">Case</th>
@@ -389,7 +396,7 @@ export default function CasesPage() {
                   <th className="py-2 pr-4 font-semibold">Location</th>
                   <th className="py-2 pr-4 font-semibold">Priority</th>
                   <th className="py-2 pr-4 font-semibold">Status</th>
-                  <th className="py-2 font-semibold">Assigned to</th>
+                  <th className="hidden py-2 font-semibold lg:table-cell">Assigned to</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -406,13 +413,13 @@ export default function CasesPage() {
                         {c.title}
                       </p>
                     </td>
-                    <td className="py-2.5 pr-4 text-slate-700">
+                    <td className="whitespace-nowrap py-2.5 pr-4 text-slate-700">
                       {c.patient.firstName} {c.patient.lastName}
                     </td>
                     <td className="py-2.5 pr-4 text-slate-700">{c.location}</td>
                     <td className="py-2.5 pr-4"><StatusBadge value={c.priority} /></td>
                     <td className="py-2.5 pr-4"><StatusBadge value={c.status} /></td>
-                    <td className="py-2.5 text-slate-500">
+                    <td className="hidden py-2.5 text-slate-500 lg:table-cell">
                       {c.assignedTo ?? "Unassigned"}
                     </td>
                   </tr>
