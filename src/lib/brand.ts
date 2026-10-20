@@ -5,6 +5,8 @@ export const BRAND = {
   name: "CareTrail",
   tagline: "AI assistance for travel health",
   poweredBy: "Sthiram",
+  /** The legal name, for documents Sthiram issues (quotations). */
+  company: "Sthiram Services LLP",
 } as const;
 
 /** "Powered by Sthiram" */

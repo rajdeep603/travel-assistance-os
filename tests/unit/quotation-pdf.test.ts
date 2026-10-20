@@ -30,6 +30,7 @@ describe("the quotation PDF", () => {
       `No. ${number}`,
       "Valid until",
       "Prepared for Example Assistance Ltd Aylin Kaya · aylin@assistance-company.com · +90 532 000 00 00",
+      "From Sthiram Services LLP CareTrail · AI assistance for travel health",
       "Services, a month",
       "Service charges",
       "Setup and configuration €6,000",

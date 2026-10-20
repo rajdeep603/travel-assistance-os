@@ -61,7 +61,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       size: "A4",
       margins: { top: 48, left: 48, right: 48, bottom: 64 },
       bufferPages: true,
-      info: { Title: `${BRAND.name} quotation ${meta.number}`, Author: BRAND.poweredBy },
+      info: { Title: `${BRAND.name} quotation ${meta.number}`, Author: BRAND.company },
     });
     const chunks: Buffer[] = [];
     doc.on("data", (b: Buffer) => chunks.push(b));
@@ -89,7 +89,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
     const logo = logoPath();
     const logoH = 30;
     if (logo) doc.image(logo, left, 40, { height: logoH, width: (logoH * LOGO.width) / LOGO.height });
-    else doc.font(B).fontSize(18).fillColor(C.accent).text(BRAND.poweredBy, left, 44);
+    else doc.font(B).fontSize(18).fillColor(C.accent).text(BRAND.company, left, 44);
     doc.font(B).fontSize(22).fillColor(C.ink).text("Quotation", left, 36, { width, align: "right" });
     doc.font(R).fontSize(9).fillColor(C.muted);
     [`No. ${meta.number}`, `Date ${longDate(meta.date)}`, `Valid until ${longDate(meta.validUntil)}`].forEach((line, i) =>
@@ -109,7 +109,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       quote.companyName || quote.customerName || "Your organisation",
       [quote.companyName ? quote.customerName : "", quote.email, quote.phone].filter(Boolean).join(" · ") || undefined
     );
-    party(left + half + 16, "From", BRAND.poweredBy, `${BRAND.name} · ${BRAND.tagline}`);
+    party(left + half + 16, "From", BRAND.company, `${BRAND.name} · ${BRAND.tagline}`);
     doc.y = 178;
 
     // The three numbers a buyer looks for first.
@@ -300,7 +300,7 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       doc.page.margins.bottom = 0;
       const y = doc.page.height - 44;
       doc.moveTo(left, y - 8).lineTo(right, y - 8).lineWidth(0.6).strokeColor(C.line).stroke();
-      doc.font(R).fontSize(8).fillColor(C.muted).text(`${BRAND.poweredBy} · ${BRAND.name} quotation ${meta.number}`, left, y, { width: width - 70, lineBreak: false });
+      doc.font(R).fontSize(8).fillColor(C.muted).text(`${BRAND.company} · ${BRAND.name} quotation ${meta.number}`, left, y, { width: width - 70, lineBreak: false });
       doc.text(`Page ${i + 1} of ${range.count}`, right - 70, y, { width: 70, align: "right", lineBreak: false });
     }
     doc.end();

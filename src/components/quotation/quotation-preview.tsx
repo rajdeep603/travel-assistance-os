@@ -93,7 +93,7 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
     >
       <header className="flex flex-wrap items-start justify-between gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element -- also printed from a copied frame, where next/image can't run */}
-        <img src="/brand/sthiram-logo.png" alt={BRAND.poweredBy} width={256} height={62} className="h-8 w-auto sm:h-9" />
+        <img src="/brand/sthiram-logo.png" alt={BRAND.company} width={256} height={62} className="h-8 w-auto sm:h-9" />
         <div className="text-right">
           <h2 className="text-2xl font-semibold tracking-tight">Quotation</h2>
           <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -115,7 +115,7 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
         </div>
         <div>
           <p className="text-xs text-muted">From</p>
-          <p className="font-semibold">{BRAND.poweredBy}</p>
+          <p className="font-semibold">{BRAND.company}</p>
           <p className="text-xs text-muted">
             {BRAND.name} · {BRAND.tagline}
           </p>
@@ -266,7 +266,7 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
 
       {/* On paper the letterhead already carries the number; this line would only start a third page. */}
       <footer className="mt-7 border-t border-line pt-2 text-[11px] text-muted print:hidden">
-        {BRAND.poweredBy} · {BRAND.name} quotation {meta.number}
+        {BRAND.company} · {BRAND.name} quotation {meta.number}
       </footer>
     </article>
   );
