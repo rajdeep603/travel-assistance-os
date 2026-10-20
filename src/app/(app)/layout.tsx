@@ -31,9 +31,6 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
             <div className="flex items-center gap-2">
               <OperatorMenu />
               <PresentToggle />
-              <span className="whitespace-nowrap rounded-full border border-warn/40 bg-warn/10 px-2.5 py-1 text-[11px] font-semibold text-amber-800 md:px-3 md:text-xs">
-                Fictional data
-              </span>
             </div>
           </header>
           {/* Room at the bottom so the floating assistant button never covers the last row;
