@@ -16,10 +16,11 @@ CareTrail is demoed from a presenter laptop at a trade-show booth, so every scre
 - **Colour tokens.**
   - Every colour role is a CSS variable in `src/app/globals.css` (`--c-*`, space-separated RGB), mapped to Tailwind in `tailwind.config.ts`.
   - The roles are `ink`, `muted`, `canvas`, `surface`, `line`, `brand`, `brand-2`, `brand-deep`, `ai`, `live` and `warn`, plus `stage`, `stage-raised`, `stage-line`, `stage-ink` and `stage-muted`.
+  - **Depth and vibrancy (2026-10-22).** `bg-brand-gradient` (`--g-brand`, brand → brand-2) is for the primary action, the active nav item, selected chips and the business-case banner: always paired with `bg-brand` as the fallback and `shadow-glow`. Cards float on `shadow-card` (`hover:shadow-card-hover` only when the whole card is a link) with a `border-line/60` edge, never a hard border. The body carries a faint brand glow at the top, so don't add gradient washes to pages.
   - Use the tokens in new and touched code. Many pages still use raw `slate-*` and `blue-*`; migrate them when you touch them.
   - The company palette will replace the values in `globals.css` only.
 - **Brand.** The name and credits come from `src/lib/brand.ts`, and the mark from `src/components/brand.tsx`. Never hard-code "CareTrail".
-- **Type.** Geist only. Use `tabular-nums` for KPIs, timers and refs, sentence case for labels, and no all-caps eyebrows.
+- **Type.** Geist only. Use `tabular-nums` for KPIs, timers and refs, sentence case for labels, and no all-caps eyebrows. Page titles come from `PageHeader` (28 px, 30 px from `md`); don't set a smaller `h1` by hand.
 
 ## Voice-state colours
 
@@ -48,6 +49,7 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
   - Add each new keyframe to the reduced-motion block at the bottom of that file.
 - Durations are 150 ms for presses and hovers, 250 ms for small entrances, and 400 ms for reveals. Use one easing, `ease-smooth` (`cubic-bezier(0.22, 1, 0.36, 1)`), or a spring for celebratory pops.
 - **One orchestrated moment per screen.** Motion answers an action (results appearing, a step completing, a booking landing) or shows live state (orb, live dots, caret). Don't add hover lifts to every card or staggered fade-ups to every section.
+- **Arrival.** `src/app/(app)/template.tsx` fades and lifts every workspace page in on navigation, and `loading.tsx` beside it shows a skeleton while a server page is built. Pages don't add their own entrance on top; `animate-fade-up` stays for results that appear after an action.
 - Canvas and rAF animations read live values from refs. Never push audio levels or other per-frame data through React state.
 
 ## Components
@@ -70,8 +72,13 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 | `QuotationPreview` | `src/components/quotation/quotation-preview.tsx` | the quotation as an A4 page (Sthiram letterhead, services, service charges, terms, return, basis); same wording as the PDF via the shared helpers in `src/lib/business-case.ts` |
 | `QuotationWorkspace` | `src/components/quotation/quotation-workspace.tsx` | "Generate quotation": customer and service charges beside the live preview; print, download, e-mail, submit as a lead |
 | `printElement` | `src/lib/client/print.ts` | prints one element through a hidden frame with the page's styles; use `print:` variants on the element for paper |
+| `VisitorQr` | `src/components/leads/visitor-qr.tsx` | the booth's QR code (`/api/leads/qr`), shown big and printable as a table card; visitors land on `/meet` |
 | `JourneyRoute` | `src/components/dashboard/journey-route.tsx` | the dashboard's signature: the assistance journey as a route map on the stage, a live count at each stop; draws once on load (across on desktop, down on phones) |
 | `MoneyPanel`, `NeedsPerson`, `StatusMix` | `src/components/dashboard/` | medical spend (identified vs accepted bar, saving ring, committed guarantees); decisions waiting, each linked to its record; a status distribution as one segmented bar with a legend |
+
+## The visitor's page (`/meet`)
+
+The one page a visitor opens on their own phone, in the `(visitor)` route group with its own chrome: the dark stage end to end, the idle orb, three proof points, then a light form card. Fields are 16 px (`text-base`) so iOS doesn't zoom, chips use the brand gradient when selected, and the consent checkbox uses `accent-brand`. No operator chrome, no demo data, no "fictional" footer: it is a real prospect's first impression. Check it at 390 px wide first, then at iPad and desktop widths.
 
 ## Dashboard layout
 

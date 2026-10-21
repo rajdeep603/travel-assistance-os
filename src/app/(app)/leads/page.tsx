@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, FileText, Handshake, Trophy, Users } from "lucide-react";
+import { ChevronRight, FileText, Handshake, QrCode, Smartphone, Trophy, Users } from "lucide-react";
 import { Button, Card, ErrorBanner, PageHeader, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
+import { VisitorQr } from "@/components/leads/visitor-qr";
 import { formatDate, formatMoney } from "@/lib/format";
 
-// Quotations submitted from the business case. Real prospects, so the page
-// says what is in the pipeline and what was won, and each row opens the lead.
+// Quotations submitted from the business case, and visitors who scanned the
+// booth's QR code. Real prospects, so the page says what is in the pipeline
+// and what was won, and each row opens the lead.
 
 type LeadStatus = "NEW" | "CONTACTED" | "WON" | "LOST";
 
@@ -25,9 +27,12 @@ interface LeadRow {
   firstYearCost: number;
   netAnnualSaving: number;
   status: LeadStatus;
+  source: "QUOTATION" | "VISITOR";
   createdBy: string | null;
   createdAt: string;
 }
+
+const quoted = (l: LeadRow) => l.quoteNumber.length > 0;
 
 const FILTERS: { value: LeadStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "All" },
@@ -44,6 +49,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<LeadRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<LeadStatus | "ALL">("ALL");
+  const [qrOpen, setQrOpen] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -65,22 +71,35 @@ export default function LeadsPage() {
     return c;
   }, [leads]);
   const shown = (leads ?? []).filter((l) => filter === "ALL" || l.status === filter);
-  const open = (leads ?? []).filter((l) => l.status === "NEW" || l.status === "CONTACTED");
+  const open = (leads ?? []).filter((l) => (l.status === "NEW" || l.status === "CONTACTED") && quoted(l));
   const won = (leads ?? []).filter((l) => l.status === "WON");
+  const visitors = (leads ?? []).filter((l) => l.source === "VISITOR").length;
   const stats = [
-    { icon: Users, label: "Leads", value: String(leads?.length ?? 0), note: `${counts.NEW ?? 0} new, ${counts.CONTACTED ?? 0} contacted` },
-    { icon: Handshake, label: "Open pipeline", value: eur(open.reduce((s, l) => s + l.firstYearCost, 0)), note: "first-year value of new and contacted leads" },
+    {
+      icon: Users,
+      label: "Leads",
+      value: String(leads?.length ?? 0),
+      note: `${counts.NEW ?? 0} new, ${counts.CONTACTED ?? 0} contacted${visitors ? ` · ${visitors} from the QR page` : ""}`,
+    },
+    { icon: Handshake, label: "Open pipeline", value: eur(open.reduce((s, l) => s + l.firstYearCost, 0)), note: "first-year value of quoted leads still open" },
     { icon: Trophy, label: "Won", value: eur(won.reduce((s, l) => s + l.firstYearCost, 0)), note: `${won.length} ${won.length === 1 ? "quotation" : "quotations"} accepted` },
   ];
 
   return (
     <div className="mx-auto max-w-7xl">
-      <PageHeader title="Leads" subtitle="Quotations submitted from the business case. These are real prospects, kept apart from the demo data.">
-        <Button onClick={() => router.push("/business-case?quote=new")}>
-          <FileText size={15} aria-hidden />
-          Generate quotation
-        </Button>
+      <PageHeader title="Leads" subtitle="Quotations from the business case and visitors from the booth's QR page. Real prospects, kept apart from the demo data.">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={() => setQrOpen(true)}>
+            <QrCode size={15} aria-hidden />
+            Visitor QR code
+          </Button>
+          <Button onClick={() => router.push("/business-case?quote=new")}>
+            <FileText size={15} aria-hidden />
+            Generate quotation
+          </Button>
+        </div>
       </PageHeader>
+      {qrOpen ? <VisitorQr onClose={() => setQrOpen(false)} /> : null}
 
       {error ? <ErrorBanner message={error} /> : null}
 
@@ -125,12 +144,18 @@ export default function LeadsPage() {
             <Handshake size={28} className="text-brand" aria-hidden />
             <p className="mt-3 text-base font-semibold text-ink">No leads yet</p>
             <p className="mt-1 max-w-md text-sm text-muted">
-              Generate a quotation from the business case with the visitor&apos;s numbers, and submit it. It lands here, ready to follow up.
+              Show visitors the QR code to scan with their phone, or generate a quotation from the business case with their numbers. Either way the lead lands here, ready to follow up.
             </p>
-            <Button className="mt-4" onClick={() => router.push("/business-case?quote=new")}>
-              <FileText size={15} aria-hidden />
-              Generate quotation
-            </Button>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button variant="secondary" onClick={() => setQrOpen(true)}>
+                <QrCode size={15} aria-hidden />
+                Visitor QR code
+              </Button>
+              <Button onClick={() => router.push("/business-case?quote=new")}>
+                <FileText size={15} aria-hidden />
+                Generate quotation
+              </Button>
+            </div>
           </div>
         ) : shown.length === 0 ? (
           <p className="mt-4 rounded-xl bg-canvas px-4 py-8 text-center text-sm text-muted">No leads with this status.</p>
@@ -153,12 +178,24 @@ export default function LeadsPage() {
                     <span className="block truncate text-muted">{l.phone ?? "No phone"}</span>
                   </span>
                   <span className="hidden text-sm md:block">
-                    <span className="block tabular-nums text-ink">{l.quoteNumber}</span>
+                    {quoted(l) ? (
+                      <span className="block tabular-nums text-ink">{l.quoteNumber}</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-ink">
+                        <Smartphone size={13} className="text-brand" aria-hidden /> From the QR page
+                      </span>
+                    )}
                     <span className="block text-muted">{formatDate(l.createdAt)}</span>
                   </span>
                   <span className="text-right">
-                    <span className="block font-semibold tabular-nums text-ink">{eur(l.firstYearCost)}</span>
-                    <span className="block text-xs text-muted">first year</span>
+                    {quoted(l) ? (
+                      <>
+                        <span className="block font-semibold tabular-nums text-ink">{eur(l.firstYearCost)}</span>
+                        <span className="block text-xs text-muted">first year</span>
+                      </>
+                    ) : (
+                      <span className="block text-xs text-muted">No quotation yet</span>
+                    )}
                   </span>
                   <span className="col-span-2 flex items-center justify-between gap-3 md:col-span-1 md:justify-end">
                     <StatusBadge value={l.status} />

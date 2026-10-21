@@ -73,11 +73,14 @@ export function QuotationWorkspace({
   draft,
   onDraftChange,
   onClose,
+  leadId = null,
 }: {
   base: Omit<BusinessCaseInput, "quote">;
   draft: QuoteDraft;
   onDraftChange: (draft: QuoteDraft) => void;
   onClose: () => void;
+  /** An existing lead (a visitor from the QR page) the quotation is filed on, instead of opening a new one. */
+  leadId?: string | null;
 }) {
   const [today] = useState(() => zonedToday());
   const input: BusinessCaseInput = useMemo(() => ({ ...base, quote: draftToQuote(draft) }), [base, draft]);
@@ -204,13 +207,21 @@ export function QuotationWorkspace({
     }
     setBusy("submit");
     try {
-      const res = await fetch("/api/leads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ input }) });
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input, ...(leadId ? { leadId } : {}) }),
+      });
       if (!res.ok) throw new Error(await readApiError(res, "The quotation couldn't be submitted. Please try again."));
       const { lead, existing } = (await res.json()) as { lead: { id: string; ref: string }; existing: boolean };
       setSubmitted({ number: meta.number, id: lead.id, ref: lead.ref });
       setNote({
         tone: "ok",
-        text: existing ? `This quotation is already in Leads as ${lead.ref}.` : `Submitted. ${draft.companyName.trim()} is now in Leads as ${lead.ref}.`,
+        text: existing
+          ? `This quotation is already in Leads as ${lead.ref}.`
+          : leadId
+            ? `Submitted. The quotation is filed on ${lead.ref}, ${draft.companyName.trim()}.`
+            : `Submitted. ${draft.companyName.trim()} is now in Leads as ${lead.ref}.`,
         lead,
       });
     } catch (err) {

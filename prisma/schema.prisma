@@ -672,6 +672,12 @@ enum LeadStatus {
   LOST
 }
 
+/// A quotation the presenter submitted, or a visitor's own details from the booth's QR page (/meet).
+enum LeadSource {
+  QUOTATION
+  VISITOR
+}
+
 /// A quotation submitted from the business case. Unlike the rest of the
 /// database this is a real prospect, not demo data: the seed never touches it.
 model Lead {
@@ -689,6 +695,10 @@ model Lead {
   firstYearCost   Decimal    @db.Decimal(12, 2)
   netAnnualSaving Decimal    @db.Decimal(14, 2)
   status          LeadStatus @default(NEW)
+  source          LeadSource @default(QUOTATION)
+  /// What a visitor wrote on the QR page: their role and what they want to solve first.
+  role            String?
+  message         String?
   /// Meeting notes, kept with the quotation: who they are (LEAD_SEGMENTS), what hurts (LEAD_PAINS), the pilot chosen (src/lib/pilots.ts).
   segment         String?
   pains           String[]   @default([])

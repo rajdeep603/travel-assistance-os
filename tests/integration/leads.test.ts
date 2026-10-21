@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_ASSUMPTIONS, DEFAULT_COST_CONTAINMENT, DEFAULT_INPUTS, DEFAULT_RUNNING_COST_PRICES, EMPTY_QUOTE } from "@/lib/business-case";
-import { createLead, deleteLead, getLead, leadPdf, listLeads, setLeadStatus } from "@/lib/services/leads";
+import { createLead, createVisitorLead, deleteLead, followUpDraft, getLead, leadPdf, listLeads, setLeadStatus } from "@/lib/services/leads";
 import { extractTextFromFile } from "@/lib/services/pdf";
 import { zonedToday } from "@/lib/time";
 
@@ -72,5 +72,56 @@ describe("leads", () => {
     await deleteLead(lead.id);
     await expect(getLead(lead.id)).rejects.toMatchObject({ status: 404 });
     await expect(deleteLead(lead.id)).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("visitor leads from the booth's QR page", () => {
+  const visitor = {
+    name: "Nadia Petrova",
+    company: "Visitor Test Assistance",
+    email: "nadia@visitor-test.example",
+    phone: "",
+    role: "COO",
+    segment: "assistance" as const,
+    pains: ["after-hours" as const, "overbilling" as const],
+    message: "We run 40,000 calls a year.",
+    consent: true as const,
+    website: "",
+  };
+
+  it("saves a visitor without a quotation, and a second scan updates the same lead", async () => {
+    const { lead, existing } = await createVisitorLead(visitor);
+    expect(existing).toBe(false);
+    expect(lead).toMatchObject({ source: "VISITOR", quoteNumber: "", status: "NEW", createdBy: "visitor", role: "COO", segment: "assistance", pains: ["after-hours", "overbilling"] });
+    expect(lead.ref).toMatch(/^LEAD-\d{4,}$/);
+    expect(Number(lead.firstYearCost)).toBe(0);
+
+    // A second scan adds what's new and keeps what was there (the role, the pains picked before).
+    const again = await createVisitorLead({ ...visitor, email: visitor.email.toUpperCase(), role: "", pains: ["languages"] });
+    expect(again).toMatchObject({ existing: true, lead: { id: lead.id, role: "COO", email: visitor.email, pains: ["after-hours", "overbilling", "languages"] } });
+
+    // No quotation yet: nothing to print, and the follow-up is a recap alone.
+    await expect(leadPdf(lead.id)).rejects.toMatchObject({ status: 400 });
+    const draft = await followUpDraft(lead.id);
+    expect(draft.text).toContain("Thank you for stopping by");
+    expect(draft.text).not.toContain("attached");
+    expect(draft.subject).not.toContain("quotation");
+  });
+
+  it("files the quotation generated afterwards onto the visitor's lead", async () => {
+    const { lead } = await createVisitorLead({ ...visitor, email: "second@visitor-test.example" });
+    const quotedInput = { ...input, quote: { ...input.quote, customerName: visitor.name, companyName: visitor.company, email: "second@visitor-test.example" } };
+    const { lead: quoted, existing } = await createLead({ input: quotedInput, operator: "presenter", leadId: lead.id });
+    expect(existing).toBe(false);
+    expect(quoted.id).toBe(lead.id);
+    expect(quoted.ref).toBe(lead.ref);
+    expect(quoted.source).toBe("VISITOR");
+    expect(quoted.quoteNumber).toMatch(/^Q-/);
+    expect(Number(quoted.oneTimeTotal)).toBe(6_000);
+    expect((await followUpDraft(lead.id)).text).toContain(`quotation ${quoted.quoteNumber} attached`);
+    expect((await leadPdf(lead.id)).filename).toMatch(/\.pdf$/);
+
+    const unseen = { ...input, quote: { ...input.quote, companyName: "Visitor Test Nobody" } };
+    await expect(createLead({ input: unseen, operator: null, leadId: "no-such-lead" })).rejects.toMatchObject({ status: 404 });
   });
 });

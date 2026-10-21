@@ -20,7 +20,7 @@ export function Card({
   return (
     <div
       style={style}
-      className={`rounded-2xl border border-line/80 bg-surface p-5 shadow-sm ${interactive ? "transition-shadow duration-200 hover:shadow-md" : ""} ${className}`}
+      className={`rounded-2xl border border-line/60 bg-surface p-5 shadow-card ${interactive ? "transition-[box-shadow,border-color] duration-200 hover:border-brand/30 hover:shadow-card-hover" : ""} ${className}`}
     >
       {children}
     </div>
@@ -55,8 +55,8 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
-        {subtitle ? <p className="mt-1 max-w-3xl text-sm text-muted">{subtitle}</p> : null}
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-ink md:text-3xl">{title}</h1>
+        {subtitle ? <p className="mt-1.5 max-w-3xl text-[15px] leading-relaxed text-muted">{subtitle}</p> : null}
       </div>
       {children}
     </div>
@@ -150,9 +150,9 @@ type ButtonVariant = "primary" | "secondary" | "danger" | "success";
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand text-white shadow-sm hover:bg-brand-deep hover:shadow disabled:bg-brand/40 disabled:shadow-none border-transparent",
+    "bg-brand bg-brand-gradient text-white shadow-glow hover:brightness-[1.07] hover:shadow-[0_12px_28px_-8px_rgb(var(--c-brand)/0.65)] disabled:bg-none disabled:bg-brand/40 disabled:shadow-none border-transparent",
   secondary:
-    "bg-surface text-slate-700 hover:bg-slate-50 hover:border-slate-400 border-slate-300 disabled:text-slate-400 disabled:hover:border-slate-300",
+    "bg-surface text-ink hover:bg-canvas hover:border-slate-400 border-line shadow-sm disabled:text-slate-400 disabled:shadow-none disabled:hover:border-line",
   danger:
     "bg-white text-red-600 hover:bg-red-50 border-red-300 disabled:text-red-300",
   success:
@@ -260,9 +260,9 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={`rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center ${className}`}>
-      <p className="text-sm font-medium text-slate-600">{title}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+    <div className={`rounded-xl border border-dashed border-line bg-canvas/70 px-6 py-10 text-center ${className}`}>
+      <p className="text-sm font-medium text-ink/80">{title}</p>
+      {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
     </div>
   );
 }

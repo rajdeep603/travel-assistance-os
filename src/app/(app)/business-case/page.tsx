@@ -290,17 +290,38 @@ export default function BusinessCasePage() {
   // the quotation to change a number keeps everything typed into it.
   const [quoteDraft, setQuoteDraft] = useState<QuoteDraft>(emptyQuoteDraft);
   const [quoteOpen, setQuoteOpen] = useState(false);
+  // Set when the quotation is for a lead that exists already (a visitor from the QR page).
+  const [quoteLeadId, setQuoteLeadId] = useState<string | null>(null);
   const closeQuote = useCallback(() => setQuoteOpen(false), []);
 
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
-  // "Generate quotation" from the Leads page lands here with the quotation open.
+  // "Generate quotation" from the Leads page lands here with the quotation
+  // open; from a visitor lead, with their details already filled in.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("quote") === "new") {
-      setQuoteOpen(true);
-      window.history.replaceState(null, "", window.location.pathname);
-    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("quote") !== "new") return;
+    setQuoteOpen(true);
+    window.history.replaceState(null, "", window.location.pathname);
+    setQuoteLeadId(params.get("lead"));
   }, []);
+
+  // A visitor lead's contact details fill the quotation in; the quotation then files onto that lead.
+  useEffect(() => {
+    if (!quoteLeadId) return;
+    let live = true;
+    fetch(`/api/leads/${encodeURIComponent(quoteLeadId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { lead?: { customerName: string; companyName: string; email: string | null; phone: string | null } } | null) => {
+        if (!live || !body?.lead) return;
+        const { lead } = body;
+        setQuoteDraft((d) => ({ ...d, customerName: lead.customerName, companyName: lead.companyName, email: lead.email ?? "", phone: lead.phone ?? "" }));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [quoteLeadId]);
 
   const inputs = useMemo(() => fromDraft<OperationInputs>(operation), [operation]);
   const assumptions = useMemo(() => fromDraft<Assumptions>(assumptionDraft), [assumptionDraft]);
@@ -402,7 +423,7 @@ export default function BusinessCasePage() {
         </div>
       </PageHeader>
 
-      {quoteOpen ? <QuotationWorkspace base={base} draft={quoteDraft} onDraftChange={setQuoteDraft} onClose={closeQuote} /> : null}
+      {quoteOpen ? <QuotationWorkspace base={base} draft={quoteDraft} onDraftChange={setQuoteDraft} onClose={closeQuote} leadId={quoteLeadId} /> : null}
 
       {copyState === "failed" ? (
         <Card className="mb-5 border-amber-200 bg-amber-50">
@@ -426,8 +447,8 @@ export default function BusinessCasePage() {
       ) : null}
 
       {/* The answer first, readable from across the stand. */}
-      <div className="animate-fade-up rounded-2xl bg-gradient-to-br from-blue-700 to-sky-600 p-6 text-white shadow-sm md:p-7">
-        <p className="text-sm font-medium text-blue-100">Your business case</p>
+      <div className="animate-fade-up rounded-2xl bg-brand bg-brand-gradient p-6 text-white shadow-glow md:p-7">
+        <p className="text-sm font-medium text-white/80">Your business case</p>
         <p aria-live="polite" className="mt-1.5 max-w-4xl text-xl font-semibold leading-snug md:text-2xl">
           {report.headline}
         </p>

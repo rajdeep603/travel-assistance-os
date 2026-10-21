@@ -70,7 +70,7 @@ export function SideNav({ highlightId = "nav-active" }: { highlightId?: string }
             {active ? (
               <motion.span
                 layoutId={highlightId}
-                className="absolute inset-0 rounded-lg bg-brand shadow-sm shadow-brand/30"
+                className="absolute inset-0 rounded-lg bg-brand bg-brand-gradient shadow-glow"
                 transition={{ type: "spring", stiffness: 520, damping: 40 }}
                 aria-hidden
               />
@@ -81,6 +81,16 @@ export function SideNav({ highlightId = "nav-active" }: { highlightId?: string }
         );
       })}
     </nav>
+  );
+}
+
+/** A soft brand glow behind the mark, so the stage reads as lit rather than flat. */
+function SidebarGlow() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(70%_70%_at_20%_0%,rgb(var(--c-brand)/0.38),transparent)]"
+    />
   );
 }
 
@@ -111,7 +121,8 @@ export function DockedSidebar() {
       id="sidebar"
       className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-hidden bg-stage transition-[width,visibility] duration-[250ms] ease-smooth lg:block lg:sidebar-hidden:invisible lg:sidebar-hidden:w-0"
     >
-      <div className="flex h-full w-64 flex-col overflow-y-auto pb-6">
+      <div className="relative flex h-full w-64 flex-col overflow-y-auto border-r border-white/[0.06] pb-6">
+        <SidebarGlow />
         <SidebarBody />
       </div>
     </aside>

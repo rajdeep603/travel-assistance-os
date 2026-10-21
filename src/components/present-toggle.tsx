@@ -30,10 +30,10 @@ export function PresentToggle() {
       onClick={toggle}
       aria-pressed={on}
       title="Presentation mode — larger text for projectors"
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
         on
-          ? "border-blue-600 bg-blue-600 text-white"
-          : "border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600"
+          ? "border-brand bg-brand bg-brand-gradient text-white shadow-glow"
+          : "border-line bg-surface text-muted hover:border-brand/50 hover:text-brand"
       }`}
     >
       <Presentation size={13} aria-hidden />

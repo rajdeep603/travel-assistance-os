@@ -27,6 +27,8 @@ const PUBLIC_PREFIXES = [
   // Claimants' signed upload links (the token is the credential).
   "/upload/",
   "/api/public/",
+  // The booth's QR page, where visitors leave their details.
+  "/meet",
 ];
 
 export async function middleware(req: NextRequest) {

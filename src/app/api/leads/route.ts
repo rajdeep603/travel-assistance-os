@@ -6,14 +6,14 @@ import { createLead, listLeads } from "@/lib/services/leads";
 
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ input: BusinessCaseInputSchema });
+const Body = z.object({ input: BusinessCaseInputSchema, leadId: z.string().min(1).max(64).optional() });
 
 /** Leads, newest first. */
 export const GET = withErrorHandling(async () => json({ leads: serialize(await listLeads()) }));
 
-/** Submits a quotation as a lead. */
+/** Submits a quotation as a lead, or onto the visitor lead it was generated for. */
 export const POST = withErrorHandling(async (req: Request) => {
-  const { input } = Body.parse(await req.json().catch(() => ({})));
-  const { lead, existing } = await createLead({ input, operator: await getOperator(req) });
+  const { input, leadId } = Body.parse(await req.json().catch(() => ({})));
+  const { lead, existing } = await createLead({ input, operator: await getOperator(req), leadId });
   return json({ lead: serialize({ ...lead, input: undefined }), existing }, { status: existing ? 200 : 201 });
 });

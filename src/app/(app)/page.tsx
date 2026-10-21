@@ -163,7 +163,7 @@ function OutcomeStrip({ outcomes: o }: { outcomes: Outcomes }) {
     <div className="grid grid-cols-2 gap-x-6 gap-y-5 border-t border-stage-line pt-6 md:grid-cols-4 md:gap-x-0 md:divide-x md:divide-stage-line">
       {items.map((item) => (
         <div key={item.label} className="min-w-0 md:px-6 md:first:pl-0 md:last:pr-0">
-          <p className="text-3xl font-semibold tracking-tight tabular-nums text-white md:text-4xl">{item.value}</p>
+          <p className="text-4xl font-semibold tracking-tight tabular-nums text-white md:text-[2.75rem] md:leading-none">{item.value}</p>
           <p className="mt-1 text-sm font-medium leading-snug text-stage-ink">{item.label}</p>
           <p className="mt-0.5 text-xs leading-snug text-stage-muted">{item.context}</p>
         </div>
@@ -199,7 +199,7 @@ function Hero({ stats }: { stats: Stats | null }) {
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/voice"
-                className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-brand-deep focus-visible:outline-brand-2"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition-[filter,box-shadow] duration-150 hover:brightness-[1.07] focus-visible:outline-brand-2"
               >
                 <Mic size={16} aria-hidden />
                 Talk to a voice agent
@@ -251,7 +251,7 @@ function ModuleGrid() {
           <Link
             key={href}
             href={href}
-            className="group flex flex-col rounded-2xl border border-line bg-surface p-5 transition-[border-color,box-shadow] duration-150 hover:border-brand/40 hover:shadow-md focus-visible:outline-brand"
+            className="group flex flex-col rounded-2xl border border-line/60 bg-surface p-5 shadow-card transition-[border-color,box-shadow] duration-150 hover:border-brand/40 hover:shadow-card-hover focus-visible:outline-brand"
           >
             <div className="flex items-start justify-between gap-2">
               <span className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors duration-150 ${TONES[tone]}`}>

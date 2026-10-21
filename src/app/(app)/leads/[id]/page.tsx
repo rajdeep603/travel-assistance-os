@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Download, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Printer, Smartphone, Trash2 } from "lucide-react";
 import { Button, Card, ErrorBanner, KeyValue, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
 import { FollowUp } from "@/components/leads/follow-up";
 import { MeetingNotes } from "@/components/leads/meeting-notes";
@@ -11,9 +11,11 @@ import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import { businessCaseReport, longDate, quoteMeta, type BusinessCaseInput } from "@/lib/business-case";
 import { printElement } from "@/lib/client/print";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { painLabel, segmentLabel } from "@/lib/meeting-notes";
 
 // One lead: who it is, where it stands, and the quotation exactly as it was
-// submitted, to print or download again.
+// submitted, to print or download again. A visitor from the QR page has no
+// quotation yet: their request is shown instead, and one can be generated.
 
 type LeadStatus = "NEW" | "CONTACTED" | "WON" | "LOST";
 
@@ -27,6 +29,9 @@ interface LeadDetail {
   email: string | null;
   phone: string | null;
   status: LeadStatus;
+  source: "QUOTATION" | "VISITOR";
+  role: string | null;
+  message: string | null;
   segment: string | null;
   pains: string[];
   pilot: string | null;
@@ -47,6 +52,38 @@ const STATUSES: { value: LeadStatus; label: string }[] = [
 ];
 
 const eur = (n: number) => formatMoney(Math.round(n), "EUR");
+
+/** What a visitor told us on the QR page, in their words. */
+function VisitorRequest({ lead }: { lead: Pick<LeadDetail, "role" | "segment" | "pains" | "message" | "createdAt"> }) {
+  const pains = lead.pains.map(painLabel).filter((p): p is string => Boolean(p));
+  return (
+    <Card className="border-brand/20 bg-gradient-to-br from-brand/[0.06] to-transparent">
+      <div className="flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand">
+          <Smartphone size={16} aria-hidden />
+        </span>
+        <SectionTitle>What they asked for on the QR page</SectionTitle>
+      </div>
+      <dl className="mt-3 grid gap-x-4 sm:grid-cols-2">
+        <KeyValue label="Organisation" value={segmentLabel(lead.segment)} />
+        <KeyValue label="Role" value={lead.role} />
+      </dl>
+      <p className="mt-2 text-xs font-medium text-muted">Would solve first</p>
+      {pains.length ? (
+        <ul className="mt-1.5 flex flex-wrap gap-1.5">
+          {pains.map((p) => (
+            <li key={p} className="rounded-full bg-brand bg-brand-gradient px-2.5 py-1 text-xs font-medium text-white">
+              {p}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-sm text-slate-400">Nothing picked</p>
+      )}
+      {lead.message ? <p className="mt-3 whitespace-pre-wrap rounded-xl bg-surface p-3 text-sm leading-relaxed text-ink ring-1 ring-line">{lead.message}</p> : null}
+    </Card>
+  );
+}
 
 export default function LeadPage() {
   const { id } = useParams<{ id: string }>();
@@ -73,6 +110,7 @@ export default function LeadPage() {
 
   const report = useMemo(() => (lead ? businessCaseReport(lead.input) : null), [lead]);
   const meta = useMemo(() => (lead ? quoteMeta(lead.input, lead.quoteDate, lead.quoteNumber) : null), [lead]);
+  const quoted = Boolean(lead?.quoteNumber);
 
   async function setStatus(status: LeadStatus) {
     if (!lead || lead.status === status) return;
@@ -159,17 +197,30 @@ export default function LeadPage() {
         <>
           <PageHeader
             title={lead.companyName}
-            subtitle={`${lead.ref} · ${lead.customerName} · submitted ${formatDateTime(lead.createdAt)}${lead.createdBy ? ` by ${lead.createdBy}` : ""}`}
+            subtitle={
+              quoted
+                ? `${lead.ref} · ${lead.customerName} · submitted ${formatDateTime(lead.createdAt)}${lead.createdBy && lead.createdBy !== "visitor" ? ` by ${lead.createdBy}` : ""}`
+                : `${lead.ref} · ${lead.customerName}${lead.role ? `, ${lead.role}` : ""} · left their details on the QR page, ${formatDateTime(lead.createdAt)}`
+            }
           >
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" busy={busy === "print"} onClick={() => void print()}>
-                {busy === "print" ? null : <Printer size={15} aria-hidden />}
-                Print
-              </Button>
-              <Button busy={busy === "pdf"} onClick={() => void download()}>
-                {busy === "pdf" ? null : <Download size={15} aria-hidden />}
-                Download PDF
-              </Button>
+              {quoted ? (
+                <>
+                  <Button variant="secondary" busy={busy === "print"} onClick={() => void print()}>
+                    {busy === "print" ? null : <Printer size={15} aria-hidden />}
+                    Print
+                  </Button>
+                  <Button busy={busy === "pdf"} onClick={() => void download()}>
+                    {busy === "pdf" ? null : <Download size={15} aria-hidden />}
+                    Download PDF
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={() => router.push(`/business-case?quote=new&lead=${encodeURIComponent(lead.id)}`)}>
+                  <FileText size={15} aria-hidden />
+                  Generate quotation
+                </Button>
+              )}
             </div>
           </PageHeader>
 
@@ -226,6 +277,7 @@ export default function LeadPage() {
                 </dl>
               </Card>
 
+              {quoted ? (
               <Card>
                 <SectionTitle>Quotation</SectionTitle>
                 <dl className="mt-2 grid grid-cols-2 gap-x-4">
@@ -237,6 +289,12 @@ export default function LeadPage() {
                   <KeyValue label="Their net saving a year" value={<span className="tabular-nums">{eur(report.running.netAnnualSaving)}</span>} />
                 </dl>
               </Card>
+              ) : (
+              <Card>
+                <SectionTitle>Quotation</SectionTitle>
+                <p className="mt-2 text-sm text-muted">None yet. Generate one from the business case with their numbers; it will be filed on this lead.</p>
+              </Card>
+              )}
 
               <div className="px-1">
                 {confirmDelete ? (
@@ -266,16 +324,20 @@ export default function LeadPage() {
 
             <div className="min-w-0 space-y-5">
               <div className="space-y-5">
+                {lead.source === "VISITOR" ? <VisitorRequest lead={lead} /> : null}
                 <MeetingNotes leadId={lead.id} value={lead} onSaved={(v) => setLead({ ...lead, ...v })} />
                 <FollowUp
                   leadId={lead.id}
                   sentAt={lead.followUpSentAt}
+                  quoted={quoted}
                   onSent={(v) => setLead({ ...lead, status: v.status as LeadStatus, followUpSentAt: v.followUpSentAt })}
                 />
               </div>
-              <div ref={previewRef}>
-                <QuotationPreview report={report} meta={meta} />
-              </div>
+              {quoted ? (
+                <div ref={previewRef}>
+                  <QuotationPreview report={report} meta={meta} />
+                </div>
+              ) : null}
             </div>
           </div>
         </>

@@ -13,13 +13,26 @@ people make the decisions.*
 ## Preparation (5 minutes)
 
 1. Open `https://<your-domain>` and sign in (operator login).
-2. Check the header shows **Demo — fictional data only**.
+2. **Leads → Visitor QR code**: print the table card and put it on the
+   booth table (see *Visitors' own phones* below).
 3. **Call Center** (`/calls`): the hotline number is shown large — put it on
    the booth screen. Ring it once yourself.
 4. Have a second phone ready to play "the on-call doctor" (its number is
    `ON_CALL_DOCTOR_NUMBER`) and one to play "the hospital" (allowlisted in
    `OUTBOUND_ALLOWED_NUMBERS`).
 5. `curl https://<your-domain>/api/health` → `"status":"ok"`.
+
+## Visitors' own phones: the QR page
+
+**Leads → Visitor QR code** shows the booth's code big on screen, and prints
+it as a table card. A visitor scans it with their camera and lands on `/meet`
+on their own phone: what CareTrail does in three lines, then a short form
+(name, company, e-mail, what they'd solve first). No sign-in, no demo data.
+Their details land in **Leads**, marked *From the QR page*, with what they
+picked already in the meeting notes. After the show, open the lead:
+**Generate quotation** starts the business case with their details filled
+in, and the quotation files onto the same lead; **Write the follow-up**
+sends the recap (with the quotation once there is one).
 
 ## 20-minute meetings: what to show, by who you're meeting
 

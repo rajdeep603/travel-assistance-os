@@ -38,6 +38,14 @@ const config: Config = {
       transitionTimingFunction: {
         smooth: "cubic-bezier(0.22, 1, 0.36, 1)",
       },
+      backgroundImage: {
+        "brand-gradient": "var(--g-brand)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        "card-hover": "var(--shadow-card-hover)",
+        glow: "var(--shadow-glow)",
+      },
     },
   },
   plugins: [

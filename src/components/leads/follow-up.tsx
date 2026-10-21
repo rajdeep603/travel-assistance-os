@@ -22,10 +22,13 @@ const FIELD =
 export function FollowUp({
   leadId,
   sentAt,
+  quoted = true,
   onSent,
 }: {
   leadId: string;
   sentAt: string | null;
+  /** Whether the lead has a quotation to attach; a visitor lead gets the recap alone. */
+  quoted?: boolean;
   onSent: (lead: { status: string; followUpSentAt: string | null }) => void;
 }) {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -72,10 +75,12 @@ export function FollowUp({
       <SectionTitle>Follow-up</SectionTitle>
       {sentAt ? (
         <p className="mt-2 flex items-center gap-1.5 text-sm text-ink" role="status">
-          <CheckCircle2 size={15} className="text-brand" aria-hidden /> Sent {formatDateTime(sentAt)}, with the quotation attached.
+          <CheckCircle2 size={15} className="text-brand" aria-hidden /> Sent {formatDateTime(sentAt)}{quoted ? ", with the quotation attached" : ""}.
         </p>
       ) : (
-        <p className="mt-1 text-xs text-muted">A recap of the meeting from your notes, with the quotation attached. Send it the same evening.</p>
+        <p className="mt-1 text-xs text-muted">
+          {quoted ? "A recap of the meeting from your notes, with the quotation attached." : "A recap from your notes; the quotation goes with it once there is one."} Send it the same evening.
+        </p>
       )}
 
       {draft ? (

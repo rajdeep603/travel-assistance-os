@@ -129,6 +129,19 @@ interface CaseRow {
   patient: { firstName: string; lastName: string };
 }
 
+/** "Elif Demirtas (Case Manager)" as a name with the role beneath it, so the column stays one line wide. */
+function Assignee({ value }: { value: string | null }) {
+  if (!value) return <span className="text-slate-400">Unassigned</span>;
+  const m = value.match(/^(.*?)\s*\((.+)\)\s*$/);
+  if (!m) return <>{value}</>;
+  return (
+    <>
+      <span className="block text-slate-700">{m[1]}</span>
+      <span className="block text-xs text-slate-400">{m[2]}</span>
+    </>
+  );
+}
+
 export default function CasesPage() {
   const [text, setText] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -420,7 +433,7 @@ export default function CasesPage() {
                     <td className="py-2.5 pr-4"><StatusBadge value={c.priority} /></td>
                     <td className="py-2.5 pr-4"><StatusBadge value={c.status} /></td>
                     <td className="hidden py-2.5 text-slate-500 lg:table-cell">
-                      {c.assignedTo ?? "Unassigned"}
+                      <Assignee value={c.assignedTo} />
                     </td>
                   </tr>
                 ))}
