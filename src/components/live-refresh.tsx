@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getDisplayTimeZone } from "@/lib/time-zone";
 
 /**
  * Keeps a server-rendered page current during a demo: re-renders it when a
@@ -15,8 +16,11 @@ export function LiveRefresh({ intervalMs = 30_000, tone = "light" }: { intervalM
   useEffect(() => {
     let socket: WebSocket | null = null;
     let stopped = false;
+    // The stamp follows the display time zone, like every other time on screen.
     const stamp = () =>
-      setUpdatedAt(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      setUpdatedAt(
+        new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZone: getDisplayTimeZone() }).format(new Date())
+      );
     const refresh = () => {
       router.refresh();
       stamp();

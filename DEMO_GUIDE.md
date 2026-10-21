@@ -34,6 +34,20 @@ picked already in the meeting notes. After the show, open the lead:
 in, and the quotation files onto the same lead; **Write the follow-up**
 sends the recap (with the quotation once there is one).
 
+## The viewer's clock, the period, and the numbers to take away
+
+- **Time zone.** The clock pill in the header (next to *Present*) shows the
+  city and the time there; tap it to show every date and time on screen in
+  the visitor's own zone (London, Singapore, New York…). ⌘K also takes
+  "Show times in India". The operation itself still runs on Istanbul time
+  (the night shift is 20:00 to 08:00 there), which the overview says when
+  another zone is chosen.
+- **Period.** The overview's *7 days · 30 days · 90 days* switch sets the
+  period every outcome and money figure covers.
+- **Summary PDF.** The overview's *Summary PDF* button downloads the same
+  figures on one A4 page, for the CFO who asks "can I have that?".
+- **Leads → Export CSV** gives every lead as a spreadsheet for the CRM.
+
 ## 20-minute meetings: what to show, by who you're meeting
 
 Open the **Voice Agents** page (`/voice`) before they sit down. Pick the

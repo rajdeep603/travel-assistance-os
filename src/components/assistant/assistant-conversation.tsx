@@ -6,6 +6,7 @@ import Markdown from "react-markdown";
 import { BookOpenText, ExternalLink, FileText, Mic, MicOff, PhoneOff, SendHorizonal, Sparkles, SquarePen, Trash2 } from "lucide-react";
 import { AISourceBadge } from "@/components/ui";
 import { VoiceOrb, type OrbState } from "@/components/voice/voice-orb";
+import { formatDate, formatTime } from "@/lib/format";
 import { useWordReveal } from "@/lib/client/use-word-reveal";
 import type { AssistantMessageDto } from "@/lib/services/assistant-history";
 import type { VoiceState } from "@/lib/voice/client/use-grok-voice";
@@ -26,7 +27,7 @@ export const SUGGESTED = [
   "When does a claim need to be escalated?",
 ];
 
-const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const clock = (iso: string) => formatTime(iso);
 
 function orbState(s: VoiceState): OrbState {
   if (s.phase === "starting") return "connecting";
@@ -344,7 +345,7 @@ const relative = (iso: string) => {
   if (min < 60) return `${min} min ago`;
   const h = Math.round(min / 60);
   if (h < 24) return `${h} h ago`;
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return formatDate(iso).replace(/ \d{4}$/, "");
 };
 
 /** Earlier conversations: open one to carry on, or delete it. */

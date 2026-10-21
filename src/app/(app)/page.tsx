@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import {
   Calculator,
+  Download,
   FileText,
   FolderKanban,
   Headset,
@@ -16,18 +18,25 @@ import {
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
-import { prisma } from "@/lib/db";
 import { CountUp } from "@/components/count-up";
 import { JourneyRoute, type RouteStop } from "@/components/dashboard/journey-route";
 import { MoneyPanel } from "@/components/dashboard/money-panel";
-import { NeedsPerson, type Decision } from "@/components/dashboard/needs-person";
+import { NeedsPerson } from "@/components/dashboard/needs-person";
 import { NightShift } from "@/components/dashboard/night-shift";
 import { StatusMix } from "@/components/dashboard/status-mix";
 import { LiveRefresh } from "@/components/live-refresh";
 import { BRAND, POWERED_BY } from "@/lib/brand";
-import { formatShortDuration, getOutcomes, type Outcomes } from "@/lib/services/outcomes";
-import { getMoneyOutcomes } from "@/lib/services/exposure";
-import { getShiftHandover } from "@/lib/services/shift-handover";
+import { formatShortDuration, type Outcomes } from "@/lib/services/outcomes";
+import {
+  CASE_STATUS_ORDER,
+  CLAIM_STATUS_ORDER,
+  OVERVIEW_PERIODS,
+  getOverview,
+  overviewDays,
+  type Overview,
+  type OverviewPeriod,
+} from "@/lib/services/overview";
+import { OPERATION_TIME_ZONE, TIME_ZONE_COOKIE, isTimeZone } from "@/lib/time-zone";
 
 export const dynamic = "force-dynamic";
 
@@ -49,72 +58,15 @@ const MODULES: { href: string; icon: LucideIcon; title: string; description: str
   { href: "/assistant", icon: MessageSquareText, title: "Internal AI Assistant", description: "Answers the team about procedures, cases and providers, typed or out loud, with sources.", tone: "talk" },
 ];
 
-const CASE_STATUS_ORDER = ["NEW", "IN_PROGRESS", "PENDING_INFO", "ESCALATED", "RESOLVED", "CLOSED"];
-const CLAIM_STATUS_ORDER = ["SUBMITTED", "PROCESSING", "NEEDS_REVIEW", "INFO_REQUESTED", "ESCALATED", "APPROVED", "REJECTED", "PAID"];
-const OPEN_CASE = ["NEW", "IN_PROGRESS", "PENDING_INFO", "ESCALATED"];
-const CLAIM_IN_REVIEW = ["SUBMITTED", "PROCESSING", "NEEDS_REVIEW", "INFO_REQUESTED", "ESCALATED"];
-
-const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
-
-async function getStats(night: string | null) {
+async function getStats(days: OverviewPeriod, night: string | null): Promise<Overview | null> {
   try {
-    const now = new Date();
-    const [casesByStatus, claimsByStatus, upcomingAppointments, documentsProcessed, draftLetters, proposedReview, escalatedCase, outcomes, money, handover] =
-      await Promise.all([
-        prisma.case.groupBy({ by: ["status"], _count: { _all: true } }),
-        prisma.claim.groupBy({ by: ["status"], _count: { _all: true } }),
-        prisma.appointment.count({ where: { scheduledAt: { gte: now }, status: { in: ["PENDING", "CONFIRMED"] } } }),
-        prisma.document.count({ where: { status: "PROCESSED" } }),
-        prisma.guaranteeLetter.findMany({ where: { status: "DRAFT" }, orderBy: { createdAt: "desc" }, select: { caseId: true } }),
-        prisma.billReview.findFirst({
-          where: { status: "PROPOSED" },
-          orderBy: { createdAt: "desc" },
-          select: { caseId: true, claim: { select: { ref: true } } },
-        }),
-        prisma.case.findFirst({ where: { status: "ESCALATED" }, orderBy: { updatedAt: "desc" }, select: { id: true } }),
-        getOutcomes(30),
-        getMoneyOutcomes(30),
-        getShiftHandover({ night }),
-      ]);
-    const caseCounts = Object.fromEntries(casesByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
-    const claimCounts = Object.fromEntries(claimsByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
-    const sum = (counts: Record<string, number>, keys: string[]) => keys.reduce((total, k) => total + (counts[k] ?? 0), 0);
-    // Each decision opens the record to decide on when there is one.
-    const reviewHref = proposedReview?.caseId ? `/cases/${proposedReview.caseId}` : proposedReview?.claim ? `/claims/${proposedReview.claim.ref}` : "/claims";
-    const decisions: Decision[] = [
-      { count: money.awaitingDecision, label: plural(money.awaitingDecision, "hospital bill review to accept", "hospital bill reviews to accept"), href: reviewHref },
-      {
-        count: draftLetters.length,
-        label: plural(draftLetters.length, "guarantee letter to approve", "guarantee letters to approve"),
-        href: draftLetters[0] ? `/cases/${draftLetters[0].caseId}` : "/cases",
-      },
-      { count: claimCounts.NEEDS_REVIEW ?? 0, label: plural(claimCounts.NEEDS_REVIEW ?? 0, "claim to review", "claims to review"), href: "/claims" },
-      { count: caseCounts.ESCALATED ?? 0, label: plural(caseCounts.ESCALATED ?? 0, "escalated case", "escalated cases"), href: escalatedCase ? `/cases/${escalatedCase.id}` : "/cases" },
-      {
-        count: caseCounts.PENDING_INFO ?? 0,
-        label: plural(caseCounts.PENDING_INFO ?? 0, "case waiting for information", "cases waiting for information"),
-        href: "/cases",
-      },
-    ];
-    return {
-      caseCounts,
-      claimCounts,
-      openCases: sum(caseCounts, OPEN_CASE),
-      claimsInReview: sum(claimCounts, CLAIM_IN_REVIEW),
-      upcomingAppointments,
-      documentsProcessed,
-      decisions,
-      reviewHref,
-      outcomes,
-      money,
-      handover,
-    };
+    return await getOverview({ days, night });
   } catch {
     return null;
   }
 }
 
-type Stats = NonNullable<Awaited<ReturnType<typeof getStats>>>;
+type Stats = Overview;
 
 function routeStops(s: Stats): RouteStop[] {
   const o = s.outcomes;
@@ -172,7 +124,31 @@ function OutcomeStrip({ outcomes: o }: { outcomes: Outcomes }) {
   );
 }
 
-function Hero({ stats }: { stats: Stats | null }) {
+/** Last 7, 30 or 90 days: the period every figure on the overview covers. */
+function PeriodSwitch({ days, night }: { days: OverviewPeriod; night: string | null }) {
+  return (
+    <div className="inline-flex rounded-xl bg-stage-raised p-0.5 ring-1 ring-stage-line" role="group" aria-label="Period">
+      {OVERVIEW_PERIODS.map((d) => {
+        const on = d === days;
+        return (
+          <Link
+            key={d}
+            href={`/?days=${d}${night ? `&night=${night}` : ""}`}
+            scroll={false}
+            aria-current={on ? "true" : undefined}
+            className={`rounded-[10px] px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors duration-150 ${
+              on ? "bg-brand bg-brand-gradient text-white shadow-glow" : "text-stage-muted hover:text-white"
+            }`}
+          >
+            {d} days
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function Hero({ stats, days, night }: { stats: Stats | null; days: OverviewPeriod; night: string | null }) {
   return (
     <section
       aria-labelledby="hero-title"
@@ -195,7 +171,10 @@ function Hero({ stats }: { stats: Stats | null }) {
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-3 lg:items-end">
-            <LiveRefresh tone="stage" />
+            <div className="flex flex-wrap items-center gap-3">
+              <LiveRefresh tone="stage" />
+              <PeriodSwitch days={days} night={night} />
+            </div>
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/voice"
@@ -211,6 +190,15 @@ function Hero({ stats }: { stats: Stats | null }) {
                 <Calculator size={16} aria-hidden />
                 Your business case
               </Link>
+              <a
+                href={`/api/overview/pdf?days=${days}`}
+                download
+                title="A one-page operations summary for this period, as a PDF"
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-stage-ink ring-1 ring-stage-line transition-colors duration-150 hover:bg-stage-raised focus-visible:outline-brand-2"
+              >
+                <Download size={16} aria-hidden />
+                Summary PDF
+              </a>
             </div>
           </div>
         </div>
@@ -268,12 +256,15 @@ function ModuleGrid() {
   );
 }
 
-export default async function DashboardPage({ searchParams }: { searchParams: { night?: string } }) {
+export default async function DashboardPage({ searchParams }: { searchParams: { night?: string; days?: string } }) {
   const night = typeof searchParams.night === "string" && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.night) ? searchParams.night : null;
-  const stats = await getStats(night);
+  const days = overviewDays(searchParams.days);
+  const savedZone = cookies().get(TIME_ZONE_COOKIE)?.value;
+  const timeZone = isTimeZone(savedZone) ? savedZone : OPERATION_TIME_ZONE;
+  const stats = await getStats(days, night);
   return (
     <div className="mx-auto max-w-7xl space-y-5">
-      <Hero stats={stats} />
+      <Hero stats={stats} days={days} night={night} />
 
       {stats ? (
         <>
@@ -283,7 +274,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
             </div>
             <NeedsPerson decisions={stats.decisions} />
           </div>
-          {stats.handover ? <NightShift handover={stats.handover} waiting={stats.decisions.reduce((n, d) => n + d.count, 0)} /> : null}
+          {stats.handover ? <NightShift handover={stats.handover} timeZone={timeZone} waiting={stats.decisions.reduce((n, d) => n + d.count, 0)} /> : null}
           <div className="grid gap-5 lg:grid-cols-2">
             <StatusMix title="Caseload" noun="cases" counts={stats.caseCounts} order={CASE_STATUS_ORDER} href="/cases" columns={3} />
             <StatusMix title="Claims pipeline" noun="claims" counts={stats.claimCounts} order={CLAIM_STATUS_ORDER} href="/claims" columns={4} />

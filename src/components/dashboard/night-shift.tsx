@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Moon } from "lucide-react";
-import { formatPlainDate, utcToZoned } from "@/lib/time";
+import { formatDayTime, formatTime } from "@/lib/format";
+import { OPERATION_TIME_ZONE, timeZoneLabel } from "@/lib/time-zone";
 import type { HandoverEvent, ShiftHandover } from "@/lib/services/shift-handover";
 
 // ---------------------------------------------------------------------------
@@ -18,8 +19,6 @@ const DOT: Record<HandoverEvent["tone"], string> = {
   person: "bg-warn",
 };
 
-const day = (date: string) => formatPlainDate(date, { weekday: "short", day: "numeric", month: "short" });
-const clock = (at: Date) => utcToZoned(at).time;
 
 function NightLink({ night, label, children }: { night: string | null; label: string; children: React.ReactNode }) {
   const cls = "flex h-8 w-8 items-center justify-center rounded-lg border border-line transition-colors duration-150";
@@ -34,12 +33,15 @@ function NightLink({ night, label, children }: { night: string | null; label: st
   );
 }
 
-export function NightShift({ handover: h, waiting }: { handover: ShiftHandover; waiting: number }) {
+export function NightShift({ handover: h, waiting, timeZone = OPERATION_TIME_ZONE }: { handover: ShiftHandover; waiting: number; timeZone?: string }) {
   const index = h.nights.findIndex((n) => n.night === h.night);
   const older = index >= 0 ? (h.nights[index + 1]?.night ?? null) : null;
   const newer = index > 0 ? h.nights[index - 1].night : null;
-  const nextMorning = utcToZoned(h.end).date;
   const shown = h.events.slice(0, MAX_EVENTS);
+  // The shift is 20:00 to 08:00 where the operation runs; shown in the viewer's clock.
+  const clock = (at: Date) => formatTime(at, timeZone);
+  const span = `${formatDayTime(h.start, timeZone)} to ${formatDayTime(h.end, timeZone)}`;
+  const zoneNote = timeZone === OPERATION_TIME_ZONE ? "" : ` · ${timeZoneLabel(timeZone)} time`;
 
   const figures = [
     { value: `${h.calls.byAi}`, label: "calls handled by AI", note: h.calls.total ? `of ${h.calls.total}; ${h.calls.transferred} handed to a person` : "no calls" },
@@ -57,7 +59,7 @@ export function NightShift({ handover: h, waiting }: { handover: ShiftHandover; 
             While your team slept
           </h2>
           <p className="mt-0.5 text-xs tabular-nums text-muted">
-            Night shift {day(h.night)}, 20:00 to {day(nextMorning)}, 08:00{h.inProgress ? " · still running" : ""}
+            Night shift {span}{h.inProgress ? " · still running" : ""}{zoneNote}
           </p>
         </div>
         <div className="flex items-center gap-1.5">

@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { AssistantProvider } from "@/components/assistant/assistant-provider";
 import { CommandPalette, SearchButton } from "@/components/command-palette";
@@ -7,11 +8,17 @@ import { PresentToggle } from "@/components/present-toggle";
 import { BrandMark } from "@/components/brand";
 import { BRAND } from "@/lib/brand";
 import { SessionWatch } from "@/components/session-watch";
+import { TimeZoneProvider, TimeZoneSwitch } from "@/components/time-zone";
+import { OPERATION_TIME_ZONE, TIME_ZONE_COOKIE, isTimeZone } from "@/lib/time-zone";
 
 /** The operator workspace: sidebar navigation, header and page content. */
 export default function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // The viewer's display time zone, kept in a cookie so the server renders in it too.
+  const saved = cookies().get(TIME_ZONE_COOKIE)?.value;
+  const timeZone = isTimeZone(saved) ? saved : OPERATION_TIME_ZONE;
   return (
     <AssistantProvider>
+      <TimeZoneProvider initial={timeZone}>
       <div className="flex min-h-dvh">
         <SessionWatch />
         <CommandPalette />
@@ -30,6 +37,7 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
             </div>
             <div className="flex items-center gap-2">
               <OperatorMenu />
+              <TimeZoneSwitch />
               <PresentToggle />
             </div>
           </header>
@@ -43,6 +51,7 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
           </main>
         </div>
       </div>
+      </TimeZoneProvider>
     </AssistantProvider>
   );
 }

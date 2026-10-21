@@ -15,7 +15,7 @@ import {
 import { prisma } from "@/lib/db";
 import { ApiError, badRequest, notFound, serviceUnavailable } from "@/lib/errors";
 import { env } from "@/lib/env";
-import { LEAD_PAINS, LEAD_SEGMENTS, painLabel } from "@/lib/meeting-notes";
+import { LEAD_PAINS, LEAD_SEGMENTS, painLabel, segmentLabel } from "@/lib/meeting-notes";
 import { PILOT_DAYS, PILOTS, pilotPlan } from "@/lib/pilots";
 import { round2 } from "@/lib/fx";
 import { withRef } from "@/lib/refs";
@@ -347,4 +347,63 @@ export async function sendFollowUp(id: string, message: z.infer<typeof FollowUpS
     data: { followUpSentAt: new Date(), ...(lead.status === "NEW" ? { status: "CONTACTED" } : {}) },
     select: SUMMARY_SELECT,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Export: the leads as a spreadsheet for the CRM after the show.
+// ---------------------------------------------------------------------------
+
+const CSV_COLUMNS = [
+  "Reference",
+  "Created",
+  "Source",
+  "Company",
+  "Contact",
+  "Role",
+  "E-mail",
+  "Phone",
+  "Status",
+  "Organisation",
+  "Would solve first",
+  "Pilot",
+  "Quotation",
+  "First year (EUR)",
+  "Net saving a year (EUR)",
+  "Next step",
+  "Next step by",
+  "Follow-up sent",
+  "Notes",
+] as const;
+
+/** A cell that Excel, Numbers and Sheets all read back as typed. */
+export function csvCell(value: unknown): string {
+  if (value == null) return "";
+  const text = value instanceof Date ? value.toISOString() : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** Leads as CSV (UTF-8 with a byte-order mark, so Excel shows accents), one row each. */
+export function leadsCsv(leads: LeadSummary[]): string {
+  const rows = leads.map((l) => [
+    l.ref,
+    l.createdAt.toISOString(),
+    l.source === "VISITOR" ? "QR page" : "Quotation",
+    l.companyName,
+    l.customerName,
+    l.role,
+    l.email,
+    l.phone,
+    l.status,
+    segmentLabel(l.segment),
+    l.pains.map(painLabel).filter(Boolean).join("; "),
+    pilotPlan(l.pilot)?.label ?? null,
+    l.quoteNumber || null,
+    hasQuotation(l) ? Number(l.firstYearCost) : null,
+    hasQuotation(l) ? Number(l.netAnnualSaving) : null,
+    l.nextStep,
+    l.nextStepOn ? l.nextStepOn.toISOString().slice(0, 10) : null,
+    l.followUpSentAt ? l.followUpSentAt.toISOString() : null,
+    l.notes,
+  ]);
+  return "\ufeff" + [CSV_COLUMNS as readonly string[], ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }

@@ -76,6 +76,12 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 | `JourneyRoute` | `src/components/dashboard/journey-route.tsx` | the dashboard's signature: the assistance journey as a route map on the stage, a live count at each stop; draws once on load (across on desktop, down on phones) |
 | `MoneyPanel`, `NeedsPerson`, `StatusMix` | `src/components/dashboard/` | medical spend (identified vs accepted bar, saving ring, committed guarantees); decisions waiting, each linked to its record; a status distribution as one segmented bar with a legend |
 
+## Time on screen
+
+- Every date and time goes through `formatDateTime`, `formatDate`, `formatTime` or `formatDayTime` in `src/lib/format.ts`. They render in the **display time zone** (`src/lib/time-zone.ts`), which the header's clock pill (`TimeZoneSwitch`) and the ⌘K "Show times in …" commands change; the choice lives in the `caretrail-tz` cookie so the server renders in it too. Never call `toLocaleTimeString` or `toLocaleDateString` without a zone: the browser's zone is not the viewer's choice.
+- Client components need nothing: changing the zone remounts the page. **Server components** read the cookie themselves (`cookies().get(TIME_ZONE_COOKIE)`, validated with `isTimeZone`) and pass `timeZone` down explicitly, as the dashboard does for `NightShift`.
+- The operation's clock (`src/lib/time.ts`, Istanbul: slots, "today", the night shift's 20:00–08:00) is business logic and never follows the display zone.
+
 ## The visitor's page (`/meet`)
 
 The one page a visitor opens on their own phone, in the `(visitor)` route group with its own chrome: the dark stage end to end, the idle orb, three proof points, then a light form card. Fields are 16 px (`text-base`) so iOS doesn't zoom, chips use the brand gradient when selected, and the consent checkbox uses `accent-brand`. No operator chrome, no demo data, no "fictional" footer: it is a real prospect's first impression. Check it at 390 px wide first, then at iPad and desktop widths.
@@ -83,6 +89,7 @@ The one page a visitor opens on their own phone, in the `(visitor)` route group 
 ## Dashboard layout
 
 - Order is the buyer's order: the hero (journey route and four outcomes) first, then money with "Needs a person" beside it, then caseload and claims, then the modules.
+- The hero carries the period (`?days=7|30|90`, `PeriodSwitch`) and "Summary PDF" (`/api/overview/pdf`, one A4 page from the same `getOverview` figures, in `src/lib/services/overview-pdf.ts`). The figures come from `src/lib/services/overview.ts`; the page never queries on its own.
 - No empty cells. Rows in a grid stretch to equal height, and grids get a column count that the items fill exactly: 8 modules in 4 columns, legends in 3 columns for six statuses and 4 for eight.
 - Module colours say where a module sits on the journey: teal (`live`) for talking (voice, calls, assistant), sky (`brand-2`) for reading (inbox, documents), cobalt (`brand`) for acting (cases, providers, claims). Never random pastels.
 - Whole cards are links; don't add "Open" buttons inside them.

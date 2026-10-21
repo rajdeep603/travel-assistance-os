@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, FileText, Handshake, QrCode, Smartphone, Trophy, Users } from "lucide-react";
+import { ChevronRight, Download, FileText, Handshake, QrCode, Smartphone, Trophy, Users } from "lucide-react";
 import { Button, Card, ErrorBanner, PageHeader, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
 import { VisitorQr } from "@/components/leads/visitor-qr";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -89,6 +89,17 @@ export default function LeadsPage() {
     <div className="mx-auto max-w-7xl">
       <PageHeader title="Leads" subtitle="Quotations from the business case and visitors from the booth's QR page. Real prospects, kept apart from the demo data.">
         <div className="flex flex-wrap items-center gap-2">
+          {leads?.length ? (
+            <a
+              href="/api/leads/export"
+              download
+              title="Every lead as a spreadsheet, for your CRM"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink shadow-sm transition-all duration-150 hover:border-slate-400 hover:bg-canvas focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              <Download size={15} aria-hidden />
+              Export CSV
+            </a>
+          ) : null}
           <Button variant="secondary" onClick={() => setQrOpen(true)}>
             <QrCode size={15} aria-hidden />
             Visitor QR code

@@ -1,10 +1,12 @@
 // ---------------------------------------------------------------------------
-// Shared display formatting. All times render in the demo's operational
-// timezone (Istanbul) so the stage, the server and the audience see the same
-// clock regardless of where the app is hosted.
+// Shared display formatting. Times render in the display time zone (the
+// operation's Istanbul clock unless the viewer switched it in the header; see
+// src/lib/time-zone.ts), so the stage, the server and the audience see the
+// same clock regardless of where the app is hosted.
 // ---------------------------------------------------------------------------
 
 import { DEMO_TIME_ZONE, formatPlainDate } from "./time";
+import { getDisplayTimeZone } from "./time-zone";
 
 export { DEMO_TIME_ZONE };
 
@@ -14,24 +16,39 @@ export function formatEnum(value: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-export function formatDateTime(iso: string | Date): string {
+/** "21 Oct 2026, 22:38" in the display zone (or the one given). */
+export function formatDateTime(iso: string | Date, timeZone: string = getDisplayTimeZone()): string {
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: DEMO_TIME_ZONE,
+    hourCycle: "h23",
+    timeZone,
   }).format(new Date(iso));
 }
 
-export function formatDate(iso: string | Date): string {
+/** "21 Oct 2026" in the display zone (or the one given). */
+export function formatDate(iso: string | Date, timeZone: string = getDisplayTimeZone()): string {
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
-    timeZone: DEMO_TIME_ZONE,
+    timeZone,
   }).format(new Date(iso));
+}
+
+/** "22:38" in the display zone (or the one given). */
+export function formatTime(iso: string | Date, timeZone: string = getDisplayTimeZone()): string {
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(new Date(iso));
+}
+
+/** "Mon 19 Oct, 20:00" in the display zone (or the one given). */
+export function formatDayTime(iso: string | Date, timeZone: string = getDisplayTimeZone()): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone })
+    .format(new Date(iso))
+    .replace(/,? (\d{2}:\d{2})$/, ", $1");
 }
 
 /** "2026-10-03" (a plain slot date, no timezone) → "Fri 3 Oct" */

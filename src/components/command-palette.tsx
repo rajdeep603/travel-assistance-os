@@ -16,6 +16,7 @@ import {
   Phone,
   Plane,
   Presentation,
+  Clock3,
   ReceiptText,
   Search,
   Sparkles,
@@ -25,6 +26,8 @@ import {
 import { OPEN_ASSISTANT_EVENT, type OpenAssistantDetail } from "@/components/assistant/assistant-provider";
 import { NAV_ITEMS } from "@/components/nav";
 import { setPresentMode } from "@/lib/present-mode";
+import { useTimeZone } from "@/components/time-zone";
+import { TIME_ZONES } from "@/lib/time-zone";
 import { SIDEBAR_TOGGLE_EVENT } from "@/lib/sidebar";
 import type { SearchHit, SearchKind } from "@/lib/services/search";
 
@@ -161,6 +164,7 @@ export function CommandPalette() {
     [close, router]
   );
 
+  const { zone: timeZone, setZone: setTimeZone } = useTimeZone();
   const commands = useMemo<Item[]>(() => {
     const items: Item[] = NAV_ITEMS.map((n) => ({ id: `nav:${n.href}`, group: "Go to", label: n.label, icon: n.icon, run: () => go(n.href) }));
     for (const a of agents) {
@@ -200,6 +204,20 @@ export function CommandPalette() {
         close();
       },
     });
+    for (const z of TIME_ZONES) {
+      items.push({
+        id: `tz:${z.id}`,
+        group: "Time zone",
+        label: `Show times in ${z.label}`,
+        hint: z.id === timeZone ? "Current" : z.region === "Operation" ? "Where the operation runs" : z.region,
+        icon: Clock3,
+        keywords: `time zone clock ${z.id.replace(/[/_]/g, " ")} ${z.region}`,
+        run: () => {
+          close();
+          setTimeZone(z.id);
+        },
+      });
+    }
     items.push({
       id: "action:sidebar",
       group: "Actions",
@@ -213,7 +231,7 @@ export function CommandPalette() {
       },
     });
     return items;
-  }, [agents, samples, go, close]);
+  }, [agents, samples, go, close, timeZone, setTimeZone]);
 
   const items = useMemo<Item[]>(() => {
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
