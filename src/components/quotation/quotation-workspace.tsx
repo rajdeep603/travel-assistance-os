@@ -6,15 +6,33 @@ import { createPortal } from "react-dom";
 import { Check, CheckCircle2, Download, Mail, Plus, Printer, Send, X } from "lucide-react";
 import { Button, ErrorBanner, readApiError } from "@/components/ui";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
-import { businessCaseReport, longDate, quoteMeta, type BusinessCaseInput, type QuoteDetails } from "@/lib/business-case";
+import {
+  COST_ITEMS,
+  CURRENCY,
+  DEFAULT_RUNNING_COST_PRICES,
+  LINE_PRICE,
+  businessCaseReport,
+  calculateRunningCost,
+  excludedServices,
+  formatCount,
+  longDate,
+  quoteMeta,
+  type BusinessCaseInput,
+  type CostItem,
+  type CostLine,
+  type QuoteDetails,
+  type RunningCostPrices,
+} from "@/lib/business-case";
+import { formatMoney } from "@/lib/format";
 import { PILOT_DAYS, PILOTS, pilotPlan } from "@/lib/pilots";
 import { printElement } from "@/lib/client/print";
 import { zonedToday } from "@/lib/time";
 
 // ---------------------------------------------------------------------------
-// Generate quotation: the customer's details and Sthiram's service charges on
-// the left, the quotation exactly as it will print on the right. From here it
-// prints, downloads, goes by e-mail, or is submitted as a lead.
+// Generate quotation: the customer's details, the monthly services (each one
+// can be left out or re-priced) and Sthiram's service charges on the left,
+// the quotation exactly as it will print on the right. From here it prints,
+// downloads, goes by e-mail, or is submitted as a lead.
 // ---------------------------------------------------------------------------
 
 /** A service charge as typed: the amount stays text until it is sent. */
@@ -32,6 +50,8 @@ export interface QuoteDraft {
   services: ServiceDraft[];
   /** A pilot id from src/lib/pilots.ts, or "" for none. */
   pilot: string;
+  /** Monthly services unticked, as ticked off (dependents are worked out by the calculation). */
+  excluded: CostItem[];
 }
 
 const MAX_SERVICES = 20;
@@ -49,6 +69,7 @@ export function emptyQuoteDraft(): QuoteDraft {
     phone: "",
     services: SERVICE_HINTS.map((_, i) => ({ id: i + 1, description: "", amount: "" })),
     pilot: "",
+    excluded: [],
   };
 }
 
@@ -60,11 +81,26 @@ export function draftToQuote(draft: QuoteDraft): QuoteDetails {
     phone: draft.phone,
     services: draft.services.map((s) => ({ description: s.description, amount: Number(s.amount) })),
     pilot: draft.pilot || undefined,
+    // Left out of the JSON when nothing is excluded, so earlier quotations keep their numbers.
+    ...(draft.excluded.length ? { excluded: draft.excluded } : {}),
   };
 }
 
+/** The prices as typed in the dialog: text while editing, numbers once sent up. */
+type RateText = Record<keyof RunningCostPrices, string>;
+const rateText = (prices: RunningCostPrices): RateText =>
+  Object.fromEntries(Object.entries(prices).map(([k, v]) => [k, String(v)])) as RateText;
+
+/** "25,200 min a month at", "4,000 a month at", before the price field. */
+function basisLead(line: CostLine): string {
+  if (line.unit === "month") return "Servers, database, storage and backups at";
+  return `${formatCount(line.volume)}${line.unit === "min" ? " min" : ""} a month at`;
+}
+const UNIT_WORDS: Record<CostLine["unit"], string> = { min: "a minute", item: "each", month: "a month" };
+
 const FIELD =
   "mt-1.5 w-full rounded-lg border bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100";
+const LINK_BUTTON = "inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand transition-colors duration-150 hover:text-brand-deep";
 
 type Note = { tone: "ok" | "error"; text: string; lead?: { id: string; ref: string } };
 
@@ -72,12 +108,15 @@ export function QuotationWorkspace({
   base,
   draft,
   onDraftChange,
+  onPricesChange,
   onClose,
   leadId = null,
 }: {
   base: Omit<BusinessCaseInput, "quote">;
   draft: QuoteDraft;
   onDraftChange: (draft: QuoteDraft) => void;
+  /** A price changed on a service line: the business case takes it too, so the two never disagree. */
+  onPricesChange: (prices: RunningCostPrices) => void;
   onClose: () => void;
   /** An existing lead (a visitor from the QR page) the quotation is filed on, instead of opening a new one. */
   leadId?: string | null;
@@ -86,7 +125,11 @@ export function QuotationWorkspace({
   const input: BusinessCaseInput = useMemo(() => ({ ...base, quote: draftToQuote(draft) }), [base, draft]);
   const report = useMemo(() => businessCaseReport(input), [input]);
   const meta = useMemo(() => quoteMeta(input, today), [input, today]);
+  // Every service line, whether in the quotation or not, so an unticked one can be ticked back.
+  const allLines = useMemo(() => calculateRunningCost(base.operation, base.assumptions, base.prices).lines, [base]);
+  const excluded = useMemo(() => new Set(excludedServices(draft.excluded)), [draft.excluded]);
 
+  const [rates, setRates] = useState<RateText>(() => rateText(base.prices));
   const [busy, setBusy] = useState<"pdf" | "print" | "email" | "submit" | null>(null);
   const [note, setNote] = useState<Note | null>(null);
   const [showErrors, setShowErrors] = useState(false);
@@ -96,6 +139,7 @@ export function QuotationWorkspace({
   const customerRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+  const servicesId = useId();
   const ids = { customer: useId(), company: useId(), email: useId(), phone: useId() };
 
   const closeRef = useRef(onClose);
@@ -135,9 +179,34 @@ export function QuotationWorkspace({
     const untouched = draft.services.every((s) => !s.description.trim() && !s.amount.trim());
     set({ pilot: id, ...(plan && untouched ? { services: plan.services.map((description) => ({ ...blankService(), description })) } : {}) });
   };
+  /** Ticks a monthly service in or out; the list keeps the quotation's order so the same scope always numbers the same. */
+  const includeService = (item: CostItem, include: boolean) => {
+    const next = new Set(draft.excluded);
+    if (include) next.delete(item);
+    else next.add(item);
+    set({ excluded: COST_ITEMS.filter((i) => next.has(i)) });
+  };
+  const setRate = (key: keyof RunningCostPrices, text: string) => {
+    setRates((r) => ({ ...r, [key]: text }));
+    const n = Number(text);
+    onPricesChange({ ...base.prices, [key]: text.trim() !== "" && Number.isFinite(n) && n > 0 ? n : 0 });
+  };
+  /** A blank or broken price settles on zero when the field is left, as the page's fields do. */
+  const settleRate = (key: keyof RunningCostPrices) => {
+    const n = Number(rates[key]);
+    if (rates[key].trim() === "" || !Number.isFinite(n) || n < 0) setRate(key, "0");
+  };
+  const pricesAreDefault = (Object.keys(DEFAULT_RUNNING_COST_PRICES) as (keyof RunningCostPrices)[]).every(
+    (k) => base.prices[k] === DEFAULT_RUNNING_COST_PRICES[k]
+  );
+  const restorePrices = () => {
+    setRates(rateText(DEFAULT_RUNNING_COST_PRICES));
+    onPricesChange(DEFAULT_RUNNING_COST_PRICES);
+  };
 
   const submittedNow = submitted?.number === meta.number;
   const missing = { customer: !draft.customerName.trim(), company: !draft.companyName.trim() };
+  const eur = (n: number) => formatMoney(Math.round(n), CURRENCY);
 
   async function download() {
     setBusy("pdf");
@@ -357,6 +426,87 @@ export function QuotationWorkspace({
           </fieldset>
 
           <fieldset className="min-w-0">
+            <legend className="text-sm font-semibold text-ink">Services, a month</legend>
+            <p className="mt-0.5 text-xs text-muted">
+              Pay-as-you-go at the volumes in the business case. Untick a service to leave it out: its cost goes, and so do the hours it would have freed. Prices can be changed here.
+            </p>
+            <ul className="mt-2 divide-y divide-line/70 rounded-lg border border-line/60 bg-white px-3">
+              {allLines.map((l) => {
+                const included = !excluded.has(l.item);
+                // The phone line carries the voice AI's minutes and the notes come from its transcripts: without it, neither applies.
+                const withVoice = (l.item === "phone" || l.item === "notes") && excluded.has("voice");
+                const key = LINE_PRICE[l.item];
+                const boxId = `${servicesId}-${l.item}`;
+                return (
+                  <li key={l.item} className="py-2">
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        id={boxId}
+                        checked={included}
+                        disabled={withVoice}
+                        onChange={(e) => includeService(l.item, e.target.checked)}
+                        className="h-4 w-4 shrink-0 rounded border-slate-300 accent-brand disabled:opacity-40"
+                      />
+                      <label htmlFor={boxId} className={`min-w-0 flex-1 text-sm font-medium ${included ? "text-ink" : "text-muted"}`}>
+                        {l.label}
+                      </label>
+                      <span className={`shrink-0 text-sm tabular-nums ${included ? "font-medium text-ink" : "text-muted"}`}>{included ? eur(l.cost) : "Left out"}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 pl-[26px] text-xs text-muted">
+                      {withVoice ? (
+                        <span>Goes with the voice AI.</span>
+                      ) : (
+                        <>
+                          <span>{basisLead(l)}</span>
+                          <span className="inline-flex rounded-md transition-shadow focus-within:ring-2 focus-within:ring-blue-100">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step={l.unit === "month" ? 10 : 0.001}
+                              aria-label={`${l.label}: price in euros ${UNIT_WORDS[l.unit]}`}
+                              value={rates[key]}
+                              disabled={!included}
+                              onChange={(e) => setRate(key, e.target.value)}
+                              onBlur={() => settleRate(key)}
+                              className="w-[4.75rem] min-w-0 rounded-l-md border border-slate-300 bg-white px-2 py-1 text-right text-xs font-medium tabular-nums text-slate-900 focus:border-blue-500 focus:outline-none disabled:bg-canvas disabled:text-muted"
+                            />
+                            <span aria-hidden className="flex items-center rounded-r-md border border-l-0 border-slate-300 bg-slate-50 px-1.5 text-xs text-slate-500">
+                              €
+                            </span>
+                          </span>
+                          <span>{UNIT_WORDS[l.unit]}</span>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 flex items-baseline justify-between gap-3 text-sm font-semibold text-ink" aria-live="polite">
+              <span>Total a month</span>
+              <span className="tabular-nums">
+                {eur(report.running.monthlyCost)} <span className="font-normal text-muted">· {eur(report.running.annualCost)} a year</span>
+              </span>
+            </p>
+            {draft.excluded.length || !pricesAreDefault ? (
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                {draft.excluded.length ? (
+                  <button type="button" onClick={() => set({ excluded: [] })} className={LINK_BUTTON}>
+                    Include every service
+                  </button>
+                ) : null}
+                {!pricesAreDefault ? (
+                  <button type="button" onClick={restorePrices} className={LINK_BUTTON}>
+                    Restore list prices
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </fieldset>
+
+          <fieldset className="min-w-0">
             <legend className="text-sm font-semibold text-ink">{PILOT_DAYS}-day pilot</legend>
             <p className="mt-0.5 text-xs text-muted">One call flow or one desk first, with the measures it is judged on and a four-phase plan.</p>
             <select
@@ -423,7 +573,7 @@ export function QuotationWorkspace({
               type="button"
               onClick={() => set({ services: [...draft.services, blankService()] })}
               disabled={draft.services.length >= MAX_SERVICES}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand transition-colors duration-150 hover:text-brand-deep disabled:cursor-not-allowed disabled:text-muted"
+              className={`mt-2 ${LINK_BUTTON} disabled:cursor-not-allowed disabled:text-muted`}
             >
               <Plus size={15} aria-hidden />
               Add a service charge
@@ -431,7 +581,7 @@ export function QuotationWorkspace({
           </fieldset>
 
           <p className="border-t border-line pt-4 text-xs text-muted">
-            The services and their prices come from the business case. Close this to change them; what you enter here stays.
+            The volumes and assumptions come from the business case. Close this to change them; what you enter here stays.
           </p>
         </form>
 

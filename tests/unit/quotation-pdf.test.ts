@@ -56,10 +56,22 @@ describe("the quotation PDF", () => {
     expect(text).toContain("Prepared for Your organisation");
   });
 
+  it("leaves a service out of every section when the quotation does", async () => {
+    const { pdf } = await businessCasePdf({ ...base, quote: { ...EMPTY_QUOTE, excluded: ["voice"] } });
+    const text = (await extractTextFromFile(pdf, "application/pdf")).replace(/\s+/g, " ");
+    expect(text).not.toMatch(/Voice AI|Phone line|Call notes|After-hours calls|Inbound calls a month/);
+    expect(text).toContain("the document AI and the cloud it runs on");
+    expect(text).toContain("Total a month €9,068 a year €756");
+    expect(text).toContain("E-mails & faxes handled");
+    expect(text).toContain("Page 2 of 2");
+  });
+
   it("accepts the page's numbers, blanks included, and fills in a missing quotation", () => {
     const parsed = BusinessCaseInputSchema.parse(JSON.parse(JSON.stringify({ ...base, operation: { ...DEFAULT_INPUTS, monthlyCalls: Number.NaN } })));
     expect(parsed.operation.monthlyCalls).toBe(0);
     expect(parsed.quote).toEqual(EMPTY_QUOTE);
     expect(() => BusinessCaseInputSchema.parse({ ...base, quote: { preparedFor: "", services: Array(21).fill({ description: "x", amount: 1 }) } })).toThrow();
+    expect(BusinessCaseInputSchema.parse({ ...base, quote: { ...EMPTY_QUOTE, excluded: ["voice", "cloud"] } }).quote.excluded).toEqual(["voice", "cloud"]);
+    expect(() => BusinessCaseInputSchema.parse({ ...base, quote: { ...EMPTY_QUOTE, excluded: ["fax"] } })).toThrow();
   });
 });

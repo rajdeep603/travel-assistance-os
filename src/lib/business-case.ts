@@ -48,6 +48,30 @@ export interface Assumptions {
 
 export type Area = "calls" | "inbound" | "claims" | "letters";
 
+// ---------------------------------------------------------------------------
+// Scope: a quotation can leave services out. Each service is a line of the
+// running cost further down; leaving one out drops its line, and the hours
+// its area would have freed go with it, so a quotation never claims a saving
+// from a service it doesn't sell.
+// ---------------------------------------------------------------------------
+
+export const COST_ITEMS = ["voice", "phone", "notes", "inbound", "claims", "letters", "cloud"] as const;
+export type CostItem = (typeof COST_ITEMS)[number];
+
+/** The service each area's saving depends on. */
+const AREA_SERVICE: Record<Area, CostItem> = { calls: "voice", inbound: "inbound", claims: "claims", letters: "letters" };
+
+/** Lines that go with a service when it is left out: no voice AI, no minutes on its line and no transcripts to write notes from. */
+const CARRIED: Partial<Record<CostItem, readonly CostItem[]>> = { voice: ["phone", "notes"] };
+
+/** The services left out, dependents included, in the order of the quotation. */
+export function excludedServices(excluded: readonly CostItem[] = []): CostItem[] {
+  const out = new Set(excluded.flatMap((item) => [item, ...(CARRIED[item] ?? [])]));
+  return COST_ITEMS.filter((item) => out.has(item));
+}
+
+const isSome = <T,>(value: T | null): value is T => value !== null;
+
 export interface AreaResult {
   area: Area;
   label: string;
@@ -60,6 +84,9 @@ export interface AreaResult {
 }
 
 export interface BusinessCaseResult {
+  /** The services this case leaves out (a quotation's scope), dependents included; empty for the whole platform. */
+  excluded: CostItem[];
+  /** The areas the services in scope address. */
   areas: AreaResult[];
   hoursToday: number;
   hoursFreed: number;
@@ -184,9 +211,12 @@ function share(pct: number): number {
 
 export function calculateBusinessCase(
   inputs: OperationInputs,
-  assumptions: Assumptions
+  assumptions: Assumptions,
+  excluded: readonly CostItem[] = []
 ): BusinessCaseResult {
   const costPerHour = amount(inputs.costPerHour);
+  const left = excludedServices(excluded);
+  const out = new Set(left);
 
   // Calls: the AI's share goes entirely; the rest gets faster with triage + summary.
   const aiCalls = share(assumptions.aiHandledCallPct);
@@ -235,7 +265,7 @@ export function calculateBusinessCase(
       amount(inputs.letterHours) * 60,
       share(assumptions.letterTimeSavedPct)
     ),
-  ];
+  ].filter((a) => !out.has(AREA_SERVICE[a.area]));
 
   const hoursToday = areas.reduce((sum, a) => sum + a.hoursToday, 0);
   const hoursFreed = areas.reduce((sum, a) => sum + a.hoursFreed, 0);
@@ -245,6 +275,7 @@ export function calculateBusinessCase(
   const letterMinutesToday = amount(inputs.letterHours) * 60;
 
   return {
+    excluded: left,
     areas,
     hoursToday,
     hoursFreed,
@@ -253,9 +284,10 @@ export function calculateBusinessCase(
     monthlySaving,
     annualSaving: monthlySaving * 12,
     savingPerCase: cases > 0 ? monthlySaving / cases : 0,
-    afterHoursCalls: amount(inputs.monthlyCalls) * share(inputs.afterHoursCallPct),
+    // Without the voice AI nobody picks up at night; without the letters service a letter takes as long as today.
+    afterHoursCalls: out.has("voice") ? 0 : amount(inputs.monthlyCalls) * share(inputs.afterHoursCallPct),
     letterMinutesToday,
-    letterMinutesAutomated: letterMinutesToday * (1 - share(assumptions.letterTimeSavedPct)),
+    letterMinutesAutomated: out.has("letters") ? letterMinutesToday : letterMinutesToday * (1 - share(assumptions.letterTimeSavedPct)),
   };
 }
 
@@ -311,34 +343,40 @@ export function buildSummary(
   const byArea = result.areas
     .map((a) => `${a.label} ${formatCount(a.hoursFreed)} h (${eur(a.saving)})`)
     .join(" · ");
+  // A service left out of the quotation takes its volume, assumption and result lines with it.
+  const out = new Set(result.excluded);
+  const when = (item: CostItem, line: string): string | null => (out.has(item) ? null : line);
+  const assumed = [
+    when("voice", `- Calls the AI handles end-to-end: ${pct(assumptions.aiHandledCallPct)}`),
+    when("voice", `- Time saved on calls a person still takes: ${pct(assumptions.assistedCallTimeSavedPct)}`),
+    when("claims", `- Claim review time saved: ${pct(assumptions.claimTimeSavedPct)}`),
+    when("letters", `- Letter of Guarantee preparation time saved: ${pct(assumptions.letterTimeSavedPct)}`),
+    when("inbound", `- E-mails & faxes handled automatically: ${pct(assumptions.inboundAutomatedPct)}`),
+  ].filter(isSome);
 
   return [
     `${BRAND.name} business case — estimate`,
     "",
     "Your operation (per month)",
     `- Assistance cases: ${n(inputs.monthlyCases)}`,
-    `- Inbound calls: ${n(inputs.monthlyCalls)} (${pct(inputs.afterHoursCallPct)} outside office hours, ${n(inputs.callMinutes)} min each)`,
-    `- E-mails & faxes: ${n(inputs.monthlyInbound)} (${n(inputs.inboundMinutes)} min each)`,
-    `- Claims: ${n(inputs.monthlyClaims)} (${n(inputs.claimReviewMinutes)} min review each)`,
-    `- Letters of Guarantee: ${n(inputs.monthlyLetters)} (${formatDuration(result.letterMinutesToday)} each today)`,
+    when("voice", `- Inbound calls: ${n(inputs.monthlyCalls)} (${pct(inputs.afterHoursCallPct)} outside office hours, ${n(inputs.callMinutes)} min each)`),
+    when("inbound", `- E-mails & faxes: ${n(inputs.monthlyInbound)} (${n(inputs.inboundMinutes)} min each)`),
+    when("claims", `- Claims: ${n(inputs.monthlyClaims)} (${n(inputs.claimReviewMinutes)} min review each)`),
+    when("letters", `- Letters of Guarantee: ${n(inputs.monthlyLetters)} (${formatDuration(result.letterMinutesToday)} each today)`),
     `- Loaded cost per agent hour: ${eur(amount(inputs.costPerHour))}; ${n(inputs.productiveHoursPerMonth)} productive hours per agent a month`,
     "",
-    "Assumptions",
-    `- Calls the AI handles end-to-end: ${pct(assumptions.aiHandledCallPct)}`,
-    `- Time saved on calls a person still takes: ${pct(assumptions.assistedCallTimeSavedPct)}`,
-    `- Claim review time saved: ${pct(assumptions.claimTimeSavedPct)}`,
-    `- Letter of Guarantee preparation time saved: ${pct(assumptions.letterTimeSavedPct)}`,
-    `- E-mails & faxes handled automatically: ${pct(assumptions.inboundAutomatedPct)}`,
-    "",
+    ...(assumed.length ? ["Assumptions", ...assumed, ""] : []),
     "Results",
     `- Agent hours freed: ${formatCount(result.hoursFreed)} a month (about ${formatCount(result.fte, 1)} full-time staff)`,
     `- Cost saved: ${eur(result.monthlySaving)} a month, ${eur(result.annualSaving)} a year`,
-    `- After-hours calls answered instantly: ${formatCount(result.afterHoursCalls)} a month`,
-    `- Letter of Guarantee turnaround: ${formatDuration(result.letterMinutesToday)} today, ${formatDuration(result.letterMinutesAutomated)} with ${BRAND.name}`,
-    `- By area: ${byArea}`,
+    when("voice", `- After-hours calls answered instantly: ${formatCount(result.afterHoursCalls)} a month`),
+    when("letters", `- Letter of Guarantee turnaround: ${formatDuration(result.letterMinutesToday)} today, ${formatDuration(result.letterMinutesAutomated)} with ${BRAND.name}`),
+    byArea ? `- By area: ${byArea}` : null,
     "",
     `${DISCLAIMER}. ${BRAND.name} · ${POWERED_BY}`,
-  ].join("\n");
+  ]
+    .filter(isSome)
+    .join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -464,7 +502,16 @@ export const DEFAULT_RUNNING_COST_PRICES: RunningCostPrices = {
   cloudPerMonth: 120,
 };
 
-export type CostItem = "voice" | "phone" | "notes" | "inbound" | "claims" | "letters" | "cloud";
+/** The price each running-cost line is worked out from. */
+export const LINE_PRICE: Record<CostItem, keyof RunningCostPrices> = {
+  voice: "voicePerMinute",
+  phone: "phonePerMinute",
+  notes: "perCallNote",
+  inbound: "perMessage",
+  claims: "perClaim",
+  letters: "perLetter",
+  cloud: "cloudPerMonth",
+};
 
 export interface CostLine {
   item: CostItem;
@@ -507,8 +554,10 @@ export function calculateRunningCost(
   prices: RunningCostPrices,
   result: BusinessCaseResult = calculateBusinessCase(inputs, assumptions)
 ): RunningCostResult {
-  // The voice AI answers every call: it stays on the ones it closes and hands the rest over after triage.
-  const calls = amount(inputs.monthlyCalls);
+  // The voice AI answers every call: it stays on the ones it closes and hands
+  // the rest over after triage. Left out of the quotation, it answers none.
+  const out = new Set(result.excluded);
+  const calls = out.has("voice") ? 0 : amount(inputs.monthlyCalls);
   const callMinutes = amount(inputs.callMinutes);
   const callsClosed = calls * share(assumptions.aiHandledCallPct);
   const callsHandedOver = calls - callsClosed;
@@ -531,7 +580,7 @@ export function calculateRunningCost(
     line("claims", "Claims checked", amount(inputs.monthlyClaims), "item", prices.perClaim),
     line("letters", "Letters of Guarantee drafted", amount(inputs.monthlyLetters), "item", prices.perLetter),
     line("cloud", "Cloud hosting", 1, "month", prices.cloudPerMonth),
-  ];
+  ].filter((l) => !out.has(l.item));
 
   const monthlyCost = lines.reduce((sum, l) => sum + l.cost, 0);
   const cases = amount(inputs.monthlyCases);
@@ -617,6 +666,8 @@ export interface QuoteDetails {
   services: ServiceItem[];
   /** The 60-day pilot proposed (an id from src/lib/pilots.ts); empty or absent for none. */
   pilot?: string;
+  /** Services left out of this quotation (see COST_ITEMS); absent for all of them. */
+  excluded?: CostItem[];
 }
 
 export const EMPTY_QUOTE: QuoteDetails = { customerName: "", companyName: "", email: "", phone: "", services: [] };
@@ -734,7 +785,7 @@ export interface BusinessCaseReport {
 }
 
 export function businessCaseReport(input: BusinessCaseInput): BusinessCaseReport {
-  const result = calculateBusinessCase(input.operation, input.assumptions);
+  const result = calculateBusinessCase(input.operation, input.assumptions, input.quote.excluded);
   const running = calculateRunningCost(input.operation, input.assumptions, input.prices, result);
   const cost = calculateCostContainment(input.costContainment);
   const quote = calculateQuote(input.quote, running);
@@ -785,10 +836,56 @@ export function returnFacts(running: RunningCostResult): string[] {
   return [
     running.returnPerEuro > 0 ? `${quoteEur(running.returnPerEuro)} of agent time freed for every €1 it costs to run.` : null,
     running.costPerCase > 0 ? `${formatMoneyExact(running.costPerCase, CURRENCY)} running cost per assistance case.` : null,
-    running.agentMinuteCost > 0
+    running.agentMinuteCost > 0 && running.lines.some((l) => l.item === "voice")
       ? `A minute on the phone: ${formatRate(running.aiMinuteCost)} with the voice AI, ${formatRate(running.agentMinuteCost)} with an agent.`
       : null,
-  ].filter((f): f is string => f !== null);
+  ].filter(isSome);
+}
+
+/** "a, b and c" */
+const listed = (parts: string[]) => (parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : (parts[0] ?? ""));
+
+/** Under "Services, a month": what the quotation covers. */
+export function servicesCaption(running: RunningCostResult): string {
+  const has = (item: CostItem) => running.lines.some((l) => l.item === item);
+  const parts = [
+    has("voice") ? "the voice AI" : null,
+    has("phone") ? "its phone line" : null,
+    has("notes") || has("inbound") || has("claims") || has("letters") ? "the document AI" : null,
+    has("cloud") ? "the cloud it runs on" : null,
+  ].filter(isSome);
+  return parts.length ? `Pay-as-you-go at your volumes, billed on actual use: ${listed(parts)}` : "No monthly services in this quotation.";
+}
+
+export interface ReturnTile {
+  value: string;
+  label: string;
+  note: string;
+}
+
+/** The four figures under "What it returns": the hours and the net saving always, then two from the services quoted. */
+export function returnTiles(report: BusinessCaseReport): ReturnTile[] {
+  const { input, result, running } = report;
+  const out = new Set(result.excluded);
+  const op = input.operation;
+  const a = input.assumptions;
+  const own: (ReturnTile | null)[] = [
+    out.has("voice") ? null : { value: formatCount(result.afterHoursCalls), label: "After-hours calls answered", note: "a month, instantly" },
+    out.has("letters")
+      ? null
+      : { value: formatDuration(result.letterMinutesAutomated), label: "Letter of Guarantee turnaround", note: `instead of ${formatDuration(result.letterMinutesToday)}` },
+    out.has("inbound")
+      ? null
+      : { value: formatCount(amount(op.monthlyInbound) * share(a.inboundAutomatedPct)), label: "E-mails & faxes handled", note: "a month, without a person" },
+    out.has("claims")
+      ? null
+      : { value: formatCount(amount(op.monthlyClaims)), label: "Claims checked before a handler", note: `a month, ${quotePct(a.claimTimeSavedPct)} of review time saved` },
+  ];
+  return [
+    { value: formatCount(result.hoursFreed), label: "Agent hours freed a month", note: `the work of ${formatCount(result.fte, 1)} full-time staff` },
+    { value: quoteEur(running.netAnnualSaving), label: "Net saving a year", note: `after ${quoteEur(running.annualCost)} running cost` },
+    ...own.filter(isSome).slice(0, 2),
+  ];
 }
 
 /** "What this is based on": every number the quotation was worked out from. */
@@ -797,25 +894,35 @@ export function quoteBasis(report: BusinessCaseReport): [string, string][] {
   const op = input.operation;
   const a = input.assumptions;
   const p = input.prices;
-  return [
+  const out = new Set(result.excluded);
+  const when = <T,>(item: CostItem, value: T): T | null => (out.has(item) ? null : value);
+  const phone = !out.has("phone");
+  const documentAi = [
+    when("notes", `${formatRate(amount(p.perCallNote))} a call note`),
+    when("inbound", `${formatRate(amount(p.perMessage))} an e-mail or fax`),
+    when("claims", `${formatRate(amount(p.perClaim))} a claim`),
+    when("letters", `${formatRate(amount(p.perLetter))} a letter`),
+  ].filter(isSome);
+  const rows: ([string, string] | null)[] = [
     ["Assistance cases a month", quoteNum(op.monthlyCases)],
-    ["Inbound calls a month", `${quoteNum(op.monthlyCalls)} (${quotePct(op.afterHoursCallPct)} outside office hours, ${quoteMins(op.callMinutes)} min each)`],
-    ["E-mails & faxes a month", `${quoteNum(op.monthlyInbound)} (${quoteMins(op.inboundMinutes)} min each)`],
-    ["Claims a month", `${quoteNum(op.monthlyClaims)} (${quoteMins(op.claimReviewMinutes)} min review each)`],
-    ["Letters of Guarantee a month", `${quoteNum(op.monthlyLetters)} (${formatDuration(result.letterMinutesToday)} each today)`],
+    when("voice", ["Inbound calls a month", `${quoteNum(op.monthlyCalls)} (${quotePct(op.afterHoursCallPct)} outside office hours, ${quoteMins(op.callMinutes)} min each)`]),
+    when("inbound", ["E-mails & faxes a month", `${quoteNum(op.monthlyInbound)} (${quoteMins(op.inboundMinutes)} min each)`]),
+    when("claims", ["Claims a month", `${quoteNum(op.monthlyClaims)} (${quoteMins(op.claimReviewMinutes)} min review each)`]),
+    when("letters", ["Letters of Guarantee a month", `${quoteNum(op.monthlyLetters)} (${formatDuration(result.letterMinutesToday)} each today)`]),
     ["Team", `${quoteEur(amount(op.costPerHour))} loaded cost an hour; ${quoteNum(op.productiveHoursPerMonth)} productive hours per agent a month`],
-    ["Calls the AI handles end to end", quotePct(a.aiHandledCallPct)],
-    ["Time saved on calls a person still takes", quotePct(a.assistedCallTimeSavedPct)],
-    ["Claim review time saved", quotePct(a.claimTimeSavedPct)],
-    ["Letter of Guarantee preparation time saved", quotePct(a.letterTimeSavedPct)],
-    ["E-mails & faxes handled automatically", quotePct(a.inboundAutomatedPct)],
-    ["Voice AI and phone line", `${formatRate(amount(p.voicePerMinute))} and ${formatRate(amount(p.phonePerMinute))} a minute; ${quoteMins(running.handoverMinutes)} min on a call handed to a person`],
-    [
-      "Document AI",
-      `${formatRate(amount(p.perCallNote))} a call note, ${formatRate(amount(p.perMessage))} an e-mail or fax, ${formatRate(amount(p.perClaim))} a claim, ${formatRate(amount(p.perLetter))} a letter`,
-    ],
-    ["Cloud hosting", `${quoteEur(amount(p.cloudPerMonth))} a month`],
+    when("voice", ["Calls the AI handles end to end", quotePct(a.aiHandledCallPct)]),
+    when("voice", ["Time saved on calls a person still takes", quotePct(a.assistedCallTimeSavedPct)]),
+    when("claims", ["Claim review time saved", quotePct(a.claimTimeSavedPct)]),
+    when("letters", ["Letter of Guarantee preparation time saved", quotePct(a.letterTimeSavedPct)]),
+    when("inbound", ["E-mails & faxes handled automatically", quotePct(a.inboundAutomatedPct)]),
+    when("voice", [
+      phone ? "Voice AI and phone line" : "Voice AI",
+      `${formatRate(amount(p.voicePerMinute))}${phone ? ` and ${formatRate(amount(p.phonePerMinute))}` : ""} a minute; ${quoteMins(running.handoverMinutes)} min on a call handed to a person`,
+    ]),
+    documentAi.length ? ["Document AI", documentAi.join(", ")] : null,
+    when("cloud", ["Cloud hosting", `${quoteEur(amount(p.cloudPerMonth))} a month`]),
   ];
+  return rows.filter(isSome);
 }
 
 /** The payback sentence under the quotation's totals. */

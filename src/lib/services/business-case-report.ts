@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { OutboundMessage } from "@prisma/client";
 import { BRAND } from "@/lib/brand";
 import {
+  COST_ITEMS,
   EMPTY_QUOTE,
   DEFAULT_ASSUMPTIONS,
   DEFAULT_COST_CONTAINMENT,
@@ -45,6 +46,7 @@ export const BusinessCaseInputSchema = z.object({
       phone: z.string().trim().max(40).default(""),
       services: z.array(z.object({ description: z.string().trim().max(160), amount: num })).max(20).default([]),
       pilot: z.string().trim().max(40).optional(),
+      excluded: z.array(z.enum(COST_ITEMS)).max(COST_ITEMS.length).optional(),
     })
     .default(EMPTY_QUOTE),
 });

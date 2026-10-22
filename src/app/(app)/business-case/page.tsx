@@ -331,7 +331,8 @@ export default function BusinessCasePage() {
     () => ({ operation: inputs, assumptions, prices, costContainment: costInputs }),
     [inputs, assumptions, prices, costInputs]
   );
-  const input: BusinessCaseInput = useMemo(() => ({ ...base, quote: draftToQuote(quoteDraft) }), [base, quoteDraft]);
+  // The page shows the whole platform; the quotation applies its own scope (the services it leaves out) on top.
+  const input: BusinessCaseInput = useMemo(() => ({ ...base, quote: { ...draftToQuote(quoteDraft), excluded: [] } }), [base, quoteDraft]);
   const report = useMemo(() => businessCaseReport(input), [input]);
   const { result, running, cost, summary } = report;
 
@@ -423,7 +424,16 @@ export default function BusinessCasePage() {
         </div>
       </PageHeader>
 
-      {quoteOpen ? <QuotationWorkspace base={base} draft={quoteDraft} onDraftChange={setQuoteDraft} onClose={closeQuote} leadId={quoteLeadId} /> : null}
+      {quoteOpen ? (
+        <QuotationWorkspace
+          base={base}
+          draft={quoteDraft}
+          onDraftChange={setQuoteDraft}
+          onPricesChange={(p) => setPriceDraft(toDraft(p))}
+          onClose={closeQuote}
+          leadId={quoteLeadId}
+        />
+      ) : null}
 
       {copyState === "failed" ? (
         <Card className="mb-5 border-amber-200 bg-amber-50">

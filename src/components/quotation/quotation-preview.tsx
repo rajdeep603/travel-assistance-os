@@ -4,12 +4,13 @@ import {
   CURRENCY,
   costBasis,
   formatCount,
-  formatDuration,
   longDate,
   paybackLine,
   quoteBasis,
   quoteTerms,
   returnFacts,
+  returnTiles,
+  servicesCaption,
   type BusinessCaseReport,
   type QuoteMeta,
 } from "@/lib/business-case";
@@ -27,6 +28,12 @@ const ACCENT: CSSProperties = { color: "#048a5c" };
 const ACCENT_RULE: CSSProperties = { backgroundColor: "#048a5c" };
 
 const eur = (n: number) => formatMoney(Math.round(n), CURRENCY);
+/** The return tiles fill their row whatever the quotation's scope leaves: four, three or two. */
+const TILE_GRID: Record<number, string> = {
+  2: "grid-cols-2 print:grid-cols-2",
+  3: "grid-cols-1 sm:grid-cols-3 print:grid-cols-3",
+  4: "grid-cols-2 sm:grid-cols-4 print:grid-cols-4",
+};
 const pct = (n: number) => `${formatCount(Math.min(100, Math.max(0, Number.isFinite(n) ? n : 0)))}%`;
 
 function Section({ title, sub, children, className = "" }: { title: string; sub?: string; children: ReactNode; className?: string }) {
@@ -85,6 +92,7 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
   const { input, result, running, cost, quote } = report;
   const contact = [quote.companyName ? quote.customerName : "", quote.email, quote.phone].filter(Boolean).join(" · ");
   const facts = returnFacts(running);
+  const tiles = returnTiles(report);
 
   return (
     <article
@@ -143,16 +151,15 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
         {paybackLine(report)}
       </p>
 
-      <Section
-        title="Services, a month"
-        sub="Pay-as-you-go at your volumes, billed on actual use: the voice AI, its phone line, the document AI and the cloud it runs on"
-      >
-        <Table
-          head={["Service", "Basis", "A month"]}
-          align={["l", "l", "r"]}
-          rows={running.lines.map((l) => [l.label, costBasis(l), eur(l.cost)])}
-          total={["Total a month", `${eur(running.annualCost)} a year`, eur(running.monthlyCost)]}
-        />
+      <Section title="Services, a month" sub={servicesCaption(running)}>
+        {running.lines.length ? (
+          <Table
+            head={["Service", "Basis", "A month"]}
+            align={["l", "l", "r"]}
+            rows={running.lines.map((l) => [l.label, costBasis(l), eur(l.cost)])}
+            total={["Total a month", `${eur(running.annualCost)} a year`, eur(running.monthlyCost)]}
+          />
+        ) : null}
       </Section>
 
       <Section title="Service charges" sub="One-time, fixed for the validity of this quotation">
@@ -206,17 +213,8 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
 
       <Section title="What it returns" sub={`With your numbers, at a loaded cost of ${eur(input.operation.costPerHour)} an agent hour`} className="print:break-before-page">
         <p className="text-sm font-semibold leading-snug">{report.headline}</p>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 print:grid-cols-4">
-          {[
-            { value: formatCount(result.hoursFreed), label: "Agent hours freed a month", note: `the work of ${formatCount(result.fte, 1)} full-time staff` },
-            { value: eur(running.netAnnualSaving), label: "Net saving a year", note: `after ${eur(running.annualCost)} running cost` },
-            { value: formatCount(result.afterHoursCalls), label: "After-hours calls answered", note: "a month, instantly" },
-            {
-              value: formatDuration(result.letterMinutesAutomated),
-              label: "Letter of Guarantee turnaround",
-              note: `instead of ${formatDuration(result.letterMinutesToday)}`,
-            },
-          ].map((t) => (
+        <div className={`mt-3 grid gap-2 ${TILE_GRID[tiles.length] ?? TILE_GRID[4]}`}>
+          {tiles.map((t) => (
             <div key={t.label} className="rounded-lg bg-canvas px-3 py-2.5 print:py-2">
               <p className="text-base font-semibold tabular-nums">{t.value}</p>
               <p className="text-[11px] font-semibold leading-tight">{t.label}</p>

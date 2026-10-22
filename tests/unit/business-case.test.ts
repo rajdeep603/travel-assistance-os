@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  COST_ITEMS,
   DEFAULT_ASSUMPTIONS,
   DEFAULT_INPUTS,
   DEFAULT_COST_CONTAINMENT,
@@ -12,6 +13,7 @@ import {
   calculateCostContainment,
   calculateQuote,
   calculateRunningCost,
+  excludedServices,
   formatDuration,
   formatPayback,
   formatRate,
@@ -22,13 +24,16 @@ import {
   quoteNumber,
   quoteTerms,
   returnFacts,
+  returnTiles,
   roughly,
+  servicesCaption,
   withCostContainment,
   withQuote,
   withRunningCost,
   type BusinessCaseInput,
   type Assumptions,
   type BusinessCaseResult,
+  type CostItem,
   type OperationInputs,
 } from "@/lib/business-case";
 
@@ -59,7 +64,7 @@ const FULL_AUTOMATION: Assumptions = {
 function numbersIn(result: BusinessCaseResult): number[] {
   const { areas, ...totals } = result;
   return [
-    ...Object.values(totals),
+    ...Object.values(totals).filter((v): v is number => typeof v === "number"),
     ...areas.flatMap((a) => [a.volume, a.hoursToday, a.hoursFreed, a.saving]),
   ];
 }
@@ -444,5 +449,114 @@ describe("quotation", () => {
       "€2.04 running cost per assistance case.",
       "A minute on the phone: €0.086 with the voice AI, €0.50 with an agent.",
     ]);
+  });
+});
+
+describe("what a quotation leaves out", () => {
+  const base: BusinessCaseInput = {
+    operation: DEFAULT_INPUTS,
+    assumptions: DEFAULT_ASSUMPTIONS,
+    prices: DEFAULT_RUNNING_COST_PRICES,
+    costContainment: DEFAULT_COST_CONTAINMENT,
+    quote: { ...EMPTY_QUOTE, services: [{ description: "Setup", amount: 6_000 }] },
+  };
+  const scoped = (excluded: CostItem[]) => businessCaseReport({ ...base, quote: { ...base.quote, excluded } });
+  const full = scoped([]);
+  const labels = (r: ReturnType<typeof scoped>) => returnTiles(r).map((t) => t.label);
+
+  it("carries the phone line and the call notes out with the voice AI", () => {
+    expect(excludedServices()).toEqual([]);
+    expect(excludedServices(["voice"])).toEqual(["voice", "phone", "notes"]);
+    expect(excludedServices(["cloud", "phone", "phone"])).toEqual(["phone", "cloud"]);
+  });
+
+  it("is the whole platform by default, with the figures and tiles as before", () => {
+    expect(full.result.excluded).toEqual([]);
+    expect(full.running.monthlyCost).toBeCloseTo(3_054.9);
+    expect(full.result.hoursFreed).toBeCloseTo(1_275.33, 1);
+    expect(labels(full)).toEqual(["Agent hours freed a month", "Net saving a year", "After-hours calls answered", "Letter of Guarantee turnaround"]);
+    expect(returnTiles(full)[2]).toEqual({ value: "2,100", label: "After-hours calls answered", note: "a month, instantly" });
+    expect(servicesCaption(full.running)).toBe(
+      "Pay-as-you-go at your volumes, billed on actual use: the voice AI, its phone line, the document AI and the cloud it runs on"
+    );
+    // A different scope is a different quotation.
+    expect(quoteNumber(full.input, "2026-10-22")).not.toBe(quoteNumber(scoped(["cloud"]).input, "2026-10-22"));
+  });
+
+  it("drops a service's line and the hours it would have freed, and recalculates the rest", () => {
+    const r = scoped(["inbound"]);
+    expect(r.result.excluded).toEqual(["inbound"]);
+    expect(r.running.lines.map((l) => l.item)).toEqual(["voice", "phone", "notes", "claims", "letters", "cloud"]);
+    expect(r.result.areas.map((a) => a.area)).toEqual(["calls", "claims", "letters"]);
+    // €368 of document AI goes; so do 233.3 h × €30 of saving.
+    expect(r.running.monthlyCost).toBeCloseTo(3_054.9 - 368);
+    expect(r.result.hoursFreed).toBeCloseTo(1_275.33 - 233.33, 1);
+    expect(r.result.monthlySaving).toBeCloseTo(38_260 - 7_000, 0);
+    expect(r.running.netMonthlySaving).toBeCloseTo(full.running.netMonthlySaving - 7_000 + 368, 0);
+    expect(r.quote.monthlyRunningCost).toBeCloseTo(2_686.9);
+    expect(r.quote.firstYearCost).toBeCloseTo(6_000 + 2_686.9 * 12);
+    expect(r.quote.paybackMonths).toBeCloseTo(6_000 / r.running.netMonthlySaving);
+    expect(r.headline).toContain("free about 1,042 agent hours");
+    expect(r.summary).not.toContain("E-mails & faxes");
+    expect(Object.fromEntries(quoteBasis(r))).not.toHaveProperty("E-mails & faxes a month");
+    expect(labels(r)).toEqual(["Agent hours freed a month", "Net saving a year", "After-hours calls answered", "Letter of Guarantee turnaround"]);
+  });
+
+  it("takes the voice AI's line, its minutes and the calls saving out together", () => {
+    const r = scoped(["voice"]);
+    expect(r.result.excluded).toEqual(["voice", "phone", "notes"]);
+    expect(r.running.lines.map((l) => l.item)).toEqual(["inbound", "claims", "letters", "cloud"]);
+    expect(r.running.voiceMinutes).toBe(0);
+    expect(r.running.callsClosed).toBe(0);
+    expect(r.running.callsHandedOver).toBe(0);
+    expect(r.result.afterHoursCalls).toBe(0);
+    expect(r.result.areas.map((a) => a.area)).toEqual(["inbound", "claims", "letters"]);
+    expect(r.result.hoursFreed).toBeCloseTo(1_275.33 - 432, 1);
+    expect(r.running.monthlyCost).toBeCloseTo(368 + 250 + 17.7 + 120);
+    expect(r.headline).toContain("free about 843 agent hours");
+    expect(returnFacts(r.running)).toHaveLength(2);
+    expect(labels(r)).toEqual(["Agent hours freed a month", "Net saving a year", "Letter of Guarantee turnaround", "E-mails & faxes handled"]);
+    expect(servicesCaption(r.running)).toBe("Pay-as-you-go at your volumes, billed on actual use: the document AI and the cloud it runs on");
+    const basis = Object.fromEntries(quoteBasis(r));
+    expect(basis).not.toHaveProperty("Inbound calls a month");
+    expect(basis).not.toHaveProperty("Voice AI and phone line");
+    expect(basis).not.toHaveProperty("Calls the AI handles end to end");
+    expect(basis["Document AI"]).toBe("€0.092 an e-mail or fax, €0.125 a claim, €0.059 a letter");
+    expect(r.summary).not.toMatch(/Voice AI|Phone line|Call notes|Inbound calls|After-hours/);
+    expect(r.summary).toContain("- Claim review time saved: 50%");
+  });
+
+  it("keeps the calls saving when only the phone line goes", () => {
+    const r = scoped(["phone"]);
+    expect(r.result.excluded).toEqual(["phone"]);
+    expect(r.result.areas.map((a) => a.area)).toEqual(["calls", "inbound", "claims", "letters"]);
+    expect(r.running.monthlyCost).toBeCloseTo(3_054.9 - 302.4);
+    expect(r.result.hoursFreed).toBeCloseTo(full.result.hoursFreed);
+    expect(Object.fromEntries(quoteBasis(r))["Voice AI"]).toBe("€0.074 a minute; 1.5 min on a call handed to a person");
+    expect(servicesCaption(r.running)).toBe("Pay-as-you-go at your volumes, billed on actual use: the voice AI, the document AI and the cloud it runs on");
+  });
+
+  it("leaves a letter as slow as today without the letters service, and swaps the tile", () => {
+    const r = scoped(["letters"]);
+    expect(r.result.letterMinutesAutomated).toBe(r.result.letterMinutesToday);
+    expect(labels(r)).toEqual(["Agent hours freed a month", "Net saving a year", "After-hours calls answered", "E-mails & faxes handled"]);
+    expect(returnTiles(r)[3]).toEqual({ value: "2,800", label: "E-mails & faxes handled", note: "a month, without a person" });
+    expect(labels(scoped(["voice", "letters", "inbound"]))).toEqual(["Agent hours freed a month", "Net saving a year", "Claims checked before a handler"]);
+    expect(r.summary).not.toContain("Letter of Guarantee");
+  });
+
+  it("charges nothing with every service left out, and says so without breaking", () => {
+    const r = scoped([...COST_ITEMS]);
+    expect(r.running.lines).toEqual([]);
+    expect(r.running.monthlyCost).toBe(0);
+    expect(r.result.areas).toEqual([]);
+    expect(r.result.hoursFreed).toBe(0);
+    expect(r.quote.paybackMonths).toBeNull();
+    expect(servicesCaption(r.running)).toBe("No monthly services in this quotation.");
+    expect(returnTiles(r)).toHaveLength(2);
+    expect(quoteBasis(r).map(([label]) => label)).toEqual(["Assistance cases a month", "Team"]);
+    expect(r.summary).not.toContain("Assumptions");
+    expect(r.summary).not.toContain("By area");
+    expect(r.summary).not.toMatch(/NaN|undefined/);
   });
 });

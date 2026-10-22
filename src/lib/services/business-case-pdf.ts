@@ -6,12 +6,13 @@ import {
   CURRENCY,
   costBasis,
   formatCount,
-  formatDuration,
   longDate,
   paybackLine,
   quoteBasis,
   quoteTerms,
   returnFacts,
+  returnTiles,
+  servicesCaption,
   type BusinessCaseReport,
   type QuoteMeta,
 } from "@/lib/business-case";
@@ -159,16 +160,20 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
       doc.y += 10;
     };
 
-    heading("Services, a month", "Pay-as-you-go at your volumes, billed on actual use: the voice AI, its phone line, the document AI and the cloud it runs on");
-    table(
-      [
-        { title: "Service", width: 170 },
-        { title: "Basis", width: width - 170 - 90 },
-        { title: "A month", width: 90, align: "right" },
-      ],
-      running.lines.map((l) => [l.label, costBasis(l), eur(l.cost)]),
-      ["Total a month", `${eur(running.annualCost)} a year`, eur(running.monthlyCost)]
-    );
+    heading("Services, a month", servicesCaption(running));
+    if (running.lines.length) {
+      table(
+        [
+          { title: "Service", width: 170 },
+          { title: "Basis", width: width - 170 - 90 },
+          { title: "A month", width: 90, align: "right" },
+        ],
+        running.lines.map((l) => [l.label, costBasis(l), eur(l.cost)]),
+        ["Total a month", `${eur(running.annualCost)} a year`, eur(running.monthlyCost)]
+      );
+    } else {
+      doc.moveDown(1.2);
+    }
 
     heading("Service charges", "One-time, fixed for the validity of this quotation");
     if (quote.services.length) {
@@ -220,14 +225,10 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
     heading("What it returns", `With your numbers, at a loaded cost of ${eur(op.costPerHour)} an agent hour`, 190);
     doc.font(B).fontSize(11).fillColor(C.ink).text(report.headline, left, doc.y + 2, { width, lineGap: 1.5 });
     doc.moveDown(0.8);
-    const tiles = [
-      { value: num(result.hoursFreed), label: "Agent hours freed a month", note: `the work of ${num(result.fte, 1)} full-time staff` },
-      { value: eur(running.netAnnualSaving), label: "Net saving a year", note: `after ${eur(running.annualCost)} running cost` },
-      { value: num(result.afterHoursCalls), label: "After-hours calls answered", note: "a month, instantly" },
-      { value: formatDuration(result.letterMinutesAutomated), label: "Letter of Guarantee turnaround", note: `instead of ${formatDuration(result.letterMinutesToday)}` },
-    ];
+    // Four tiles with the whole platform; fewer when the scope leaves a service out.
+    const tiles = returnTiles(report);
     const gap = 8;
-    const tileW = (width - gap * 3) / 4;
+    const tileW = (width - gap * (tiles.length - 1)) / tiles.length;
     const tileY = doc.y;
     tiles.forEach((t, i) => {
       const x = left + i * (tileW + gap);
