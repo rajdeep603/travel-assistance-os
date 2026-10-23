@@ -5,6 +5,7 @@ import { isSampleRequest } from "@/lib/samples/fingerprints";
 import { getAIService, withOfflineAI } from "./ai";
 import { getNotificationService } from "./notification";
 import type { CaseIntakeAnalysis } from "./types";
+import { emit } from "./webhooks";
 
 /**
  * CaseIntakeService: turns a free-text assistance request into an analysed,
@@ -73,6 +74,7 @@ export async function createCaseFromAnalysis(
     subject: `Case ${created.ref} created`,
     body: created.title,
   });
+  emit("case.created", { ref: created.ref, title: created.title, priority: created.priority, location: created.location, country: created.country, patient: { ref: created.patient.ref, name: `${created.patient.firstName} ${created.patient.lastName}` } });
 
   return created;
 }

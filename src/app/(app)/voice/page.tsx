@@ -66,6 +66,7 @@ export default function VoicePage() {
   const urlCaseId = useQueryParam("caseId");
   const urlAgent = useQueryParam("agent");
   const urlLanguage = useQueryParam("lang");
+  const urlRecord = useQueryParam("record");
   const [agentId, setAgentId] = useState(DEFAULT_AGENT);
   const [language, setLanguage] = useState("");
   const [catalog, setCatalog] = useState<VoiceCatalog | null>(null);
@@ -196,7 +197,7 @@ export default function VoicePage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => void start({ caseId: caseId ?? undefined, profile: agentId, language: language || undefined })}
+                  onClick={() => void start({ caseId: caseId ?? undefined, profile: agentId, language: language || undefined, record: urlRecord ?? scenario?.record?.ref })}
                   className="inline-flex h-14 items-center gap-2.5 rounded-full bg-brand px-7 text-base font-semibold text-white shadow-lg shadow-brand/30 transition-colors duration-150 hover:bg-brand-deep focus-visible:outline-brand-2 active:scale-[0.98]"
                 >
                   <PhoneCall size={19} aria-hidden />

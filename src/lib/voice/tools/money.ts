@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { recordAgreement, reviewToNegotiate } from "@/lib/services/bill-negotiation";
+import { recordPayerAnswer } from "@/lib/services/receivables";
 import { createTransportPlan } from "@/lib/services/transport-plans";
 import { MODE_LABELS } from "@/lib/services/transport";
 import { agentActor } from "./records";
@@ -94,5 +95,43 @@ export const recordTransportAssessmentTool = defineTool({
           ? "Ask the doctor to let the assistance team know when the patient is fit to fly; the case manager will call again then."
           : `The case manager arranges ${MODE_LABELS[plan.mode].toLowerCase()}${quotesFrom.length ? " and has requested quotes" : ""}. Ask the hospital to prepare the medical report and, for an airline, the MEDIF form.`,
     };
+  },
+});
+
+export const recordPaymentStatusTool = defineTool({
+  name: "record_payment_status",
+  description:
+    "Save what the payer's claims or accounts desk said about the invoice: whether they have it, its status, the expected payment date, the amount approved and anything missing. Call it once, before ending.",
+  schema: z.object({
+    invoice_ref: z.string().describe("The invoice's reference from the brief, e.g. RCV-1003"),
+    status: z.enum(["NOT_RECEIVED", "IN_REVIEW", "APPROVED", "PAYMENT_SCHEDULED", "PAID", "DISPUTED"]),
+    expected_payment_date: z.string().optional().describe("When they said it will be paid, e.g. '6 November'"),
+    approved_amount: z.number().optional().describe("The amount they approved, if they said"),
+    missing_documents: z.array(z.string()).optional().describe("Documents they say are missing, in English"),
+    payer_reference: z.string().optional().describe("Their own claim or file number"),
+    contact_name: z.string().optional().describe("Who you spoke to"),
+    notes: z.string().optional().describe("Anything else, in English"),
+  }),
+  async execute(args, ctx) {
+    const updated = await recordPayerAnswer(
+      args.invoice_ref,
+      {
+        status: args.status,
+        expectedPaymentDate: args.expected_payment_date ?? null,
+        approvedAmount: args.approved_amount ?? null,
+        missing: args.missing_documents ?? [],
+        payerRef: args.payer_reference ?? null,
+        contact: args.contact_name ?? null,
+        notes: args.notes ?? null,
+      },
+      agentActor(ctx),
+      ctx.callRef
+    ).catch(() => null);
+    if (!updated) return { error: `No invoice ${args.invoice_ref}. Use the reference in the brief.` };
+    await ctx.setOutcome({ paymentStatus: { invoice: updated.ref, status: args.status, expectedPaymentDate: args.expected_payment_date ?? null, missing: args.missing_documents ?? [] } });
+    ctx.emit({ type: "payment_status", invoice: updated.ref, status: args.status, expectedPaymentDate: args.expected_payment_date ?? null });
+    return args.missing_documents?.length
+      ? { saved: true, say: "Confirm you'll send the missing documents today, thank them and end the call." }
+      : { saved: true, say: "Repeat the expected payment date back, thank them and end the call." };
   },
 });

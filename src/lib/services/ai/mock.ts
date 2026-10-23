@@ -47,7 +47,8 @@ function grab(text: string, labels: string[]): string | null {
   return null;
 }
 
-const LINE_ROW = /^(\d{3}\.\d{3})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$/;
+// Codes: the demo tariff's "520.030", or a US bill's CPT ("99285"), HCPCS ("J0696") or revenue ("0120") code.
+const LINE_ROW = /^(\d{3}\.\d{3}|\d{5}|[A-Z]\d{4}|\d{4})\s+(.+?)\s+(\d+(?:\.\d+)?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$/;
 const num = (s: string) => Number(s.replace(/,/g, ""));
 
 /** Charge rows of an itemised invoice or estimate: "520.030 Description 1 6,500.00 6,500.00". */
@@ -97,9 +98,15 @@ export class MockAIService implements AIService {
       "Estimated Cost",
       "Tahmini Toplam",
       "Toplam Tutar",
+      // French, Spanish and Portuguese invoices (North Africa, Latin America).
+      "Montant total",
+      "Total à payer",
+      "Total a pagar",
+      "Importe total",
+      "Valor total",
     ]);
     let invoiceAmount: number | null = null;
-    let currency: string | null = grab(text, ["Currency", "Para Birimi"]);
+    let currency: string | null = grab(text, ["Currency", "Para Birimi", "Devise", "Moneda", "Moeda"]);
     if (amountRaw) {
       const m = amountRaw.replace(/,/g, "").match(/([A-Z]{3})?\s*([\d.]+)\s*([A-Z]{3})?/);
       if (m) {
@@ -109,17 +116,18 @@ export class MockAIService implements AIService {
     }
 
     const extraction: MedicalExtraction = {
-      // English labels, plus the Turkish ones used by local hospitals.
-      patientName: grab(text, ["Patient Name", "Patient", "Name of Patient", "Hasta Adı", "Hasta"]),
-      dateOfBirth: grab(text, ["Date of Birth", "DOB", "Birth Date", "Doğum Tarihi"]),
-      hospital: grab(text, ["Hospital", "Facility", "Medical Center", "Clinic", "Hastane", "Kurum"]),
-      doctor: grab(text, ["Attending Physician", "Doctor", "Physician", "Prescribing Doctor", "Sorumlu Hekim", "Doktor"]),
-      diagnosis: grab(text, ["Diagnosis", "Primary Diagnosis", "Clinical Diagnosis", "Tanı", "Teşhis"]),
-      symptoms: grabList(text, ["Symptoms", "Presenting Symptoms", "Presenting Complaints", "Şikayetler"]),
-      admissionDate: grab(text, ["Admission Date", "Date of Admission", "Admitted", "Planned Admission", "Yatış Tarihi"]),
-      dischargeDate: grab(text, ["Discharge Date", "Date of Discharge", "Discharged", "Taburcu Tarihi"]),
-      procedures: grabList(text, ["Procedures", "Procedures Performed", "Treatment Provided", "Planned Treatment", "Yapılan İşlemler", "Planlanan Tedavi"]),
-      medications: grabList(text, ["Medications", "Medications Prescribed", "Prescription", "Prescribed", "İlaçlar"]),
+      // English labels, plus the Turkish ones used by local hospitals and the
+      // French, Spanish and Portuguese ones of North African and Latin American clinics.
+      patientName: grab(text, ["Patient Name", "Patient", "Name of Patient", "Hasta Adı", "Hasta", "Nom du patient", "Nom du malade", "Paciente", "Nombre del paciente", "Nome do paciente"]),
+      dateOfBirth: grab(text, ["Date of Birth", "DOB", "Birth Date", "Doğum Tarihi", "Date de naissance", "Fecha de nacimiento", "Data de nascimento"]),
+      hospital: grab(text, ["Hospital", "Facility", "Medical Center", "Clinic", "Hastane", "Kurum", "Établissement", "Clinique", "Clínica", "Centro médico"]),
+      doctor: grab(text, ["Attending Physician", "Doctor", "Physician", "Prescribing Doctor", "Sorumlu Hekim", "Doktor", "Médecin traitant", "Médico tratante", "Médico responsável"]),
+      diagnosis: grab(text, ["Diagnosis", "Primary Diagnosis", "Clinical Diagnosis", "Tanı", "Teşhis", "Diagnostic", "Diagnóstico"]),
+      symptoms: grabList(text, ["Symptoms", "Presenting Symptoms", "Presenting Complaints", "Şikayetler", "Symptômes", "Síntomas", "Sintomas"]),
+      admissionDate: grab(text, ["Admission Date", "Date of Admission", "Admitted", "Planned Admission", "Yatış Tarihi", "Date d'admission", "Fecha de ingreso", "Data de internação"]),
+      dischargeDate: grab(text, ["Discharge Date", "Date of Discharge", "Discharged", "Taburcu Tarihi", "Date de sortie", "Fecha de alta", "Data de alta"]),
+      procedures: grabList(text, ["Procedures", "Procedures Performed", "Treatment Provided", "Planned Treatment", "Yapılan İşlemler", "Planlanan Tedavi", "Actes réalisés", "Procedimientos", "Procedimentos"]),
+      medications: grabList(text, ["Medications", "Medications Prescribed", "Prescription", "Prescribed", "İlaçlar", "Traitement de sortie", "Medicamentos"]),
       invoiceAmount,
       currency,
       policyReference: grab(text, [
@@ -130,6 +138,9 @@ export class MockAIService implements AIService {
         "Claim Number",
         "Poliçe No",
         "Poliçe Numarası",
+        "Numéro de police",
+        "Número de póliza",
+        "Número da apólice",
       ]),
     };
 
@@ -160,7 +171,7 @@ export class MockAIService implements AIService {
         ? `${parts.join(" ").replace(/\s+\./g, ".")}.`
         : "No structured medical information could be identified in this document.";
 
-    const documentNumber = grab(text, ["Invoice No", "Invoice Number", "Estimate No", "Fatura No", "Proforma No"]);
+    const documentNumber = grab(text, ["Invoice No", "Invoice Number", "Estimate No", "Fatura No", "Proforma No", "Facture N°", "Factura N.º", "Account No"]);
     return { extraction, documentNumber, lineItems: parseLineItems(text), summary, missingInfo, confidence, source: "offline" };
   }
 
@@ -232,11 +243,12 @@ export class MockAIService implements AIService {
   async classifyDocument(text: string, filename = ""): Promise<DocumentKind> {
     await thinkingDelay();
     const t = `${filename}\n${text}`.toLowerCase();
-    if (/cost estimate|estimated total|estimated cost|maliyet tahmini|tahmini toplam/.test(t)) return "COST_ESTIMATE";
-    if (/invoice|amount due|billing|total amount|fatura/.test(t)) return "HOSPITAL_INVOICE";
-    if (/discharge summary|discharge date|discharged|epikriz|taburcu/.test(t)) return "DISCHARGE_SUMMARY";
-    if (/prescription|rx\b|prescribed|pharmacy|reçete/.test(t)) return "PRESCRIPTION";
-    if (/medical report|diagnosis|clinical|examination|physician|tıbbi rapor|tanı/.test(t)) return "MEDICAL_REPORT";
+    // English and Turkish, plus French, Spanish and Portuguese wording.
+    if (/cost estimate|estimated total|estimated cost|maliyet tahmini|tahmini toplam|\bdevis\b|presupuesto|orçamento/.test(t)) return "COST_ESTIMATE";
+    if (/invoice|amount due|billing|total amount|fatura|facture|factura|montant total|total a pagar|valor total/.test(t)) return "HOSPITAL_INVOICE";
+    if (/discharge summary|discharge date|discharged|epikriz|taburcu|compte rendu d'hospitalisation|date de sortie|informe de alta|fecha de alta|data de alta/.test(t)) return "DISCHARGE_SUMMARY";
+    if (/prescription|rx\b|prescribed|pharmacy|reçete|ordonnance|receta/.test(t)) return "PRESCRIPTION";
+    if (/medical report|diagnosis|clinical|examination|physician|tıbbi rapor|tanı|informe médico|diagnóstico|diagnostic|relatório médico/.test(t)) return "MEDICAL_REPORT";
     return "OTHER";
   }
 
@@ -295,16 +307,18 @@ export class MockAIService implements AIService {
   }
 
   /**
-   * Offline translation: a medical glossary for Turkish (the demo's hospital
-   * language), clearly labelled; other languages need the live model.
+   * Offline translation: medical glossaries for Turkish (the demo's hospital
+   * language) and the French, Spanish and Portuguese of the regional samples,
+   * clearly labelled; anything else needs the live model.
    */
   async translateText(text: string, targetLanguage: string): Promise<string> {
     await thinkingDelay();
-    if (targetLanguage !== "English" || detectLanguage(text) !== "tr") {
+    const glossary = targetLanguage === "English" ? GLOSSARIES[detectLanguage(text)] : undefined;
+    if (!glossary) {
       return `[Translation needs the live AI model — original text follows]\n${text}`;
     }
     let out = text;
-    for (const [tr, en] of TR_EN_GLOSSARY) out = out.replace(new RegExp(tr, "gi"), en);
+    for (const [from, en] of glossary) out = out.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), en);
     return `[Offline glossary translation — verify before relying on it]\n${out}`;
   }
 }
@@ -349,3 +363,119 @@ const TR_EN_GLOSSARY: [string, string][] = [
   ["Ekim", "October"],
   ["Maliyet Tahmini", "Cost Estimate"],
 ];
+
+// The regional samples' French (North Africa), Spanish (the Caribbean) and
+// Portuguese (Brazil). Longest phrases first so they win over their parts.
+const FR_EN_GLOSSARY: [string, string][] = [
+  ["Document fictif préparé pour la démonstration", "Fictional document prepared for the demonstration"],
+  ["Ce n'est pas un vrai dossier", "Not a real record"],
+  ["Compte rendu d'hospitalisation", "Hospital discharge report"],
+  ["COMPTE RENDU", "DISCHARGE REPORT"],
+  ["Patient admis par les urgences pour fièvre et douleur lombaire droite", "Patient admitted through the emergency department with fever and right flank pain"],
+  ["L'échographie rénale ne montre pas d'obstacle", "The renal ultrasound shows no obstruction"],
+  ["Évolution favorable sous antibiothérapie intraveineuse", "Good progress on intravenous antibiotics"],
+  ["apyrexie à 48 heures", "fever-free at 48 hours"],
+  ["Sortie en bon état général", "Discharged in good general condition"],
+  ["Apte au voyage en vol commercial à partir du", "Fit to travel on a commercial flight from"],
+  ["Contrôle par le médecin traitant au retour en France", "Follow-up with the family doctor on return to France"],
+  ["Pyélonéphrite aiguë droite", "Acute right pyelonephritis"],
+  ["fièvre à 39,5 °C", "fever of 39.5 °C"],
+  ["douleur lombaire droite", "right flank pain"],
+  ["brûlures mictionnelles", "burning on urination"],
+  ["Échographie rénale", "Renal ultrasound"],
+  ["hémocultures", "blood cultures"],
+  ["antibiothérapie intraveineuse", "intravenous antibiotics"],
+  ["deux fois par jour pendant 10 jours", "twice a day for 10 days"],
+  ["Signature et cachet", "Signature and stamp"],
+  ["Synthèse médicale", "Medical summary"],
+  ["Traitement de sortie", "Discharge medication"],
+  ["Actes réalisés", "Procedures"],
+  ["Nom du patient", "Patient Name"],
+  ["Date de naissance", "Date of Birth"],
+  ["Numéro de police", "Policy Number"],
+  ["Établissement", "Hospital"],
+  ["Médecin traitant", "Attending Physician"],
+  ["Date d'admission", "Admission Date"],
+  ["Date de sortie", "Discharge Date"],
+  ["Médecine interne", "Internal medicine"],
+  ["Diagnostic", "Diagnosis"],
+  ["Symptômes", "Symptoms"],
+  ["Évolution", "Course"],
+  ["Nationalité", "Nationality"],
+  ["Masculin", "Male"],
+  ["Séjour", "Stay"],
+  ["Chambre", "Room"],
+  ["Service", "Department"],
+  ["Sexe", "Sex"],
+  ["Hôtel", "Hotel"],
+  ["Veuillez trouver ci-joint", "Please find attached"],
+  ["Merci de nous confirmer la prise en charge", "Please confirm the guarantee of payment"],
+  ["Bien cordialement", "Kind regards"],
+  ["Bonjour", "Hello"],
+];
+
+const ES_EN_GLOSSARY: [string, string][] = [
+  ["Documento ficticio preparado para la demostración de", "Fictional document prepared for the demonstration of"],
+  ["No es un registro real", "Not a real record"],
+  ["La paciente sufrió una caída en la piscina del hotel", "The patient fell at the hotel pool"],
+  ["La radiografía confirma una fractura no desplazada del radio distal izquierdo", "The X-ray confirms an undisplaced fracture of the distal left radius"],
+  ["Se coloca férula de yeso por debajo del codo", "A below-elbow plaster cast was applied"],
+  ["Control en consulta de traumatología en 7 días", "Orthopaedic follow-up in 7 days"],
+  ["Puede viajar en vuelo comercial con la férula", "She may travel on a commercial flight with the cast"],
+  ["se recomienda asistencia en el aeropuerto", "airport assistance is recommended"],
+  ["Fractura de radio distal izquierdo, no desplazada", "Fracture of the distal left radius, undisplaced"],
+  ["dolor intenso", "severe pain"],
+  ["inflamación", "swelling"],
+  ["deformidad leve de la muñeca izquierda", "mild deformity of the left wrist"],
+  ["Radiografía de muñeca", "Wrist X-ray"],
+  ["inmovilización con férula de yeso", "immobilisation in a plaster cast"],
+  ["cada 8 horas", "every 8 hours"],
+  ["si hay dolor", "if in pain"],
+  ["Evaluación clínica", "Clinical assessment"],
+  ["Firma y sello", "Signature and stamp"],
+  ["INFORME MÉDICO", "MEDICAL REPORT"],
+  ["Urgencias", "Emergency department"],
+  ["Traumatología", "Orthopaedics"],
+  ["Paciente", "Patient"],
+  ["Fecha de nacimiento", "Date of Birth"],
+  ["Número de póliza", "Policy Number"],
+  ["Médico tratante", "Attending Physician"],
+  ["Fecha de ingreso", "Admission Date"],
+  ["Clínica", "Clinic"],
+  ["Diagnóstico", "Diagnosis"],
+  ["Síntomas", "Symptoms"],
+  ["Procedimientos", "Procedures"],
+  ["Medicamentos", "Medications"],
+  ["Nacionalidad", "Nationality"],
+  ["Reino Unido", "United Kingdom"],
+  ["Femenino", "Female"],
+  ["Atención", "Care"],
+  ["Servicio", "Department"],
+  ["Llegada", "Arrived by"],
+  ["Taxi del hotel", "Hotel taxi"],
+  ["Hora", "Time"],
+  ["Fecha", "Date"],
+  ["Sexo", "Sex"],
+  ["Plan", "Plan"],
+  ["Adjuntamos el informe médico y la factura de su asegurada", "We attach the medical report and the invoice for your insured"],
+  ["Les rogamos el pago por transferencia en dólares", "Please pay by bank transfer in US dollars"],
+  ["Estimados señores", "Dear sirs"],
+  ["Saludos cordiales", "Kind regards"],
+];
+
+const PT_EN_GLOSSARY: [string, string][] = [
+  ["Poderiam confirmar a garantia de pagamento da sua segurada", "Could you confirm the guarantee of payment for your insured"],
+  ["Nosso faturamento não encontra a carta", "Our billing department cannot find the letter"],
+  ["Garantia de pagamento", "Guarantee of payment"],
+  ["Atendimento Internacional", "International Patient Services"],
+  ["nascida em", "born"],
+  ["Atenciosamente", "Kind regards"],
+  ["Prezados", "Dear colleagues"],
+];
+
+const GLOSSARIES: Record<string, [string, string][]> = {
+  tr: TR_EN_GLOSSARY,
+  fr: FR_EN_GLOSSARY,
+  es: ES_EN_GLOSSARY,
+  pt: PT_EN_GLOSSARY,
+};

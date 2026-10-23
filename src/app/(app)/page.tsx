@@ -37,6 +37,7 @@ import {
   type OverviewPeriod,
 } from "@/lib/services/overview";
 import { OPERATION_TIME_ZONE, TIME_ZONE_COOKIE, isTimeZone } from "@/lib/time-zone";
+import { T } from "@/components/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ function OutcomeStrip({ outcomes: o }: { outcomes: Outcomes }) {
       {items.map((item) => (
         <div key={item.label} className="min-w-0 md:px-6 md:first:pl-0 md:last:pr-0">
           <p className="text-4xl font-semibold tracking-tight tabular-nums text-white md:text-[2.75rem] md:leading-none">{item.value}</p>
-          <p className="mt-1 text-sm font-medium leading-snug text-stage-ink">{item.label}</p>
+          <p className="mt-1 text-sm font-medium leading-snug text-stage-ink"><T>{item.label}</T></p>
           <p className="mt-0.5 text-xs leading-snug text-stage-muted">{item.context}</p>
         </div>
       ))}
@@ -140,7 +141,7 @@ function PeriodSwitch({ days, night }: { days: OverviewPeriod; night: string | n
               on ? "bg-brand bg-brand-gradient text-white shadow-glow" : "text-stage-muted hover:text-white"
             }`}
           >
-            {d} days
+            <T>{`${d} days`}</T>
           </Link>
         );
       })}
@@ -165,9 +166,9 @@ function Hero({ stats, days, night }: { stats: Stats | null; days: OverviewPerio
             <h1 id="hero-title" className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
               {BRAND.name}
             </h1>
-            <p className="mt-1 text-lg font-medium text-brand-2 md:text-xl">{BRAND.tagline}</p>
+            <p className="mt-1 text-lg font-medium text-brand-2 md:text-xl"><T>{BRAND.tagline}</T></p>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-stage-muted md:text-base">
-              One journey from the first call to the settled claim. AI prepares every step; people stay in charge of care decisions.
+              <T>One journey from the first call to the settled claim. AI prepares every step; people stay in charge of care decisions.</T>
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-3 lg:items-end">
@@ -181,14 +182,14 @@ function Hero({ stats, days, night }: { stats: Stats | null; days: OverviewPerio
                 className="inline-flex items-center gap-2 rounded-xl bg-brand bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition-[filter,box-shadow] duration-150 hover:brightness-[1.07] focus-visible:outline-brand-2"
               >
                 <Mic size={16} aria-hidden />
-                Talk to a voice agent
+                <T>Talk to a voice agent</T>
               </Link>
               <Link
                 href="/business-case"
                 className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-stage-ink ring-1 ring-stage-line transition-colors duration-150 hover:bg-stage-raised focus-visible:outline-brand-2"
               >
                 <Calculator size={16} aria-hidden />
-                Your business case
+                <T>Your business case</T>
               </Link>
               <a
                 href={`/api/overview/pdf?days=${days}`}
@@ -197,7 +198,7 @@ function Hero({ stats, days, night }: { stats: Stats | null; days: OverviewPerio
                 className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-stage-ink ring-1 ring-stage-line transition-colors duration-150 hover:bg-stage-raised focus-visible:outline-brand-2"
               >
                 <Download size={16} aria-hidden />
-                Summary PDF
+                <T>Summary PDF</T>
               </a>
             </div>
           </div>
@@ -227,7 +228,7 @@ function ModuleGrid() {
     <section aria-labelledby="modules-title">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="modules-title" className="text-base font-semibold text-ink">
-          Every module, live
+          <T>Every module, live</T>
         </h2>
         {/* Keyboard hint: not on touch-only screens (an iPad without a keyboard). */}
         <p className="text-xs text-muted [@media(hover:none)]:hidden">
@@ -245,10 +246,10 @@ function ModuleGrid() {
               <span className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors duration-150 ${TONES[tone]}`}>
                 <Icon size={20} aria-hidden />
               </span>
-              {tag ? <span className="rounded-full bg-canvas px-2.5 py-0.5 text-[11px] font-medium text-muted">{tag}</span> : null}
+              {tag ? <span className="rounded-full bg-canvas px-2.5 py-0.5 text-[11px] font-medium text-muted"><T>{tag}</T></span> : null}
             </div>
-            <h3 className="mt-4 text-[15px] font-semibold text-ink transition-colors duration-150 group-hover:text-brand">{title}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-muted">{description}</p>
+            <h3 className="mt-4 text-[15px] font-semibold text-ink transition-colors duration-150 group-hover:text-brand"><T>{title}</T></h3>
+            <p className="mt-1 text-sm leading-relaxed text-muted"><T>{description}</T></p>
           </Link>
         ))}
       </div>

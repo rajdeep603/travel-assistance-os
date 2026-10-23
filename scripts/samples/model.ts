@@ -60,7 +60,7 @@ export interface SampleDoc {
   file: string;
   /** Folder under public/. */
   dir: string;
-  lang: "en" | "tr";
+  lang: "en" | "tr" | "fr" | "es" | "pt";
   issuer: Issuer;
   title: string;
   subtitle?: string;

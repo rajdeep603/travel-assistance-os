@@ -18,10 +18,11 @@ type ClaimWithRelations = Claim & {
   documents: (Document & { extraction: DocumentExtraction | null })[];
 };
 
+// Whole sentences, not "${label} available", so the interface can translate them.
 const REQUIRED_KINDS = [
-  { kind: "MEDICAL_REPORT", label: "Medical report" },
-  { kind: "HOSPITAL_INVOICE", label: "Hospital invoice" },
-  { kind: "DISCHARGE_SUMMARY", label: "Discharge summary" },
+  { kind: "MEDICAL_REPORT", available: "Medical report available", missing: "Medical report missing" },
+  { kind: "HOSPITAL_INVOICE", available: "Hospital invoice available", missing: "Hospital invoice missing" },
+  { kind: "DISCHARGE_SUMMARY", available: "Discharge summary available", missing: "Discharge summary missing" },
 ] as const;
 
 /** Senior-review limits from the claims procedure (knowledge base). */
@@ -32,12 +33,8 @@ export function checkCompleteness(claim: ClaimWithRelations): ClaimIssue[] {
   const issues: ClaimIssue[] = [];
   const kinds = new Set(claim.documents.map((d) => d.kind));
 
-  for (const { kind, label } of REQUIRED_KINDS) {
-    issues.push(
-      kinds.has(kind)
-        ? { severity: "ok", message: `${label} available` }
-        : { severity: "error", message: `${label} missing` }
-    );
+  for (const { kind, available, missing } of REQUIRED_KINDS) {
+    issues.push(kinds.has(kind) ? { severity: "ok", message: available } : { severity: "error", message: missing });
   }
   if (!kinds.has("PRESCRIPTION")) {
     issues.push({ severity: "warning", message: "Prescription not provided (optional)" });

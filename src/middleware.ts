@@ -29,6 +29,10 @@ const PUBLIC_PREFIXES = [
   "/api/public/",
   // The booth's QR page, where visitors leave their details.
   "/meet",
+  // A partner's view of a case handed to it (the token in the link is the credential).
+  "/partner/",
+  // The public API authenticates with API keys itself (or the operator's session).
+  "/api/v1/",
 ];
 
 export async function middleware(req: NextRequest) {

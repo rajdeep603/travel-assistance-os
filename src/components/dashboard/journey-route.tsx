@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import { T } from "@/components/i18n";
 
 // ---------------------------------------------------------------------------
 // The assistance journey as a route map: one line from the traveller to the
@@ -19,19 +20,6 @@ export interface RouteStop {
 }
 
 const DRAW_MS = 1100;
-
-/** Narrow stops (an iPad in portrait) must not break "e-mail" into "e-" and "mail". */
-function keepHyphenated(label: string) {
-  return label.split(/(\S+-\S+)/).map((part, i) =>
-    i % 2 ? (
-      <span key={i} className="whitespace-nowrap">
-        {part}
-      </span>
-    ) : (
-      part
-    )
-  );
-}
 
 function StopMarker({ stop, delay }: { stop: RouteStop; delay: number }) {
   const Icon = stop.icon;
@@ -84,7 +72,8 @@ export function JourneyRoute({ stops }: { stops: RouteStop[] }) {
                 <span
                   className={`block text-sm font-semibold leading-snug text-stage-ink md:text-xs lg:text-sm ${stop.href ? "group-hover:text-white group-hover:underline group-hover:underline-offset-4" : ""}`}
                 >
-                  {keepHyphenated(stop.label)}
+                  {/* Narrow stops (an iPad in portrait) must not break "e-mail" into "e-" and "mail". */}
+                  <T keepHyphenated>{stop.label}</T>
                 </span>
                 <span className={`mt-0.5 block text-xs leading-snug tabular-nums md:text-[11px] lg:text-xs ${stop.kind ? "text-stage-muted" : "font-medium text-brand-2"}`}>
                   {stop.detail}

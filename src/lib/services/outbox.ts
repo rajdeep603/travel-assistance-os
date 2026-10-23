@@ -2,6 +2,7 @@ import type { OutboundMessage } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { emailServiceFor, type EmailAttachment } from "./email";
 import { getFaxService } from "./fax";
+import { getTelephony } from "./telephony";
 
 // The outbox: every e-mail and fax the platform sends is recorded first,
 // then handed to the provider, and its result (sent / failed) stored.
@@ -80,6 +81,38 @@ export async function sendFax(
     });
   } catch (err) {
     console.error("[outbox] fax failed:", err);
+    return prisma.outboundMessage.update({
+      where: { id: row.id },
+      data: { status: "FAILED", error: err instanceof Error ? err.message.slice(0, 500) : "send failed" },
+    });
+  }
+}
+
+/**
+ * A WhatsApp reply. Sent through Twilio when a WhatsApp sender is configured
+ * (TWILIO_WHATSAPP_FROM: the sandbox number, or an approved business sender);
+ * otherwise recorded in the outbox like the mock fax.
+ */
+export async function sendWhatsApp(input: Common & { to: string; text: string }): Promise<OutboundMessage> {
+  const telephony = getTelephony();
+  const live = telephony.configured && !!process.env.TWILIO_WHATSAPP_FROM;
+  const row = await prisma.outboundMessage.create({
+    data: {
+      channel: "WHATSAPP",
+      toAddress: input.to,
+      body: input.text,
+      provider: live ? "twilio-whatsapp" : "mock",
+      automatic: input.automatic ?? true,
+      approvedBy: input.approvedBy ?? null,
+      caseId: input.caseId ?? null,
+      inReplyToId: input.inReplyToId ?? null,
+    },
+  });
+  try {
+    const { sid } = live ? await telephony.sendWhatsApp(input.to, input.text) : { sid: `mock_wa_${row.id}` };
+    return prisma.outboundMessage.update({ where: { id: row.id }, data: { status: "SENT", providerMessageId: sid, sentAt: new Date() } });
+  } catch (err) {
+    console.error("[outbox] WhatsApp failed:", err);
     return prisma.outboundMessage.update({
       where: { id: row.id },
       data: { status: "FAILED", error: err instanceof Error ? err.message.slice(0, 500) : "send failed" },

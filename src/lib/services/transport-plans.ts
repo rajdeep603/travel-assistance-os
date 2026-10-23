@@ -2,6 +2,7 @@ import type { Prisma, TransportPlan } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
+import { airOperators } from "./air-ambulance";
 import { sendEmail } from "./outbox";
 import { MODE_LABELS, TRANSPORT_TARIFF_VERSION, recommendTransport, type OriginHub, type TransportAssessment } from "./transport";
 
@@ -17,6 +18,7 @@ export const TRANSPORT_VENDORS: { name: string; email: string; modes: string[]; 
   { name: "Demo MedEscort", email: "ops@demo-medescort.example", modes: ["COMMERCIAL_ESCORTED", "COMMERCIAL_STRETCHER"], hub: "IST" },
   { name: "Demo Air Ambulance Asia", email: "quotes@demo-airambulance-asia.example", modes: ["AIR_AMBULANCE", "COMMERCIAL_STRETCHER"], hub: "SIN" },
   { name: "Demo MedEscort Asia", email: "ops@demo-medescort-asia.example", modes: ["COMMERCIAL_ESCORTED", "COMMERCIAL_STRETCHER"], hub: "SIN" },
+  { name: "Demo MedEscort Americas", email: "ops@demo-medescort-americas.example", modes: ["COMMERCIAL_ESCORTED", "COMMERCIAL_STRETCHER"], hub: "MIA" },
 ];
 
 const initials = (first: string, last: string) => `${first[0] ?? ""}.${last[0] ?? ""}.`;
@@ -30,7 +32,11 @@ export async function createTransportPlan(
   if (!kase) throw notFound("Case");
   const destination = assessment.destinationCountry ?? kase.patient.nationality ?? null;
   const rec = recommendTransport({ ...assessment, destinationCountry: destination, originCountry: kase.country });
-  const vendors = TRANSPORT_VENDORS.filter((v) => v.hub === rec.origin && v.modes.includes(rec.mode));
+  // An air ambulance is quoted by the network's operators flying from the hub (accreditation shown on each quote).
+  const vendors =
+    rec.mode === "AIR_AMBULANCE"
+      ? (await airOperators(rec.origin)).map((p) => ({ name: p.facility, email: p.email }))
+      : TRANSPORT_VENDORS.filter((v) => v.hub === rec.origin && v.modes.includes(rec.mode));
   const from = rec.origin === "IST" ? { city: "Istanbul", country: "Türkiye" } : { city: kase.location, country: kase.country ?? "" };
 
   const plan = await withRef("transport", (ref) =>

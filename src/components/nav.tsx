@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Calculator,
+  Code2,
   FileText,
   FolderKanban,
   Handshake,
@@ -18,11 +19,14 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ReceiptText,
+  Scale,
   ShieldCheck,
   Stethoscope,
+  Wallet,
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand";
+import { T } from "@/components/i18n";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import {
   SIDEBAR_DOCK_QUERY,
@@ -32,20 +36,46 @@ import {
   setSidebarHidden,
 } from "@/lib/sidebar";
 
-export const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/business-case", label: "Business Case", icon: Calculator },
-  { href: "/leads", label: "Leads", icon: Handshake },
-  { href: "/documents", label: "Medical Document AI", icon: FileText },
-  { href: "/cases", label: "AI Case Manager", icon: FolderKanban },
-  { href: "/claims", label: "Claims Automation", icon: ReceiptText },
-  { href: "/providers", label: "Provider Search", icon: Stethoscope },
-  { href: "/assistant", label: "Internal AI Assistant", icon: MessageSquareText },
-  { href: "/voice", label: "Voice Agents", icon: Mic },
-  { href: "/calls", label: "Call Center", icon: Headset },
-  { href: "/inbox", label: "Inbox (e-mail & fax)", icon: Inbox },
-  { href: "/trust", label: "Trust & Integration", icon: ShieldCheck },
+/** The workspace in the buyer's order: operations, money, the network, then selling and the platform. */
+export const NAV_SECTIONS = [
+  {
+    label: "Assistance",
+    items: [
+      { href: "/", label: "Dashboard", icon: Home },
+      { href: "/cases", label: "AI Case Manager", icon: FolderKanban },
+      { href: "/inbox", label: "Inbox & WhatsApp", icon: Inbox },
+      { href: "/voice", label: "Voice Agents", icon: Mic },
+      { href: "/calls", label: "Call Center", icon: Headset },
+      { href: "/assistant", label: "Internal AI Assistant", icon: MessageSquareText },
+    ],
+  },
+  {
+    label: "Medical and money",
+    items: [
+      { href: "/documents", label: "Medical Document AI", icon: FileText },
+      { href: "/claims", label: "Claims Automation", icon: ReceiptText },
+      { href: "/providers", label: "Provider Search", icon: Stethoscope },
+    ],
+  },
+  {
+    label: "Network",
+    items: [
+      { href: "/receivables", label: "Receivables", icon: Wallet },
+      { href: "/oversight", label: "Partner oversight", icon: Scale },
+    ],
+  },
+  {
+    label: "Sales and platform",
+    items: [
+      { href: "/business-case", label: "Business Case", icon: Calculator },
+      { href: "/leads", label: "Leads", icon: Handshake },
+      { href: "/trust", label: "Trust & Integration", icon: ShieldCheck },
+      { href: "/developers", label: "Developers (API)", icon: Code2 },
+    ],
+  },
 ];
+
+export const NAV_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -54,33 +84,40 @@ function isActive(pathname: string, href: string): boolean {
 export function SideNav({ highlightId = "nav-active" }: { highlightId?: string }) {
   const pathname = usePathname();
   return (
-    <nav className="flex flex-col gap-1 px-3" aria-label="Main navigation">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = isActive(pathname, href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={active ? "page" : undefined}
-            className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-2 ${
-              active ? "text-white" : "text-stage-muted hover:bg-stage-raised hover:text-white"
-            }`}
-          >
-            {/* The highlight slides from the previous page's item to this one. */}
-            {active ? (
-              <motion.span
-                layoutId={highlightId}
-                className="absolute inset-0 rounded-lg bg-brand bg-brand-gradient shadow-glow"
-                transition={{ type: "spring", stiffness: 520, damping: 40 }}
-                aria-hidden
-              />
-            ) : null}
-            <Icon size={17} strokeWidth={2} className="relative" aria-hidden />
-            <span className="relative">{label}</span>
-          </Link>
-        );
-      })}
+    <nav className="flex flex-col gap-4 px-3" aria-label="Main navigation">
+      {NAV_SECTIONS.map((section) => (
+        <div key={section.label} className="flex flex-col gap-0.5">
+          <p className="px-3 pb-1 text-[11px] font-medium text-stage-muted/70"><T>{section.label}</T></p>
+          {section.items.map((item) => (
+            <NavLink key={item.href} {...item} active={isActive(pathname, item.href)} highlightId={highlightId} />
+          ))}
+        </div>
+      ))}
     </nav>
+  );
+}
+
+function NavLink({ href, label, icon: Icon, active, highlightId }: (typeof NAV_ITEMS)[number] & { active: boolean; highlightId: string }) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-2 ${
+        active ? "text-white" : "text-stage-muted hover:bg-stage-raised hover:text-white"
+      }`}
+    >
+      {/* The highlight slides from the previous page's item to this one. */}
+      {active ? (
+        <motion.span
+          layoutId={highlightId}
+          className="absolute inset-0 rounded-lg bg-brand bg-brand-gradient shadow-glow"
+          transition={{ type: "spring", stiffness: 520, damping: 40 }}
+          aria-hidden
+        />
+      ) : null}
+      <Icon size={17} strokeWidth={2} className="relative" aria-hidden />
+      <span className="relative"><T>{label}</T></span>
+    </Link>
   );
 }
 
@@ -102,7 +139,7 @@ function SidebarBody({ drawer = false }: { drawer?: boolean }) {
         <BrandMark size={36} idSuffix={drawer ? "-drawer" : ""} />
         <div className="min-w-0">
           <p className="text-lg font-semibold leading-tight tracking-tight">{BRAND.name}</p>
-          <p className="text-xs leading-snug text-stage-muted">{BRAND.tagline}</p>
+          <p className="text-xs leading-snug text-stage-muted"><T>{BRAND.tagline}</T></p>
         </div>
       </div>
       <SideNav highlightId={drawer ? "nav-active-drawer" : "nav-active"} />

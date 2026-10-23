@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { formatEnum } from "@/lib/format";
+import { T } from "@/components/i18n";
 
 // Shared UI primitives: consistent buttons, badges, cards and states across
 // every module, per the B2B SaaS UX requirement.
@@ -38,7 +39,7 @@ export function SectionTitle({
     <h3
       className={`text-sm font-semibold text-ink ${className}`}
     >
-      {children}
+      {typeof children === "string" ? <T>{children}</T> : children}
     </h3>
   );
 }
@@ -55,8 +56,8 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-ink md:text-3xl">{title}</h1>
-        {subtitle ? <p className="mt-1.5 max-w-3xl text-[15px] leading-relaxed text-muted">{subtitle}</p> : null}
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-ink md:text-3xl"><T>{title}</T></h1>
+        {subtitle ? <p className="mt-1.5 max-w-3xl text-[15px] leading-relaxed text-muted"><T>{subtitle}</T></p> : null}
       </div>
       {children}
     </div>
@@ -109,6 +110,11 @@ const STATUS_STYLES: Record<string, string> = {
   NO_ANSWER: "bg-slate-100 text-slate-600 border-slate-200",
   BUSY: "bg-slate-100 text-slate-600 border-slate-200",
   CANCELED: "bg-slate-100 text-slate-600 border-slate-200",
+  // receivables and hand-offs
+  PARTIALLY_PAID: "bg-teal-50 text-teal-700 border-teal-200",
+  DISPUTED: "bg-red-50 text-red-700 border-red-200",
+  ACCEPTED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  DECLINED: "bg-slate-100 text-slate-600 border-slate-200",
   // leads
   CONTACTED: "bg-indigo-50 text-indigo-700 border-indigo-200",
   WON: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -121,7 +127,7 @@ export function StatusBadge({ value }: { value: string }) {
     <span
       className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${style}`}
     >
-      {formatEnum(value)}
+      <T>{formatEnum(value)}</T>
     </span>
   );
 }

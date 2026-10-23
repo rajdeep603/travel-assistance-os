@@ -121,6 +121,27 @@ export const DEFAULT_ASSUMPTIONS: Assumptions = {
 // Modest, round figures for typical visitors, smallest first.
 export const PRESETS: readonly Preset[] = [
   {
+    // A local correspondent in a resort region (the Caribbean, the Red Sea):
+    // cases from many foreign assistance companies, guarantees to chase and
+    // invoices to get paid, at a lower local staff cost.
+    id: "correspondent",
+    label: "Local correspondent / provider network",
+    inputs: {
+      monthlyCases: 250,
+      monthlyCalls: 1_500,
+      afterHoursCallPct: 45,
+      callMinutes: 7,
+      monthlyClaims: 300,
+      claimReviewMinutes: 20,
+      monthlyLetters: 150,
+      letterHours: 1,
+      monthlyInbound: 2_500,
+      inboundMinutes: 4,
+      costPerHour: 12,
+      productiveHoursPerMonth: 150,
+    },
+  },
+  {
     id: "specialist",
     label: "Specialist travel insurer",
     inputs: {
@@ -136,6 +157,26 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 5,
       costPerHour: 28,
       productiveHoursPerMonth: 140,
+    },
+  },
+  {
+    // A private hospital group's international patient desk: guarantees,
+    // insurer calls and invoices to foreign payers.
+    id: "hospital",
+    label: "Hospital international desk",
+    inputs: {
+      monthlyCases: 600,
+      monthlyCalls: 3_000,
+      afterHoursCallPct: 35,
+      callMinutes: 6,
+      monthlyClaims: 600,
+      claimReviewMinutes: 20,
+      monthlyLetters: 400,
+      letterHours: 1,
+      monthlyInbound: 3_000,
+      inboundMinutes: 5,
+      costPerHour: 15,
+      productiveHoursPerMonth: 150,
     },
   },
   {
@@ -197,7 +238,7 @@ export const PRESETS: readonly Preset[] = [
   },
 ];
 
-export const DEFAULT_INPUTS: OperationInputs = PRESETS[1].inputs;
+export const DEFAULT_INPUTS: OperationInputs = PRESETS.find((p) => p.id === "regional")!.inputs;
 
 /** A count or duration: blanks, typos and negatives count as zero. */
 function amount(value: number): number {

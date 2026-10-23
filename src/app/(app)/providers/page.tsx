@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, MapPin, Phone, Search, Star } from "lucide-react";
+import { CheckCircle2, GitMerge, Handshake, MapPin, Phone, Search, Star, Video } from "lucide-react";
+import { AccreditationBadge } from "@/components/providers/accreditation-badge";
 import {
   Button,
   Card,
@@ -34,6 +35,9 @@ interface ProviderResult {
     rating: number;
     latitude: number;
     longitude: number;
+    kind?: string;
+    accreditations?: string[];
+    rateCard?: { name: string } | null;
   };
   distanceKm: number | null;
   slots: { date: string; time: string }[];
@@ -49,16 +53,19 @@ interface PatientOption {
 }
 
 const SPECIALTIES = [
-  "General Medicine", "Cardiology", "Gastroenterology", "Orthopedics",
-  "Dentistry", "Dermatology", "Neurology", "Emergency Medicine",
+  "General Medicine", "Internal Medicine", "Cardiology", "Gastroenterology", "Orthopedics",
+  "Dentistry", "Dermatology", "Neurology", "Emergency Medicine", "General Surgery", "Urology",
   "Obstetrics & Gynecology", "Ophthalmology", "Ear, Nose & Throat", "Pediatrics",
 ];
 const DISTRICTS = [
   "Taksim", "Beyoglu", "Sisli", "Besiktas", "Kadikoy", "Uskudar",
   "Fatih", "Sultanahmet", "Levent", "Bakirkoy", "Nisantasi", "Atasehir",
 ];
-const LANGUAGES = ["English", "German", "French", "Russian", "Arabic", "Spanish", "Turkish", "Mandarin", "Malay", "Thai"];
-const CITIES = ["Istanbul", "Ankara", "Antalya", "Singapore", "Kuala Lumpur", "Bangkok", "Shanghai"];
+const LANGUAGES = ["English", "German", "French", "Russian", "Arabic", "Spanish", "Portuguese", "Italian", "Albanian", "Turkish", "Mandarin", "Malay", "Thai"];
+const CITIES = [
+  "Istanbul", "Ankara", "Antalya", "Singapore", "Kuala Lumpur", "Bangkok", "Shanghai",
+  "Hurghada", "Sousse", "Dubai", "Punta Cana", "Cancun", "Rio de Janeiro", "Fort Lauderdale", "Saranda", "Geneva",
+];
 
 /** Theoretical maximum of the ranking score — used to show a match %. */
 const MAX_SCORE = 110;
@@ -81,6 +88,7 @@ export default function ProvidersPage() {
     date: tomorrow(),
     timeOfDay: "afternoon",
     language: "English",
+    includeTelemedicine: false,
   });
   const [results, setResults] = useState<ProviderResult[] | null>(null);
   const [searchedDistrict, setSearchedDistrict] = useState<string | null>(null);
@@ -222,7 +230,14 @@ export default function ProvidersPage() {
       <PageHeader
         title="Provider Search"
         subtitle="Find the right healthcare provider, matched on specialty, language, availability and distance."
-      />
+      >
+        <Link
+          href="/providers/network"
+          className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-canvas"
+        >
+          <GitMerge size={15} aria-hidden /> Provider network
+        </Link>
+      </PageHeader>
       {forCase ? (
         <CaseContextBanner kase={forCase} action="Booking" onClear={() => setDetached(true)} />
       ) : null}
@@ -316,6 +331,15 @@ export default function ProvidersPage() {
             <Search size={15} aria-hidden />
             Search providers
           </Button>
+          <label className="inline-flex items-center gap-2 text-sm text-ink/80">
+            <input
+              type="checkbox"
+              checked={form.includeTelemedicine}
+              onChange={(e) => setForm((f) => ({ ...f, includeTelemedicine: e.target.checked }))}
+              className="accent-brand"
+            />
+            <Video size={15} className="text-muted" aria-hidden /> Include video consultations
+          </label>
           {form.city !== "Istanbul" ? (
             <p className="text-xs text-slate-400">
               The demo network is largest in Istanbul; other cities have a few providers.
@@ -351,7 +375,7 @@ export default function ProvidersPage() {
               <div className="mt-3 flex min-h-0 flex-1 flex-col">
                 <ProviderMap
                   className="lg:aspect-auto lg:flex-1"
-                  providers={results.map((r) => ({
+                  providers={results.filter((r) => r.provider.kind !== "TELEMEDICINE").map((r) => ({
                     id: r.provider.id,
                     name: r.provider.name,
                     facility: r.provider.facility,
@@ -403,6 +427,21 @@ export default function ProvidersPage() {
                             <p className="text-sm text-slate-500">
                               {r.provider.facility} · {r.provider.specialty}
                             </p>
+                            {r.provider.accreditations?.length || r.provider.rateCard || r.provider.kind === "TELEMEDICINE" ? (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {r.provider.kind === "TELEMEDICINE" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-live/30 bg-live/10 px-2 py-0.5 text-[11px] font-medium text-live">
+                                    <Video size={12} aria-hidden /> Video consultation
+                                  </span>
+                                ) : null}
+                                {r.provider.accreditations?.map((a) => <AccreditationBadge key={a} name={a} />)}
+                                {r.provider.rateCard ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-canvas px-2 py-0.5 text-[11px] font-medium text-muted">
+                                    <Handshake size={12} aria-hidden /> Network rates
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
                             <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
                               <span className="inline-flex items-center gap-1">
                                 <MapPin size={12} aria-hidden />

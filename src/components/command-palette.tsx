@@ -5,18 +5,19 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react";
 import {
   CalendarClock,
+  Clock3,
   CornerDownLeft,
   FileCheck2,
   FileText,
   FolderKanban,
   Inbox,
+  Languages,
   Loader2,
   Mic,
   PanelLeft,
   Phone,
   Plane,
   Presentation,
-  Clock3,
   ReceiptText,
   Search,
   Sparkles,
@@ -28,8 +29,11 @@ import { NAV_ITEMS } from "@/components/nav";
 import { setPresentMode } from "@/lib/present-mode";
 import { useTimeZone } from "@/components/time-zone";
 import { TIME_ZONES } from "@/lib/time-zone";
+import { useUiLanguage } from "@/components/i18n";
+import { UI_LANGUAGES } from "@/lib/i18n";
 import { SIDEBAR_TOGGLE_EVENT } from "@/lib/sidebar";
 import type { SearchHit, SearchKind } from "@/lib/services/search";
+import { T } from "@/components/i18n";
 
 // ---------------------------------------------------------------------------
 // Command palette (⌘K / Ctrl K): jump to any module, start any voice agent,
@@ -78,7 +82,7 @@ export function CommandPalette() {
   const [searching, setSearching] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const [agents, setAgents] = useState<{ agentId: string; label: string; youPlay: string }[]>([]);
-  const [samples, setSamples] = useState<{ emails: { id: string; label: string }[]; faxes: { id: string; label: string }[] } | null>(null);
+  const [samples, setSamples] = useState<{ emails: { id: string; label: string }[]; faxes: { id: string; label: string }[]; whatsapps?: { id: string; label: string }[] } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
@@ -165,17 +169,18 @@ export function CommandPalette() {
   );
 
   const { zone: timeZone, setZone: setTimeZone } = useTimeZone();
+  const { lang, setLang } = useUiLanguage();
   const commands = useMemo<Item[]>(() => {
     const items: Item[] = NAV_ITEMS.map((n) => ({ id: `nav:${n.href}`, group: "Go to", label: n.label, icon: n.icon, run: () => go(n.href) }));
     for (const a of agents) {
       items.push({ id: `voice:${a.agentId}`, group: "Voice agents", label: a.label, hint: `You play: ${a.youPlay}`, icon: Mic, keywords: "voice call agent talk", run: () => go(`/voice?agent=${encodeURIComponent(a.agentId)}`) });
     }
-    const receive = (kind: "email" | "fax", sample: string, label: string): Item => ({
+    const receive = (kind: "email" | "fax" | "whatsapp", sample: string, label: string): Item => ({
       id: `sample:${kind}:${sample}`,
       group: "Inbox samples",
       label: `Receive: ${label}`,
       icon: Inbox,
-      keywords: `${kind === "email" ? "e-mail email" : "fax"} sample demo inbox receive`,
+      keywords: `${kind === "email" ? "e-mail email" : kind === "whatsapp" ? "whatsapp chat message" : "fax"} sample demo inbox receive`,
       run: async () => {
         const res = await fetch("/api/inbox/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, sample }) });
         const body = res.ok ? await res.json() : null;
@@ -184,6 +189,7 @@ export function CommandPalette() {
     });
     for (const e of samples?.emails ?? []) items.push(receive("email", e.id, e.label));
     for (const f of samples?.faxes ?? []) items.push(receive("fax", f.id, f.label));
+    for (const w of samples?.whatsapps ?? []) items.push(receive("whatsapp", w.id, w.label));
     const assistant = (detail: OpenAssistantDetail) => {
       close();
       window.dispatchEvent(new CustomEvent<OpenAssistantDetail>(OPEN_ASSISTANT_EVENT, { detail }));
@@ -204,6 +210,20 @@ export function CommandPalette() {
         close();
       },
     });
+    for (const l of UI_LANGUAGES) {
+      items.push({
+        id: `lang:${l.code}`,
+        group: "Interface language",
+        label: `Interface in ${l.native}`,
+        hint: l.code === lang ? "Current" : l.name,
+        icon: Languages,
+        keywords: `language interface translate ${l.name} ${l.native}`,
+        run: () => {
+          close();
+          setLang(l.code);
+        },
+      });
+    }
     for (const z of TIME_ZONES) {
       items.push({
         id: `tz:${z.id}`,
@@ -231,7 +251,7 @@ export function CommandPalette() {
       },
     });
     return items;
-  }, [agents, samples, go, close, timeZone, setTimeZone]);
+  }, [agents, samples, go, close, timeZone, setTimeZone, lang, setLang]);
 
   const items = useMemo<Item[]>(() => {
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -422,7 +442,7 @@ export function SearchButton() {
       aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}
     >
       <Search size={15} aria-hidden />
-      <span className="hidden flex-1 text-left md:inline">Search or jump to…</span>
+      <span className="hidden flex-1 text-start md:inline"><T>Search or jump to…</T></span>
       <kbd className="hidden rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] text-muted sm:inline [@media(hover:none)]:hidden">{mac ? "⌘K" : "Ctrl K"}</kbd>
     </button>
   );

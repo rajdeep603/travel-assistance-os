@@ -25,6 +25,9 @@ export interface BookAppointmentInput {
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
+/** The join link of a video consultation (the telemedicine partner's room for this appointment). */
+export const videoLink = (ref: string) => `https://video.teledoctor-demo.example/room/${ref.toLowerCase()}`;
+
 const SLOT_TAKEN = "That slot has just been taken. Please choose another time.";
 
 export async function bookAppointment(
@@ -68,7 +71,8 @@ export async function bookAppointment(
           scheduledAt: zonedToUtc(input.date, input.time),
           status: "CONFIRMED",
           reason: input.reason,
-          notes: input.notes ?? null,
+          // A video consultation carries its join link (sent to the traveller with the confirmation).
+          notes: provider.kind === "TELEMEDICINE" ? [input.notes, `Video consultation: ${videoLink(ref)}`].filter(Boolean).join(" · ") : (input.notes ?? null),
           source: input.source ?? "WEB",
           patientId: input.patientId,
           providerId: input.providerId,
@@ -84,7 +88,7 @@ export async function bookAppointment(
   await getNotificationService().notify({
     kind: "APPOINTMENT_BOOKED",
     subject: `Appointment ${appointment.ref} confirmed`,
-    body: `${patient.ref} → ${provider.name} (${provider.facility}) on ${formatPlainDate(input.date)} at ${input.time}.`,
+    body: `${patient.ref} → ${provider.name} (${provider.facility}) on ${formatPlainDate(input.date)} at ${input.time}.${provider.kind === "TELEMEDICINE" ? ` Video link: ${videoLink(appointment.ref)}` : ""}`,
   });
 
   return appointment;

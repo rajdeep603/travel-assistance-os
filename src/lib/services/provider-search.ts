@@ -9,6 +9,7 @@ import {
   zonedToday,
 } from "@/lib/time";
 import { ISTANBUL_DISTRICTS, distanceKm } from "./nlu";
+import { ACTIVE_CARE_PROVIDER } from "./provider-network";
 
 // ---------------------------------------------------------------------------
 // ProviderSearchService: filters and scores demo providers, expanding each
@@ -24,6 +25,8 @@ export interface ProviderSearchQuery {
   timeOfDay?: string; // "morning" | "afternoon" | "evening" | "HH:MM"
   language?: string;
   limit?: number;
+  /** Also offer the network's video-consultation providers. */
+  includeTelemedicine?: boolean;
 }
 
 export interface ScoredProvider {
@@ -70,8 +73,12 @@ export async function searchProviders(
   const city = query.city?.trim() || "Istanbul";
   const date = query.date || zonedToday(1);
   const providers = await prisma.provider.findMany({
-    where: { city: { equals: city, mode: "insensitive" } },
+    where: { city: { equals: city, mode: "insensitive" }, ...ACTIVE_CARE_PROVIDER },
   });
+  // A video consultation, when asked for: no travel, any city.
+  if (query.includeTelemedicine) {
+    providers.push(...(await prisma.provider.findMany({ where: { kind: "TELEMEDICINE", mergedIntoId: null } })));
+  }
 
   // Slots already taken on that day are not offered again.
   const day = zonedDayRange(date);
@@ -138,7 +145,9 @@ export async function searchProviders(
     }
 
     let dist: number | null = null;
-    if (origin) {
+    if (provider.kind === "TELEMEDICINE") {
+      reasons.push("Video consultation: no travel, a link by e-mail and SMS");
+    } else if (origin) {
       dist = distanceKm(origin, {
         lat: provider.latitude,
         lng: provider.longitude,

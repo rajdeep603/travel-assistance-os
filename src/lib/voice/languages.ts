@@ -46,6 +46,14 @@ export const VOICE_LANGUAGES: VoiceLanguage[] = [
   { code: "uk", name: "Ukrainian", native: "Українська" },
   { code: "fa", name: "Persian", native: "فارسی" },
   { code: "ur", name: "Urdu", native: "اردو" },
+  // The Western Balkans, South-East Europe and Southern Africa (Albanian,
+  // Macedonian and Afrikaans probed with typed turns: macOS has no voice for them).
+  { code: "sq", name: "Albanian", native: "Shqip" },
+  { code: "mk", name: "Macedonian", native: "Македонски" },
+  { code: "bg", name: "Bulgarian", native: "Български" },
+  { code: "hr", name: "Croatian", native: "Hrvatski" },
+  { code: "hu", name: "Hungarian", native: "Magyar" },
+  { code: "af", name: "Afrikaans", native: "Afrikaans" },
 ];
 
 /** The language by English name or code, case-insensitively. */

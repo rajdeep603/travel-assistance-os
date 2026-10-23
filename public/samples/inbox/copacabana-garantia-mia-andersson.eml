@@ -1,0 +1,34 @@
+From: Copacabana Demo Hospital <internacional@copacabana-demo.example>
+To: medical@inbound.demo-assistance.example
+Subject: =?UTF-8?B?R2FyYW50aWEgZGUgcGFnYW1lbnRvIOKAlCBNaWEgQW5kZXJzc29uIChMT0ctMDkwNik=?=
+Date: Fri, 23 Oct 2026 09:15:00 -0300
+Message-ID: <385f8918f9222c5e@copacabana-demo.example>
+MIME-Version: 1.0
+X-Sample: fictional demonstration message
+Content-Type: multipart/mixed; boundary="mixed_385f8918f9222c5e"
+
+--mixed_385f8918f9222c5e
+Content-Type: multipart/alternative; boundary="alt_385f8918f9222c5e"
+
+--alt_385f8918f9222c5e
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+UHJlemFkb3MsCgpQb2RlcmlhbSBjb25maXJtYXIgYSBnYXJhbnRpYSBkZSBwYWdhbWVudG8gZGEg
+c3VhIHNlZ3VyYWRhIE1pYSBBbmRlcnNzb24gKG5hc2NpZGEgZW0gMzAvMDcvMTk5NCk/IE5vc3Nv
+IGZhdHVyYW1lbnRvIG7Do28gZW5jb250cmEgYSBjYXJ0YS4KCkF0ZW5jaW9zYW1lbnRlLApBdGVu
+ZGltZW50byBJbnRlcm5hY2lvbmFs
+--alt_385f8918f9222c5e
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: base64
+
+PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLEhlbHZl
+dGljYSxzYW5zLXNlcmlmO2ZvbnQtc2l6ZToxNHB4O2xpbmUtaGVpZ2h0OjEuNTtjb2xvcjojMWYy
+OTM3Ij4KPHAgc3R5bGU9Im1hcmdpbjowIDAgMTJweCI+UHJlemFkb3MsPC9wPgo8cCBzdHlsZT0i
+bWFyZ2luOjAgMCAxMnB4Ij5Qb2RlcmlhbSBjb25maXJtYXIgYSBnYXJhbnRpYSBkZSBwYWdhbWVu
+dG8gZGEgc3VhIHNlZ3VyYWRhIE1pYSBBbmRlcnNzb24gKG5hc2NpZGEgZW0gMzAvMDcvMTk5NCk/
+IE5vc3NvIGZhdHVyYW1lbnRvIG7Do28gZW5jb250cmEgYSBjYXJ0YS48L3A+CjxwIHN0eWxlPSJt
+YXJnaW46MCAwIDEycHgiPkF0ZW5jaW9zYW1lbnRlLDxicj5BdGVuZGltZW50byBJbnRlcm5hY2lv
+bmFsPC9wPgo8L2JvZHk+PC9odG1sPg==
+--alt_385f8918f9222c5e--
+--mixed_385f8918f9222c5e--

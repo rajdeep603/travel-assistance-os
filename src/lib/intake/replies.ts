@@ -322,7 +322,66 @@ const PROVIDER = {
     billing: (ref: string) => `Faturayı ${ref} referansıyla doğrudan bize iletiniz. Garanti tutarını aşan masraflar için önce güncel maliyet tahmini gönderiniz; değerlendirip size dönüş yapacağız.`,
     signoff: ["Saygılarımızla,", `Tıbbi asistans masası, ${DEMO("tanıtım platformu; tüm veriler kurgusaldır")}`],
   },
+  es: {
+    locale: "es-ES",
+    greet: "Estimados colegas:",
+    about: (f: GuaranteeEnquiryFacts) => `En relación con ${f.patient} (nacido/a el ${f.dateOfBirth}), expediente ${f.caseRef}:`,
+    letter: (ref: string, amount: string, until: string, excess: string | null) =>
+      `Garantía de pago ${ref}: ${amount}, válida hasta el ${until}${excess ? `; el paciente abona una franquicia de ${excess}` : ""}.`,
+    sent: (via: string, on: string, ack: string | null) => `Se envió por ${via === "EMAIL" ? "correo electrónico" : "fax"} el ${on}${ack ? `, y ustedes confirmaron su recepción el ${ack}` : ""}.`,
+    attached: "Adjuntamos de nuevo la carta.",
+    draft: "La garantía de pago está pendiente de aprobación por un gestor de casos; la enviaremos en cuanto se apruebe.",
+    rejected: "La garantía no pudo aprobarse tal como se solicitó; un gestor de casos se pondrá en contacto con ustedes.",
+    none: "Todavía no hay una garantía de pago para este paciente. Envíennos el presupuesto y la emitiremos.",
+    billing: (ref: string) => `Por favor, facturen directamente a nosotros indicando ${ref}. Los costes por encima del importe garantizado necesitan antes una ampliación: envíen un presupuesto actualizado y lo revisaremos.`,
+    signoff: ["Saludos cordiales,", `Central de asistencia médica, ${DEMO("plataforma de demostración; todos los datos son ficticios")}`],
+  },
+  fr: {
+    locale: "fr-FR",
+    greet: "Chers collègues,",
+    about: (f: GuaranteeEnquiryFacts) => `Concernant ${f.patient} (né(e) le ${f.dateOfBirth}), dossier ${f.caseRef} :`,
+    letter: (ref: string, amount: string, until: string, excess: string | null) =>
+      `Garantie de paiement ${ref} : ${amount}, valable jusqu'au ${until}${excess ? ` ; une franchise de ${excess} reste à la charge du patient` : ""}.`,
+    sent: (via: string, on: string, ack: string | null) => `Elle a été envoyée par ${via === "EMAIL" ? "e-mail" : "fax"} le ${on}${ack ? `, et vous en avez confirmé la réception le ${ack}` : ""}.`,
+    attached: "Vous trouverez la lettre à nouveau en pièce jointe.",
+    draft: "La garantie de paiement est en cours de validation par un chargé d'assistance ; nous l'enverrons dès son approbation.",
+    rejected: "La garantie n'a pas pu être accordée telle que demandée ; un chargé d'assistance va vous contacter.",
+    none: "Nous n'avons pas encore de garantie de paiement pour ce patient. Merci de nous envoyer le devis et nous l'émettrons.",
+    billing: (ref: string) => `Merci de nous facturer directement en rappelant ${ref}. Les frais au-delà du montant garanti nécessitent d'abord une extension : envoyez-nous un devis actualisé et nous l'examinerons.`,
+    signoff: ["Bien cordialement,", `Plateau d'assistance médicale, ${DEMO("plateforme de démonstration ; toutes les données sont fictives")}`],
+  },
+  pt: {
+    locale: "pt-BR",
+    greet: "Prezados colegas,",
+    about: (f: GuaranteeEnquiryFacts) => `Referente a ${f.patient} (nascido/a em ${f.dateOfBirth}), processo ${f.caseRef}:`,
+    letter: (ref: string, amount: string, until: string, excess: string | null) =>
+      `Garantia de pagamento ${ref}: ${amount}, válida até ${until}${excess ? `; o paciente paga uma franquia de ${excess}` : ""}.`,
+    sent: (via: string, on: string, ack: string | null) => `Foi enviada por ${via === "EMAIL" ? "e-mail" : "fax"} em ${on}${ack ? `, e o recebimento foi confirmado em ${ack}` : ""}.`,
+    attached: "Enviamos a carta novamente em anexo.",
+    draft: "A garantia de pagamento está com um gestor de casos para aprovação; enviaremos assim que for aprovada.",
+    rejected: "A garantia não pôde ser aprovada como solicitado; um gestor de casos entrará em contato.",
+    none: "Ainda não há garantia de pagamento para este paciente. Envie o orçamento e nós a emitiremos.",
+    billing: (ref: string) => `Por favor, faturem diretamente para nós indicando ${ref}. Custos acima do valor garantido precisam antes de uma complementação: enviem um orçamento atualizado e nós o analisaremos.`,
+    signoff: ["Atenciosamente,", `Central de assistência médica, ${DEMO("plataforma de demonstração; todos os dados são fictícios")}`],
+  },
+  de: {
+    locale: "de-DE",
+    greet: "Sehr geehrte Kolleginnen und Kollegen,",
+    about: (f: GuaranteeEnquiryFacts) => `zu ${f.patient} (geboren am ${f.dateOfBirth}), Fall ${f.caseRef}:`,
+    letter: (ref: string, amount: string, until: string, excess: string | null) =>
+      `Kostenübernahmeerklärung ${ref}: ${amount}, gültig bis ${until}${excess ? `; der Patient trägt eine Selbstbeteiligung von ${excess}` : ""}.`,
+    sent: (via: string, on: string, ack: string | null) => `Sie wurde am ${on} per ${via === "EMAIL" ? "E-Mail" : "Fax"} versandt${ack ? `, und Sie haben den Eingang am ${ack} bestätigt` : ""}.`,
+    attached: "Wir senden Ihnen das Schreiben erneut im Anhang.",
+    draft: "Die Kostenübernahme liegt einer Fallmanagerin zur Freigabe vor; wir senden sie, sobald sie freigegeben ist.",
+    rejected: "Die Kostenübernahme konnte nicht wie angefragt erteilt werden; eine Fallmanagerin meldet sich bei Ihnen.",
+    none: "Für diesen Patienten liegt noch keine Kostenübernahme vor. Bitte senden Sie uns den Kostenvoranschlag, dann stellen wir sie aus.",
+    billing: (ref: string) => `Bitte rechnen Sie direkt mit uns ab und geben Sie ${ref} an. Kosten über dem garantierten Betrag brauchen zuerst eine Erhöhung: Senden Sie uns einen aktualisierten Kostenvoranschlag.`,
+    signoff: ["Mit freundlichen Grüßen", `Medizinische Assistance, ${DEMO("Demonstrationsplattform; alle Daten sind fiktiv")}`],
+  },
 };
+
+/** Languages a hospital's guarantee enquiry is answered in; anything else gets English. */
+export const PROVIDER_REPLY_LANGUAGES = Object.keys(PROVIDER);
 
 const day = (iso: string, locale: string) =>
   new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Istanbul" }).format(new Date(iso));
@@ -330,9 +389,9 @@ const day = (iso: string, locale: string) =>
 const date = (ymd: string, locale: string) =>
   new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${ymd.slice(0, 10)}T12:00:00Z`));
 
-/** The reply to a hospital's guarantee enquiry: English, or Turkish when they wrote in Turkish. */
+/** The reply to a hospital's guarantee enquiry, in the language it wrote in (English when we don't have it). */
 export function guaranteeEnquiryReply(f: GuaranteeEnquiryFacts, lang: string): { text: string; attachLetter: boolean } {
-  const p = lang === "tr" ? PROVIDER.tr : PROVIDER.en;
+  const p = PROVIDER[lang as keyof typeof PROVIDER] ?? PROVIDER.en;
   const lines: string[] = [p.greet, "", p.about(f)];
   let attachLetter = false;
   const l = f.letter;

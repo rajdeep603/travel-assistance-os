@@ -38,20 +38,51 @@ export interface TelephonyService {
   redirect(callSid: string, twiml: string): Promise<void>;
   hangup(callSid: string): Promise<void>;
   sendSms(to: string, body: string): Promise<{ sid: string }>;
+  /** A WhatsApp message from the business sender (TWILIO_WHATSAPP_FROM); throws when none is set. */
+  sendWhatsApp(to: string, body: string): Promise<{ sid: string }>;
+  /** Downloads a media file Twilio received (WhatsApp photos and PDFs need the account's credentials). */
+  fetchMedia(url: string): Promise<Buffer>;
 }
+
+/** "whatsapp:+44…" ↔ "+44…". */
+export const whatsappAddress = (phone: string) => (phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`);
+export const fromWhatsapp = (address: string) => address.replace(/^whatsapp:/, "");
 
 const escapeXml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** TwiML that warm-transfers a live call: announce, then dial with a whisper. */
+/**
+ * A transfer target that is a SIP address ("sip:overflow@acme.byoc.example"):
+ * a contact centre's queue (Genesys Cloud BYOC, Avaya, Cisco, a PBX) rather
+ * than a phone number.
+ */
+export const isSipTarget = (target: string) => /^sips?:/i.test(target.trim());
+
+/** TwiML that warm-transfers a live call: announce, then dial (a number or a SIP address) with a whisper. */
 export function transferTwiml(input: Omit<TransferInput, "callSid">, callerId: string | null): string {
+  const target = isSipTarget(input.number)
+    ? `<Sip url="${escapeXml(input.whisperUrl)}">${escapeXml(input.number.trim())}</Sip>`
+    : `<Number url="${escapeXml(input.whisperUrl)}">${escapeXml(input.number)}</Number>`;
   return (
     `<?xml version="1.0" encoding="UTF-8"?><Response>` +
     `<Say voice="Polly.Joanna">${escapeXml(input.announcement)}</Say>` +
     `<Dial timeout="25" action="${escapeXml(input.actionUrl)}"${callerId ? ` callerId="${escapeXml(callerId)}"` : ""}>` +
-    `<Number url="${escapeXml(input.whisperUrl)}">${escapeXml(input.number)}</Number>` +
+    target +
     `</Dial></Response>`
   );
+}
+
+/**
+ * The caller's number from a webhook's From: "+44…" as is; from a SIP call
+ * ("sip:+447700900101@carrier.example;user=phone"), the number in the user part
+ * when there is one, else the SIP address itself.
+ */
+export function callerNumber(from: string | null | undefined): string | null {
+  if (!from) return null;
+  const m = from.match(/^sips?:([^@;]+)@/i);
+  if (!m) return from;
+  const user = decodeURIComponent(m[1]);
+  return /^\+?\d{6,15}$/.test(user) ? (user.startsWith("+") ? user : `+${user}`) : from;
 }
 
 /** TwiML that says a last message and ends the call. */
@@ -113,6 +144,19 @@ class TwilioTelephony implements TelephonyService {
     const msg = await this.client.messages.create({ to, from: this.fromNumber, body });
     return { sid: msg.sid };
   }
+
+  async sendWhatsApp(to: string, body: string) {
+    const from = process.env.TWILIO_WHATSAPP_FROM;
+    if (!from) throw new Error("TWILIO_WHATSAPP_FROM is not set");
+    const msg = await this.client.messages.create({ to: whatsappAddress(to), from: whatsappAddress(from), body });
+    return { sid: msg.sid };
+  }
+
+  async fetchMedia(url: string) {
+    const res = await fetch(url, { headers: { Authorization: `Basic ${Buffer.from(`${this.accountSid}:${this.authToken}`).toString("base64")}` } });
+    if (!res.ok) throw new Error(`Media download failed (${res.status})`);
+    return Buffer.from(await res.arrayBuffer());
+  }
 }
 
 /** Offline stand-in: records what would have happened. */
@@ -141,6 +185,13 @@ export class MockTelephony implements TelephonyService {
   async sendSms(to: string, body: string) {
     this.log.push({ action: "sendSms", detail: { to, body } });
     return { sid: `SM_mock_${this.log.length}` };
+  }
+  async sendWhatsApp(to: string, body: string) {
+    this.log.push({ action: "sendWhatsApp", detail: { to, body } });
+    return { sid: `WA_mock_${this.log.length}` };
+  }
+  async fetchMedia(): Promise<Buffer> {
+    throw new Error("Telephony is not configured.");
   }
 }
 

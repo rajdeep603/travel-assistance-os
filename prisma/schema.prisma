@@ -63,6 +63,7 @@ enum DocumentKind {
   COST_ESTIMATE
   GUARANTEE_LETTER
   CORRESPONDENCE
+  EXPLANATION_OF_BENEFITS
   OTHER
 }
 
@@ -70,6 +71,7 @@ enum DocumentSource {
   UPLOAD
   EMAIL
   FAX
+  WHATSAPP
   GENERATED
 }
 
@@ -77,6 +79,7 @@ enum MessageChannel {
   EMAIL
   FAX
   SMS
+  WHATSAPP
 }
 
 enum InboundStatus {
@@ -136,6 +139,8 @@ enum CaseEventType {
   CALL
   EMAIL
   FAX
+  WHATSAPP
+  HANDOFF
   LETTER_OF_GUARANTEE
   NOTE
   STATUS
@@ -193,10 +198,23 @@ model Case {
   guaranteeLetters GuaranteeLetter[]
   billReviews      BillReview[]
   transportPlans   TransportPlan[]
+  handoffs         CaseHandoff[]
+  /// The assistance company handling the case for the insurer (insurer oversight); null when we handle it ourselves.
+  vendor           NetworkPartner?   @relation("CaseVendor", fields: [vendorId], references: [id])
+  vendorId         String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
   @@index([patientId])
+  @@index([vendorId])
+}
+
+enum ProviderKind {
+  CLINIC
+  HOSPITAL
+  TELEMEDICINE
+  AIR_AMBULANCE
+  GROUND_AMBULANCE
 }
 
 model Provider {
@@ -217,9 +235,41 @@ model Provider {
   rating           Float             @default(4.5)
   // Weekly template of Istanbul wall-clock slots: { mon: ["09:00", ...], ... }
   availability     Json
+  kind             ProviderKind      @default(CLINIC)
+  /// Accreditations and licences shown on the provider: "JCI", "ISO 9001", "EURAMI", …
+  accreditations   String[]          @default([])
+  /// Negotiated network rates over the reference tariff (src/lib/services/provider-network.ts): { name, multiplier?, perCode? }.
+  rateCard         Json?
+  /// Names and spellings this record had in duplicates that were merged into it.
+  aliases          String[]          @default([])
+  /// Set when this record was a duplicate merged into another one: it no longer appears in search.
+  mergedInto       Provider?         @relation("ProviderMerge", fields: [mergedIntoId], references: [id])
+  mergedIntoId     String?
+  mergedFrom       Provider[]        @relation("ProviderMerge")
   createdAt        DateTime          @default(now())
   appointments     Appointment[]
   guaranteeLetters GuaranteeLetter[]
+
+  @@index([mergedIntoId])
+}
+
+/// A network clean-up: a duplicate provider merged into the record kept, with
+/// everything that moved, so it can be undone and audited.
+model ProviderMerge {
+  id        String    @id @default(cuid())
+  keptId    String
+  removedId String
+  /// { appointments: string[], guaranteeLetters: string[], languages: string[], aliases: string[] } moved onto the kept record
+  moved     Json
+  reasons   String[]
+  score     Float
+  mergedBy  String
+  undoneAt  DateTime?
+  undoneBy  String?
+  createdAt DateTime  @default(now())
+
+  @@index([keptId])
+  @@index([createdAt])
 }
 
 model Appointment {
@@ -260,6 +310,10 @@ model Claim {
   // Internal integrity signals (fraud, waste and abuse): Array of { code, level, reason }
   signals     Json?
   history     Json? // Array of { at, action, note }
+  // The settlement a person approved (src/lib/services/settlement.ts): what the plan pays, what the traveller pays, and why
+  settlement  Json?
+  // The explanation of benefits sent with the settlement (a generated Document)
+  eobDocumentId String?
   patient     Patient      @relation(fields: [patientId], references: [id])
   patientId   String
   case        Case?        @relation(fields: [caseId], references: [id])
@@ -619,6 +673,10 @@ model TransportPlan {
   estimateLow  Decimal         @db.Decimal(12, 2)
   estimateHigh Decimal         @db.Decimal(12, 2)
   status       TransportStatus @default(ASSESSED)
+  /// Operators' quotes for the recommended mode (src/lib/services/air-ambulance.ts): [{ id, operator, providerRef, accreditations, aircraft, crew, price, currency, etaHours, bedToBed, validUntil, receivedAt }]
+  quotes       Json?
+  /// The quote booked, and the mission's steps as they happen: { quoteId, steps: [{ code, label, at, done }] }
+  mission      Json?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -713,4 +771,154 @@ model Lead {
 
   @@index([createdAt])
   @@index([quoteNumber])
+}
+
+enum ReceivableStatus {
+  DRAFT
+  SUBMITTED
+  ACKNOWLEDGED
+  APPROVED
+  PARTIALLY_PAID
+  PAID
+  DISPUTED
+}
+
+/// An invoice a hospital or local correspondent sent to a foreign payer (an
+/// assistance company or insurer), followed until it is paid: the receiving
+/// side of a guarantee (src/lib/services/receivables.ts). Fictional demo data.
+model Receivable {
+  id            String           @id @default(cuid())
+  ref           String           @unique // e.g. RCV-1001
+  /// The hospital or correspondent that issued it.
+  facility      String
+  payerName     String
+  payerEmail    String?
+  payerPhone    String?
+  payerCountry  String?
+  patientName   String
+  dateOfBirth   String?
+  policyNumber  String?
+  /// The payer's guarantee of payment this invoice answers, and its amount.
+  gopRef        String?
+  gopAmount     Decimal?         @db.Decimal(12, 2)
+  invoiceNumber String
+  diagnosis     String?
+  serviceFrom   String?
+  serviceTo     String?
+  amount        Decimal          @db.Decimal(12, 2)
+  currency      String
+  paidAmount    Decimal          @default(0) @db.Decimal(12, 2)
+  /// Charge rows: [{ code, description, quantity, unitPrice, amount }]
+  lines         Json?
+  /// Documents in the pack: ["Medical report (English)", "Discharge summary", …]
+  attachments   String[]         @default([])
+  status        ReceivableStatus @default(DRAFT)
+  submittedAt   DateTime?
+  dueAt         DateTime?
+  paidAt        DateTime?
+  /// The payer-ready check: { ready, checks: [{ label, ok, severity, fix }], expectedDeduction, cleanAmount, at }
+  readiness     Json?
+  /// Every chase: [{ at, channel: "EMAIL" | "PHONE", outcome, note, by, callRef }]
+  chases        Json             @default("[]")
+  /// The payer's answer on the last call: { status, expectedPaymentDate, approvedAmount, missing, payerRef, contact }
+  payerAnswer   Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([status])
+  @@index([payerName])
+}
+
+enum PartnerKind {
+  ASSISTANCE
+  CORRESPONDENT
+  INSURER
+}
+
+/// Another company in the network: a partner assistance company or local
+/// correspondent we hand cases to (a federation member, a correspondent in a
+/// resort region), or an assistance company that handles cases for an insurer.
+model NetworkPartner {
+  id          String         @id @default(cuid())
+  ref         String         @unique // e.g. NP-01
+  name        String
+  kind        PartnerKind
+  country     String
+  /// Countries and regions it covers: ["Albania", "Kosovo", …]
+  regions     String[]
+  services    String[]
+  languages   String[]
+  email       String
+  phone       String
+  /// Turnaround it has agreed to: { firstResponseMinutes, gopHours, reportHours }
+  sla         Json?
+  createdAt   DateTime       @default(now())
+  handoffs    CaseHandoff[]
+  vendorCases Case[]         @relation("CaseVendor")
+}
+
+enum HandoffStatus {
+  SENT
+  ACCEPTED
+  DECLINED
+  IN_PROGRESS
+  COMPLETED
+}
+
+/// A case handed to a partner: the pack sent, a secure link (the token) where
+/// the partner accepts it and posts updates, and every update they sent.
+model CaseHandoff {
+  id          String         @id @default(cuid())
+  ref         String         @unique // e.g. HO-1001
+  case        Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId      String
+  partner     NetworkPartner @relation(fields: [partnerId], references: [id])
+  partnerId   String
+  /// What we ask the partner to do: "Hospital visit and daily medical updates", …
+  scope       String
+  /// The pack as sent: summary, policy, guarantee, documents (names), instructions
+  pack        Json
+  token       String         @unique
+  status      HandoffStatus  @default(SENT)
+  /// Partner updates: [{ at, by, status, note, eta }]
+  updates     Json           @default("[]")
+  sentBy      String
+  respondBy   DateTime
+  acceptedAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([caseId])
+  @@index([partnerId])
+}
+
+/// Where the platform posts events (case updated, guarantee issued, call
+/// completed, claim settled …), signed with the endpoint's secret.
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  url        String
+  /// Events it receives: ["case.created", "guarantee.issued", …] or ["*"]
+  events     String[]
+  secret     String
+  active     Boolean           @default(true)
+  description String?
+  createdBy  String?
+  createdAt  DateTime          @default(now())
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id         String          @id @default(cuid())
+  endpoint   WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  endpointId String
+  event      String
+  payload    Json
+  statusCode Int?
+  ok         Boolean         @default(false)
+  error      String?
+  durationMs Int?
+  createdAt  DateTime        @default(now())
+
+  @@index([endpointId, createdAt])
 }

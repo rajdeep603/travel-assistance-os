@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
-import { bookAppointment } from "@/lib/services/appointment";
+import { bookAppointment, videoLink } from "@/lib/services/appointment";
 import { LANGUAGES, SPECIALTIES, findCity, findDistrict, parseDateExpression, parseTimeExpression } from "@/lib/services/nlu";
 import { searchProviders } from "@/lib/services/provider-search";
 import { daysFromToday, formatPlainDate, isValidDate, zonedToday } from "@/lib/time";
 import { agentActor, createCaseRecord, resolvePatient } from "./records";
 import { defineTool, type ToolContext } from "./types";
+import { ACTIVE_CARE_PROVIDER } from "@/lib/services/provider-network";
 
 /** "Kadıköy" → "kadikoy": Turkish dotless ı survives NFKD, so fold it first. */
 const fold = (s: string) => s.replace(/ı/g, "i").replace(/İ/g, "I");
@@ -40,6 +41,10 @@ export const searchProvidersTool = defineTool({
     date: z.string().optional().describe("YYYY-MM-DD, or 'today' / 'tomorrow' / a weekday. Defaults to tomorrow."),
     time_of_day: z.string().optional().describe("'morning', 'afternoon', 'evening' or HH:MM"),
     language: z.enum(LANGUAGES as [string, ...string[]]).optional().describe("Language the doctor should speak"),
+    visit: z
+      .enum(["in_person", "video"])
+      .optional()
+      .describe("'video' when the caller wants a video consultation with the network's tele-doctor instead of travelling to a clinic"),
   }),
   async execute(args, ctx) {
     const where = resolveLocation(args.location);
@@ -53,11 +58,17 @@ export const searchProvidersTool = defineTool({
       timeOfDay,
       language: args.language,
       limit: 3,
+      includeTelemedicine: args.visit === "video",
     };
-    let results = await searchProviders(query);
+    const video = (r: { provider: { kind: string } }) => r.provider.kind === "TELEMEDICINE";
+    const pick = async (q: typeof query) => {
+      const found = await searchProviders(q);
+      return args.visit === "video" ? found.filter(video) : found;
+    };
+    let results = await pick(query);
     let note: string | undefined;
     if (results.length === 0 && args.language) {
-      results = await searchProviders({ ...query, language: undefined });
+      results = await pick({ ...query, language: undefined });
       if (results.length) note = `No ${args.language}-speaking doctor is free then; these speak other languages.`;
     }
     const options = results
@@ -71,6 +82,7 @@ export const searchProvidersTool = defineTool({
         district: r.provider.district,
         distance_km: r.distanceKm,
         languages: r.provider.languages,
+        ...(video(r) ? { visit: "video consultation: the link is sent by e-mail and SMS" } : {}),
         slots: r.slots.slice(0, 3).map((s) => s.time),
         why: r.reasons.slice(0, 3),
       }));
@@ -83,7 +95,7 @@ export const searchProvidersTool = defineTool({
     });
     if (options.length === 0) {
       // A city outside the demo network: another day won't help.
-      const covered = await prisma.provider.count({ where: { city: { equals: where.city, mode: "insensitive" } } });
+      const covered = await prisma.provider.count({ where: { city: { equals: where.city, mode: "insensitive" }, ...ACTIVE_CARE_PROVIDER } });
       return {
         date,
         date_spoken: spokenDate(date),
@@ -234,8 +246,9 @@ async function bookSlot(args: z.infer<typeof bookingSchema>, ctx: ToolContext): 
       appointment_ref: result.appointment.ref,
       case_ref: result.caseRef,
       when: `${spokenDate(args.date)} at ${args.time}`,
-      where: `${provider.facility}, ${provider.address}, ${provider.district}`,
+      where: provider.kind === "TELEMEDICINE" ? "Video consultation" : `${provider.facility}, ${provider.address}, ${provider.district}`,
       doctor: provider.name,
+      ...(provider.kind === "TELEMEDICINE" ? { video_link: videoLink(result.appointment.ref), tell_caller: "The video link comes by e-mail and SMS." } : {}),
     };
   } catch (err) {
     if (err instanceof ApiError && err.status === 409) {

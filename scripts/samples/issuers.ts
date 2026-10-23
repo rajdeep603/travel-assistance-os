@@ -96,6 +96,107 @@ export const SUKHUMVIT_INTERNATIONAL: Issuer = {
   registry: "Hospital licence DEMO-10110-0024 · Tax ID 0000000000024",
 };
 
+// Letterheads for the booth's other regions: the Red Sea, the Caribbean,
+// North Africa, Florida, the Western Balkans, the Gulf and Switzerland.
+
+export const RED_SEA_HOSPITAL: Issuer = {
+  name: "Red Sea Demo Hospital",
+  tagline: "Tourist Medical Services · 24 hours",
+  address: ["Sheraton Road, El Dahar", "Hurghada, Red Sea Governorate, Egypt"],
+  phone: "+20 0000 2027",
+  fax: "+20 0000 2097",
+  email: "tourists@redsea-demo.example",
+  web: "www.redsea-demo.example",
+  color: "#0369a1",
+  tint: "#f0f9ff",
+  logo: "cross",
+  registry: "Ministry of Health licence DEMO-RS-0027 · Tax card 000-000-027",
+};
+
+export const BAVARO_CLINIC: Issuer = {
+  name: "Clínica Demo Bávaro",
+  tagline: "Emergencias y Traumatología · Turistas internacionales",
+  address: ["Av. Barceló, Bávaro", "Punta Cana 23000, República Dominicana"],
+  phone: "+1 809 000 2028",
+  fax: "+1 809 000 2098",
+  email: "internacional@bavaro-demo.example",
+  web: "www.bavaro-demo.example",
+  color: "#be123c",
+  tint: "#fff1f2",
+  logo: "joint",
+  registry: "Habilitación SNS DEMO-0028 · RNC 0-00-00028-0",
+};
+
+export const OLIVIERS_CLINIC: Issuer = {
+  name: "Clinique Demo Les Oliviers",
+  tagline: "Médecine interne · Patients internationaux",
+  address: ["Boulevard du 14 Janvier, Khezama", "4051 Sousse, Tunisie"],
+  phone: "+216 00 002 029",
+  fax: "+216 00 002 099",
+  email: "international@oliviers-demo.example",
+  web: "www.oliviers-demo.example",
+  color: "#15803d",
+  tint: "#f0fdf4",
+  logo: "arc",
+  registry: "Autorisation Ministère de la Santé DEMO-0029 · Matricule fiscal 0000029/A",
+};
+
+export const ATLANTIC_MEDICAL: Issuer = {
+  name: "Atlantic Demo Medical Center",
+  tagline: "Patient Financial Services",
+  address: ["1200 Demo Boulevard", "Fort Lauderdale, FL 33301, USA"],
+  phone: "+1 954 000 2030",
+  fax: "+1 954 000 2090",
+  email: "pfs@atlantic-demo.example",
+  web: "www.atlantic-demo.example",
+  color: "#1d4ed8",
+  tint: "#eff6ff",
+  logo: "heart",
+  registry: "AHCA licence DEMO-2030 · NPI 0000002030 · EIN 00-0002030",
+};
+
+export const SARANDA_POLYCLINIC: Issuer = {
+  name: "Saranda Demo Polyclinic",
+  tagline: "Surgery and Emergency Care · Riviera",
+  address: ["Rruga Demo 12", "Saranda 9701, Albania"],
+  phone: "+355 00 002 031",
+  fax: "+355 00 002 091",
+  email: "patients@saranda-demo.example",
+  web: "www.saranda-demo.example",
+  color: "#b45309",
+  tint: "#fffbeb",
+  logo: "cross",
+  registry: "Ministry of Health licence DEMO-0031 · NIPT L00000031A",
+};
+
+export const JUMEIRAH_HOSPITAL: Issuer = {
+  name: "Jumeirah Demo Hospital",
+  tagline: "Urology and Emergency Medicine",
+  address: ["Al Wasl Road, Jumeirah 2", "Dubai, United Arab Emirates"],
+  phone: "+971 0 000 2032",
+  fax: "+971 0 000 2092",
+  email: "insurance@jumeirah-demo.example",
+  web: "www.jumeirah-demo.example",
+  color: "#0f766e",
+  tint: "#f0fdfa",
+  logo: "arc",
+  registry: "DHA facility licence DEMO-0032 · TRN 000000000000032",
+};
+
+export const LEMAN_CLINIC: Issuer = {
+  name: "Lac Léman Demo Clinic",
+  tagline: "Orthopaedic and Trauma Surgery",
+  address: ["Route de Demo 32", "1211 Genève, Switzerland"],
+  phone: "+41 22 000 2033",
+  fax: "+41 22 000 2093",
+  email: "international@leman-demo.example",
+  web: "www.leman-demo.example",
+  color: "#9f1239",
+  tint: "#fff1f2",
+  logo: "joint",
+  registry: "Cantonal licence GE-DEMO-0033 · UID CHE-000.000.033",
+};
+
 const INK_BLUE = "#27408b";
 const INK_RED = "#b3202a";
 
@@ -127,5 +228,26 @@ export const patientAccounts = (issuer: Issuer): Stamp => ({
 export const billingOffice = (issuer: Issuer): Stamp => ({
   ring: `${issuer.name.toUpperCase()} • FATURALAMA •`,
   center: ["BILLING", "OFFICE"],
+  color: INK_BLUE,
+});
+
+/** French billing stamp, for North African and Swiss clinics. */
+export const facturation = (issuer: Issuer): Stamp => ({
+  ring: `${issuer.name.toUpperCase()} • FACTURATION •`,
+  center: ["SERVICE", "FACTURATION"],
+  color: INK_BLUE,
+});
+
+/** Spanish certified-copy stamp, for Caribbean and Latin American clinics. */
+export const copiaFiel = (issuer: Issuer): Stamp => ({
+  ring: `${issuer.name.toUpperCase()} • PUNTA CANA •`,
+  center: ["COPIA FIEL", "DEL ORIGINAL"],
+  color: INK_BLUE,
+});
+
+/** French certified-copy stamp, for medical reports. */
+export const copieConforme = (issuer: Issuer, city: string): Stamp => ({
+  ring: `${issuer.name.toUpperCase()} • ${city.toUpperCase()} •`,
+  center: ["COPIE", "CONFORME"],
   color: INK_BLUE,
 });

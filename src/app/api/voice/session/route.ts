@@ -21,6 +21,8 @@ const Body = z.object({
   language: z.string().max(40).optional(),
   /** Internal assistant: the conversation voice mode joins (its earlier turns go to the agent; the transcript is saved into it); a new one without it. */
   threadId: z.string().max(40).optional(),
+  /** Outbound agents that call about a record, not a case: which one (e.g. an invoice, "RCV-1003"). */
+  record: z.string().max(40).optional(),
 });
 
 /**
@@ -56,6 +58,8 @@ export const POST = withErrorHandling(async (req: Request) => {
   } else if (body.caseId && profile.buildBrief) {
     // An outbound agent rehearsed in the browser gets the same brief as a phone call.
     outcome = { brief: await profile.buildBrief(body.caseId) };
+  } else if (profile.buildRecordBrief) {
+    outcome = { brief: await profile.buildRecordBrief(body.record ?? null) };
   }
 
   const call = await withRef("call", (ref) =>

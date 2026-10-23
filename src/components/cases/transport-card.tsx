@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { Check, PhoneOutgoing, Plane } from "lucide-react";
+import { Check, FileText, PhoneOutgoing, Plane } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui";
+import { AirAmbulancePanel, type AirQuote, type Mission } from "./air-ambulance-panel";
+import { TransportPlanForm } from "./transport-plan-form";
 import { formatDateTime, formatMoney } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
@@ -37,7 +39,12 @@ export interface TransportPlan {
     avoidedVsAirAmbulance: number;
     options: { mode: string; label: string; low: number; high: number; suitable: boolean }[];
   };
+  quotes?: AirQuote[] | null;
+  mission?: Mission | null;
 }
+
+/** Modes that fly on an airline's scheduled flight and need its medical clearance. */
+const NEEDS_MEDIF = new Set(["COMMERCIAL_STRETCHER", "COMMERCIAL_ESCORTED"]);
 
 const STATUS: Record<string, string> = {
   ASSESSED: "Assessed",
@@ -48,7 +55,7 @@ const STATUS: Record<string, string> = {
 
 const range = (low: number, high: number, ccy: string) => `${formatMoney(low, ccy)} – ${formatMoney(high, ccy)}`;
 
-export function TransportCard({ plans, caseId }: { plans: TransportPlan[]; caseId: string }) {
+export function TransportCard({ plans, caseId, onChanged }: { plans: TransportPlan[]; caseId: string; onChanged?: () => void }) {
   const plan = plans[0];
   if (!plan) {
     return (
@@ -65,6 +72,9 @@ export function TransportCard({ plans, caseId }: { plans: TransportPlan[]; caseI
         >
           <PhoneOutgoing size={14} aria-hidden /> Assess with the treating doctor: AI call
         </Link>
+        <div>
+          <TransportPlanForm caseId={caseId} onCreated={() => onChanged?.()} />
+        </div>
       </Card>
     );
   }
@@ -113,6 +123,20 @@ export function TransportCard({ plans, caseId }: { plans: TransportPlan[]; caseI
           </li>
         ))}
       </ol>
+
+      {plan.mode === "AIR_AMBULANCE" ? (
+        <AirAmbulancePanel planRef={plan.ref} quotes={plan.quotes ?? null} mission={plan.mission ?? null} onChanged={() => onChanged?.()} />
+      ) : null}
+      {NEEDS_MEDIF.has(plan.mode) ? (
+        <a
+          href={`/api/transport/${plan.ref}/medif`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline"
+        >
+          <FileText size={14} aria-hidden /> Airline medical form (MEDIF), pre-filled for the doctor to sign
+        </a>
+      ) : null}
 
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
         <div>

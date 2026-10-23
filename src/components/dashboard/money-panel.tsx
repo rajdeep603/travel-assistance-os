@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { CountUp } from "@/components/count-up";
 import type { MoneyOutcomes } from "@/lib/services/exposure";
+import { T } from "@/components/i18n";
 
 // ---------------------------------------------------------------------------
 // Medical spend, the figure a claims director asks for first: what bill
@@ -37,9 +38,9 @@ export function MoneyPanel({ money: m, href }: { money: MoneyOutcomes; href: str
     <section aria-labelledby="money-title" className="flex h-full flex-col rounded-2xl border border-line/80 bg-surface p-5 shadow-sm md:p-6">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="money-title" className="text-base font-semibold text-ink">
-          Medical spend under control
+          <T>Medical spend under control</T>
         </h2>
-        <span className="text-xs text-muted">Last {m.days} days</span>
+        <span className="text-xs text-muted"><T>{`Last ${m.days} days`}</T></span>
       </div>
 
       <div className="mt-4 flex flex-1 flex-col gap-5 sm:flex-row sm:items-center">
@@ -47,7 +48,7 @@ export function MoneyPanel({ money: m, href }: { money: MoneyOutcomes; href: str
           <p className="text-4xl font-semibold tracking-tight tabular-nums text-ink md:text-5xl">
             <CountUp value={m.savingsIdentifiedEur} currency="EUR" />
           </p>
-          <p className="mt-1 text-sm font-medium text-ink">found above the reference tariff</p>
+          <p className="mt-1 text-sm font-medium text-ink"><T>found above the reference tariff</T></p>
           <p className="text-xs text-muted">
             On {m.billsReviewed} hospital {m.billsReviewed === 1 ? "bill" : "bills"} reviewed line by line: overcharges, extra nights, duplicates and comfort items
           </p>

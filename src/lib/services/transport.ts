@@ -14,8 +14,8 @@ export type Monitoring = "NONE" | "BASIC" | "CONTINUOUS";
 export type Escort = "NONE" | "NURSE" | "DOCTOR";
 export type TransportModeCode = "COMMERCIAL" | "COMMERCIAL_ESCORTED" | "COMMERCIAL_STRETCHER" | "AIR_AMBULANCE" | "NOT_FIT_TO_FLY";
 export type Distance = "SHORT_HAUL" | "MEDIUM_HAUL" | "LONG_HAUL";
-/** Where transport is planned from: Istanbul, or Singapore for Asia. */
-export type OriginHub = "IST" | "SIN";
+/** Where transport is planned from: Istanbul, Singapore for Asia, Miami for the Americas. */
+export type OriginHub = "IST" | "SIN" | "MIA";
 
 export interface TransportAssessment {
   diagnosis: string;
@@ -52,7 +52,7 @@ export interface TransportRecommendation {
   reasons: string[];
   distance: Distance;
   origin: OriginHub;
-  currency: "EUR" | "SGD";
+  currency: "EUR" | "SGD" | "USD";
   options: TransportOption[];
   /** Indicative cost range of the recommended mode (0 when not fit to fly). */
   low: number;
@@ -114,33 +114,44 @@ function asiaRegion(place: string | null | undefined): AsiaRegion {
   return null;
 }
 
-/** Singapore for a patient in South-East or East Asia; Istanbul otherwise. */
+// The Americas, planned from Miami (prefixes, so nationalities match too).
+const AMERICAS = /\b(united states|usa|america|canad|mexic|dominican|puerto ric|bahama|jamaica|cuba|brazil|argentin|chile|colombia|peru|costa ric|panama|caribbean)/i;
+
+/** Singapore for a patient in South-East or East Asia, Miami in the Americas; Istanbul otherwise. */
 export function originHub(country: string | null | undefined): OriginHub {
+  if (country && AMERICAS.test(country)) return "MIA";
   const region = asiaRegion(country);
   return region === "SOUTHEAST" || region === "EAST" ? "SIN" : "IST";
 }
 
 export function distanceFor(destination: string | null | undefined, originCountry?: string | null): Distance {
-  if (originHub(originCountry) === "IST") {
+  const hub = originHub(originCountry);
+  if (hub === "IST") {
     return destination && LONG_HAUL.test(destination) ? "LONG_HAUL" : "SHORT_HAUL";
+  }
+  if (hub === "MIA") {
+    // Within the Americas: medium haul (a Canadian home from Florida); anywhere else: long haul.
+    if (!destination) return "SHORT_HAUL";
+    return AMERICAS.test(destination) ? "MEDIUM_HAUL" : "LONG_HAUL";
   }
   const to = asiaRegion(destination);
   if (!destination || to === asiaRegion(originCountry)) return "SHORT_HAUL";
   return to ? "MEDIUM_HAUL" : "LONG_HAUL";
 }
 
-/** EUR table → SGD, rounded to 500 so it reads as an indication, not a quote. */
+/** EUR table → SGD or USD, rounded to 500 so it reads as an indication, not a quote. */
 const toSgd = (eur: number) => Math.round((eur * 1.47) / 500) * 500;
+const toUsd = (eur: number) => Math.round(eur / 0.92 / 500) * 500;
 
 const rank = (m: (typeof MODES)[number]) => MODES.indexOf(m);
 
 export function recommendTransport(a: TransportAssessment): TransportRecommendation {
   const origin = originHub(a.originCountry);
   const distance = distanceFor(a.destinationCountry ?? a.destination, a.originCountry);
-  const currency = origin === "SIN" ? "SGD" : "EUR";
+  const currency = origin === "SIN" ? "SGD" : origin === "MIA" ? "USD" : "EUR";
   const price = (m: (typeof MODES)[number]): [number, number] => {
     const [low, high] = PRICES[distance][m];
-    return origin === "SIN" ? [toSgd(low), toSgd(high)] : [low, high];
+    return origin === "SIN" ? [toSgd(low), toSgd(high)] : origin === "MIA" ? [toUsd(low), toUsd(high)] : [low, high];
   };
   const reasons: string[] = [];
   let mode: (typeof MODES)[number];

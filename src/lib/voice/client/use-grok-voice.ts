@@ -335,7 +335,7 @@ export function useGrokVoice() {
   useEffect(() => teardown, [teardown]);
 
   const start = useCallback(
-    async (opts: { profile?: string; caseId?: string; language?: string; threadId?: string } = {}): Promise<VoiceSessionInfo | null> => {
+    async (opts: { profile?: string; caseId?: string; language?: string; threadId?: string; record?: string } = {}): Promise<VoiceSessionInfo | null> => {
       teardown();
       dispatch({ type: "start" });
       // Created synchronously in the click handler so audio output is allowed.

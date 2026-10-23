@@ -7,6 +7,7 @@ import { MODE_LABELS } from "@/lib/services/transport";
 import { utcToZoned } from "@/lib/time";
 import { spokenDate } from "./booking";
 import { defineTool } from "./types";
+import { ACTIVE_CARE_PROVIDER } from "@/lib/services/provider-network";
 
 // ---------------------------------------------------------------------------
 // Tools for the internal assistant's voice mode: read-only lookups for the
@@ -118,6 +119,7 @@ export const findProvidersTool = defineTool({
     const providers = await prisma.provider.findMany({
       where: {
         city: { equals: city, mode: "insensitive" },
+        ...ACTIVE_CARE_PROVIDER,
         ...(specialty.length > 2 ? { specialty: { contains: specialty, mode: "insensitive" as const } } : {}),
       },
       orderBy: { rating: "desc" },

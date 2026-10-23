@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Moon } from "lucide-react";
 import { formatDayTime, formatTime } from "@/lib/format";
 import { OPERATION_TIME_ZONE, timeZoneLabel } from "@/lib/time-zone";
 import type { HandoverEvent, ShiftHandover } from "@/lib/services/shift-handover";
+import { T } from "@/components/i18n";
 
 // ---------------------------------------------------------------------------
 // The night-shift handover on the overview: what the AI did between 20:00 and
@@ -56,7 +57,7 @@ export function NightShift({ handover: h, waiting, timeZone = OPERATION_TIME_ZON
         <div className="min-w-0">
           <h2 id="night-title" className="flex items-center gap-2 text-base font-semibold text-ink">
             <Moon size={17} className="text-brand" aria-hidden />
-            While your team slept
+            <T>While your team slept</T>
           </h2>
           <p className="mt-0.5 text-xs tabular-nums text-muted">
             Night shift {span}{h.inProgress ? " · still running" : ""}{zoneNote}

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { runAI } from "./ai";
 import { findCity } from "./nlu";
 import type { AssistantAnswer, AssistantTurn, ContextChunk } from "./types";
+import { ACTIVE_CARE_PROVIDER } from "./provider-network";
 
 // ---------------------------------------------------------------------------
 // Internal AI Assistant: lightweight RAG over the seeded operational
@@ -140,7 +141,7 @@ export async function askAssistant(question: string, history: AssistantTurn[] = 
     const city = findCity(question);
     if (city) {
       const providers = await prisma.provider.findMany({
-        where: { city: { equals: city, mode: "insensitive" } },
+        where: { city: { equals: city, mode: "insensitive" }, ...ACTIVE_CARE_PROVIDER },
         take: 8,
       });
       if (providers.length > 0) {

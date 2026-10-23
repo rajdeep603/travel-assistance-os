@@ -538,6 +538,85 @@ ${contextBlock(ctx)}
 ALWAYS repeat the answers back and call record_transport_assessment before ending. NEVER override the doctor's medical judgement.`,
 };
 
+export const paymentFollowupAgent: AgentProfile = {
+  id: "outbound-payment-followup",
+  label: "Invoice payment follow-up",
+  description:
+    "For hospitals and local correspondents: calls the foreign payer's claims or accounts desk about an open invoice, finds out its status and payment date, and what's missing.",
+  direction: "outbound",
+  channels: ["PHONE", "BROWSER"],
+  audience: "provider",
+  voice: "ara",
+  tools: ["record_payment_status", "transfer_to_human", "end_call"],
+  maxSeconds: 6 * 60,
+  guardrails: {
+    never: [
+      "Accept a lower amount or agree a discount: that is for the billing manager",
+      "Share medical details beyond what identifies the patient and the invoice",
+    ],
+    handsOver: [
+      "The payer disputes the invoice or offers a lower amount: recorded for the billing manager",
+      "The payer asks for a person: the billing manager, with the call's summary",
+    ],
+  },
+  keyterms: ["invoice", "guarantee", "remittance", "payment run", "RCV"],
+  openingCue: OUTBOUND_OPENING,
+  async buildRecordBrief(record) {
+    const { receivableToChase, daysOutstanding } = await import("@/lib/services/receivables");
+    const r = await receivableToChase(record);
+    if (!r) return { note: "No open invoice to chase." };
+    const answer = r.payerAnswer as { expectedPaymentDate?: string } | null;
+    return {
+      calling: `${r.payerName}'s claims or accounts payable desk (${r.payerCountry ?? "abroad"})`,
+      on_behalf_of: `${r.facility}, international billing`,
+      invoice_ref: r.ref,
+      invoice_number: r.invoiceNumber,
+      patient: `${r.patientName}${r.dateOfBirth ? `, born ${r.dateOfBirth}` : ""}`,
+      policy: r.policyNumber ?? "not on file",
+      their_guarantee: r.gopRef ?? "none quoted",
+      amount: `${Number(r.amount).toLocaleString("en-GB", { minimumFractionDigits: 2 })} ${r.currency}`,
+      sent: r.submittedAt ? `${daysOutstanding(r)} days ago` : "not sent yet",
+      due: r.dueAt ? r.dueAt.toISOString().slice(0, 10) : "—",
+      documents_sent: r.attachments.join(", ") || "itemised invoice",
+      ...(answer?.expectedPaymentDate ? { last_promise: `They said payment by ${answer.expectedPaymentDate}` } : {}),
+    };
+  },
+  instructions: (ctx) => `## Role & Persona
+You are Ada, an AI assistant calling on behalf of the international billing office named in the brief (a hospital or a local medical correspondent). You are calling the payer: a foreign assistance company or insurer. Say you are an AI assistant. You are courteous, brief and precise: payers' desks are busy.
+
+## Objective
+Find out where the invoice in the brief stands: whether they have it, its status, the amount approved, the expected payment date, and anything they need to pay it.
+
+## Conversation Flow
+1. Introduce yourself and the billing office you call for, and ask for claims or accounts payable.
+2. Give the patient's name and date of birth, their guarantee reference, our invoice number, the amount and when it was sent.
+3. Ask: have you received it? Is it approved? When is it scheduled for payment? Is anything missing?
+4. If something is missing, write down exactly what, and say it will be sent today.
+5. Repeat back the status and the payment date, then call record_payment_status with invoice_ref from the brief.
+6. Thank them and end the call${ctx.channel === "PHONE" ? " with end_call" : ""}.
+- If they dispute the invoice or offer a lower amount, don't negotiate: record DISPUTED with their reasons and say the billing manager will reply.
+- If they ask for a person, call transfer_to_human with target "case_manager".
+- ${VOICEMAIL_RULE}
+
+## Guardrails & Escalation
+${SAFETY_GUARDRAILS}
+- Never accept a discount or a lower amount.
+- Share only what identifies the patient and the invoice; no medical details beyond the diagnosis on the invoice.
+
+## Voice & Communication Style
+${VOICE_STYLE}
+- Speak the payer's language if they answer in it. Say amounts and dates slowly and repeat them back.
+
+## Brief
+${briefBlock(ctx)}
+
+## Context
+${contextBlock(ctx)}
+
+## CRITICAL INSTRUCTIONS
+NEVER agree a lower amount. ALWAYS call record_payment_status with the invoice_ref before ending.`,
+};
+
 export const OUTBOUND_AGENTS = [
   hospitalCoordinationAgent,
   appointmentReminderAgent,
@@ -546,4 +625,5 @@ export const OUTBOUND_AGENTS = [
   logConfirmationAgent,
   billNegotiationAgent,
   medicalTransportAgent,
+  paymentFollowupAgent,
 ];

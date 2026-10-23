@@ -21,6 +21,7 @@ const LABELS: Record<string, [activity: string, chip: string]> = {
   resend_guarantee: ["Re-sending the guarantee to the hospital", "Guarantee re-sent"],
   request_guarantee_increase: ["Recording the request to raise the guarantee", "Top-up requested"],
   record_bill_agreement: ["Recording the hospital's answer on the bill", "Bill agreement"],
+  record_payment_status: ["Recording the payer's answer on the invoice", "Payment status"],
   record_transport_assessment: ["Planning the medical transport home", "Transport plan"],
   lookup_case: ["Looking up the case", "Case lookup"],
   search_records: ["Searching the records", "Record search"],

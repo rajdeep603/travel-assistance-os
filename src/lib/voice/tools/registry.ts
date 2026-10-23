@@ -13,7 +13,7 @@ import {
   searchKnowledgeTool,
 } from "./cases";
 import { checkCoverageTool } from "./coverage";
-import { recordBillAgreementTool, recordTransportAssessmentTool } from "./money";
+import { recordBillAgreementTool, recordPaymentStatusTool, recordTransportAssessmentTool } from "./money";
 import {
   cancelAppointmentTool,
   confirmAppointmentTool,
@@ -45,6 +45,7 @@ const ALL_TOOLS: VoiceTool[] = [
   resendGuaranteeTool,
   requestGuaranteeIncreaseTool,
   recordBillAgreementTool,
+  recordPaymentStatusTool,
   recordTransportAssessmentTool,
   lookupCaseTool,
   searchRecordsTool,

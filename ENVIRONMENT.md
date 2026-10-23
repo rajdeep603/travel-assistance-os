@@ -26,6 +26,7 @@ git-ignored) and never put secrets in source code or Docker images.
 | `HTTP_PORT` / `HTTPS_PORT` | no | `80` / `443` | Host ports nginx binds to. |
 | `BACKUP_RETENTION_DAYS` | no | `7` | Days of nightly database dumps kept on the host. |
 | `IMAGE_TAG` | deploy | `latest` | Set by `deploy.sh` to the commit being deployed; images are tagged `taap-app:<sha12>`. |
+| `API_KEYS` | no | empty | Keys for the public API (`/api/v1`), as `name:key,name:key` (keys of 16+ characters). Callers send `Authorization: Bearer <key>`; removing a key revokes it. Signed-in operators can also call the API (the Developers page's *Try it*). |
 | `E2E_BASE_URL` | tests only | `http://localhost:3000` | Target for `npm run test:e2e`. |
 
 ### Voice agents (xAI Grok Voice)
@@ -48,9 +49,10 @@ git-ignored) and never put secrets in source code or Docker images.
 |---|---|---|---|
 | `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | for phone | empty | Twilio credentials. The auth token also verifies every webhook signature. |
 | `TWILIO_PHONE_NUMBER` | for phone | empty | The hotline / caller ID (E.164). Shown on the Call Center page. |
+| `TWILIO_WHATSAPP_FROM` | no | empty | WhatsApp sender for replies (the Twilio sandbox number, or an approved WhatsApp Business sender), e.g. `+14155238886`. Point the sender's "when a message comes in" webhook at `https://<domain>/api/twilio/whatsapp`. Empty: WhatsApp replies are recorded in the outbox only (the Inbox samples still run). |
 | `PUBLIC_BASE_URL` | for phone | empty | `https://<domain>` — webhook URLs and signature checks are built from it. |
-| `ON_CALL_DOCTOR_NUMBER` | no | empty | Emergencies are warm-transferred here (with a spoken AI summary). |
-| `CASE_MANAGER_NUMBER` | no | empty | "I want to talk to a person" is transferred here. |
+| `ON_CALL_DOCTOR_NUMBER` | no | empty | Emergencies are warm-transferred here (with a spoken AI summary). E.164, or a SIP address (`sip:doctor@pbx.example`) for a contact centre queue. |
+| `CASE_MANAGER_NUMBER` | no | empty | "I want to talk to a person" is transferred here. E.164, or a SIP address (`sip:overflow@yourorg.byoc.example`): the SIP connector hands calls back to the contact centre. Point a Twilio SIP Domain's voice URL at `/api/twilio/voice/inbound` to take the contact centre's overflow; `X-Case-Ref` and `X-Language` SIP headers link the case and set the language. |
 | `OUTBOUND_ALLOWED_NUMBERS` | for outbound | empty | Comma-separated E.164 numbers AI calls may dial. **Nothing else can be called** (toll-fraud and demo-safety guard). |
 | `OUTBOUND_RETRY_MINUTES` | no | `30` | Unanswered/busy outbound calls are retried once after this. |
 | `MAX_CONCURRENT_CALLS` | no | `5` | Cap on simultaneous AI phone calls (cost guard); extra inbound callers hear a busy message. |

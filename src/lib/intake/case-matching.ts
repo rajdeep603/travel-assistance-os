@@ -10,6 +10,8 @@ export interface MatchSignals {
   /** Subject, body and all document text. */
   text: string;
   fromAddress: string | null;
+  /** A WhatsApp sender's number: the last nine digits, so formats don't matter. */
+  fromPhone?: string | null;
   people: { patientName: string | null; dateOfBirth: string | null; policyReference: string | null; hospital: string | null }[];
 }
 
@@ -98,6 +100,13 @@ export async function matchCase(signals: MatchSignals): Promise<CaseCandidate[]>
   if (signals.fromAddress) {
     const patient = await prisma.patient.findFirst({ where: { email: { equals: signals.fromAddress, mode: "insensitive" } } });
     if (patient) evidence(patient.id, 0.35, `Sent from ${patient.firstName} ${patient.lastName}'s e-mail address on file`);
+  }
+
+  if (signals.fromPhone) {
+    const phone = signals.fromPhone;
+    const patients = await prisma.patient.findMany({ select: { id: true, firstName: true, lastName: true, phone: true } });
+    const patient = patients.find((p) => p.phone.replace(/\D/g, "").slice(-9) === phone);
+    if (patient) evidence(patient.id, 0.35, `Sent from ${patient.firstName} ${patient.lastName}'s phone number on file`);
   }
 
   for (const person of signals.people) {

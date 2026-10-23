@@ -21,6 +21,7 @@ import type { TimelineItem } from "@/components/ui";
 import { InterpreterCard } from "@/components/calls/interpreter-card";
 import { GuaranteeLettersCard } from "@/components/cases/guarantee-letters-card";
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
+import { HandoffCard } from "@/components/cases/handoff-card";
 import { MoneyCard } from "@/components/cases/money-card";
 import { TransportCard, type TransportPlan } from "@/components/cases/transport-card";
 import type { CaseMoney } from "@/lib/services/exposure";
@@ -90,6 +91,8 @@ const EVENT_DOTS: Record<string, string> = {
   NOTE: "bg-slate-400",
   EMAIL: "bg-indigo-500",
   FAX: "bg-indigo-500",
+  WHATSAPP: "bg-live",
+  HANDOFF: "bg-orange-400",
   LETTER_OF_GUARANTEE: "bg-violet-500",
   BILL_REVIEW: "bg-brand",
   TRANSPORT: "bg-brand-2",
@@ -280,8 +283,10 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <GuaranteeLettersCard caseId={data.id} onChanged={() => void load()} />
 
           {data.transportPlans?.length || ["HOSPITALIZATION", "REPATRIATION", "EVACUATION"].includes(data.assistanceType) ? (
-            <TransportCard plans={data.transportPlans ?? []} caseId={data.id} />
+            <TransportCard plans={data.transportPlans ?? []} caseId={data.id} onChanged={() => void load()} />
           ) : null}
+
+          <HandoffCard caseId={data.id} country={data.country ?? null} onChanged={() => void load()} />
 
           {data.calls?.length ? (
             <Card>
@@ -451,7 +456,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                         </Link>
                         {c.signals?.length ? (
                           <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] font-medium text-ink">
-                            {c.signals.length} integrity {c.signals.length === 1 ? "signal" : "signals"}
+                            {c.signals.length} {c.signals.length === 1 ? "integrity signal" : "integrity signals"}
                           </span>
                         ) : null}
                       </span>

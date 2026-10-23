@@ -47,7 +47,7 @@ interface Reply {
 export interface MessageDetail {
   id: string;
   ref: string;
-  channel: "EMAIL" | "FAX";
+  channel: "EMAIL" | "FAX" | "WHATSAPP";
   fromAddress: string;
   toAddress: string | null;
   subject: string | null;
@@ -120,9 +120,9 @@ export function MessageDetailPanel({ id, onChanged, onDeleted }: { id: string; o
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs font-medium text-muted">
-              {m.ref} · {m.channel === "EMAIL" ? "E-mail" : "Fax"} · {formatDateTime(m.receivedAt)}
+              {m.ref} · {m.channel === "EMAIL" ? "E-mail" : m.channel === "WHATSAPP" ? "WhatsApp" : "Fax"} · {formatDateTime(m.receivedAt)}
             </p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900">{m.subject ?? (m.channel === "FAX" ? "Incoming fax" : "(no subject)")}</h2>
+            <h2 className="mt-1 text-lg font-semibold text-slate-900">{m.subject ?? (m.channel === "FAX" ? "Incoming fax" : m.channel === "WHATSAPP" ? `WhatsApp from ${m.fromAddress.replace(/^whatsapp:/, "")}` : "(no subject)")}</h2>
             <p className="text-sm text-slate-600">From {m.fromAddress}</p>
           </div>
           <StatusBadge value={m.status} />

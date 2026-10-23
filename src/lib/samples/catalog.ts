@@ -45,6 +45,8 @@ export const SAMPLE_KITS: SampleKit[] = [
       { path: inbound("fax-medical-report-lena-koch.pdf"), title: "Handwritten fax", note: "Image only · read with OCR" },
       { path: doc("medical-report-daniel-tan.pdf"), title: "Report with fitness to fly", note: "Daniel Tan · brain bleed in Shanghai · load the Shanghai e-mail in Cases first" },
       { path: doc("final-invoice-rachel-lim-bangkok.pdf"), title: "Overbilled invoice (THB)", note: "Rachel Lim · 115,550 THB · open CASE-1006 first to review it" },
+      { path: doc("informe-medico-sarah-whitfield.pdf"), title: "Spanish medical report", note: "Sarah Whitfield · wrist fracture, Punta Cana · read in Spanish" },
+      { path: doc("compte-rendu-pierre-lambert-sousse.pdf"), title: "French discharge report", note: "Pierre Lambert · pyelonephritis, Sousse · translated to English" },
     ],
   },
   {
@@ -93,6 +95,21 @@ export const SAMPLE_KITS: SampleKit[] = [
     title: "Overbilled invoice, Bangkok",
     description: "Rachel Lim's dengue admission in Bangkok, billed in THB. Bill review finds the overcharges line by line. Open CASE-1006 and add it there.",
     files: [{ path: doc("final-invoice-rachel-lim-bangkok.pdf"), title: "Final invoice", note: "115,550 THB · VIP suite, duplicate lab line, an extra night" }],
+  },
+  {
+    id: "claims-regions",
+    section: "claims",
+    title: "Hospitals around the world",
+    description: "Invoices from the booth's other regions, each in its own currency. Open the case first and add the invoice there: bill review measures it against the reference tariff, or the clinic's network rates where it has them.",
+    files: [
+      { path: doc("final-invoice-hannah-becker-hurghada.pdf"), title: "Red Sea resort hospital (USD)", note: "Hannah Becker · CASE-1001 · 7,405 USD · cash deposit demanded" },
+      { path: doc("invoice-sarah-whitfield-punta-cana.pdf"), title: "Caribbean clinic (USD)", note: "Sarah Whitfield · CASE-1002 · 1,270 USD · direct billing" },
+      { path: doc("facture-pierre-lambert-sousse.pdf"), title: "Tunisian clinic, in French (TND)", note: "Pierre Lambert · CASE-1003 · 11,030 TND" },
+      { path: doc("itemized-bill-robert-tremblay-florida.pdf"), title: "US hospital, CPT codes (USD)", note: "Robert Tremblay · CASE-1004 · 34,655 USD · out of network" },
+      { path: doc("invoice-matteo-ferraro-saranda.pdf"), title: "Albanian Riviera (ALL)", note: "Matteo Ferraro · CASE-1005 · 342,000 ALL" },
+      { path: doc("invoice-thandiwe-nkosi-dubai.pdf"), title: "Dubai hospital (AED)", note: "Thandiwe Nkosi · CASE-1007 · 26,330 AED · policy in ZAR" },
+      { path: doc("invoice-khalid-al-suwaidi-geneva.pdf"), title: "Geneva clinic (CHF)", note: "Khalid Al Suwaidi · CASE-1008 · 21,295 CHF · network rates" },
+    ],
   },
   {
     id: "inbox-emails",
@@ -149,6 +166,36 @@ export const SAMPLE_KITS: SampleKit[] = [
         email: { sample: "hospital-gop-enquiry", sentAt: "2026-10-16T10:25:00+03:00" },
       },
       {
+        path: "samples/inbox/red-sea-final-invoice-hannah-becker.eml",
+        title: "Resort hospital asks for a cash deposit",
+        note: "Hurghada · USD 7,405 against LOG-0905 · bill review answers it",
+        email: { sample: "hospital-final-invoice-hurghada", sentAt: "2026-10-20T11:30:00+03:00" },
+      },
+      {
+        path: "samples/inbox/bavaro-informe-factura-sarah-whitfield.eml",
+        title: "Spanish report and invoice (Punta Cana)",
+        note: "Clínica Demo Bávaro · read in Spanish, invoice in USD",
+        email: { sample: "clinic-invoice-punta-cana-es", sentAt: "2026-10-21T10:05:00-04:00" },
+      },
+      {
+        path: "samples/inbox/oliviers-compte-rendu-pierre-lambert.eml",
+        title: "French discharge report and invoice (Sousse)",
+        note: "Clinique Demo Les Oliviers · TND · one night too many",
+        email: { sample: "clinic-discharge-sousse-fr", sentAt: "2026-10-19T16:20:00+01:00" },
+      },
+      {
+        path: "samples/inbox/atlantic-itemized-bill-robert-tremblay.eml",
+        title: "US itemised statement (Florida)",
+        note: "USD 34,655 at chargemaster prices · CPT codes",
+        email: { sample: "hospital-us-bill-florida", sentAt: "2026-10-19T09:40:00-04:00" },
+      },
+      {
+        path: "samples/inbox/copacabana-garantia-mia-andersson.eml",
+        title: "Hospital chases a guarantee (Portuguese)",
+        note: "Copacabana Demo Hospital · answered in Portuguese with LOG-0906",
+        email: { sample: "hospital-gop-enquiry-pt", sentAt: "2026-10-23T09:15:00-03:00" },
+      },
+      {
         path: "samples/inbox/marco-bianchi-complaint.eml",
         title: "Upset traveller",
         note: "Threatens legal action · held for a person",
@@ -178,6 +225,8 @@ export const SAMPLE_KITS: SampleKit[] = [
       { path: "samples/intake/email-tour-operator-case-1013.txt", title: "Tour operator follow-up", note: "Quotes an existing case" },
       { path: "samples/intake/call-transcript-sisli-chest-pain.txt", title: "Emergency call", note: "Chest pain in Şişli · critical" },
       { path: "samples/intake/email-family-shanghai-stroke.txt", title: "Family e-mail, Shanghai", note: "Brain bleed · repatriation to Singapore · critical" },
+      { path: "samples/intake/whatsapp-hurghada-resort-diver.txt", title: "Resort WhatsApp, Hurghada", note: "Diver with chest pain · critical · local number 123" },
+      { path: "samples/intake/email-punta-cana-resort-child-ear.txt", title: "Resort e-mail, Punta Cana", note: "Child with ear pain · English-speaking doctor" },
     ],
   },
 ];

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryParam } from "@/lib/client/use-query-param";
-import { Mail, Printer, Sparkles, Upload } from "lucide-react";
+import { Mail, MessageCircle, Printer, Sparkles, Upload } from "lucide-react";
 import { MessageDetailPanel } from "@/components/inbox/message-detail";
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { SampleFiles } from "@/components/sample-files";
@@ -12,7 +12,7 @@ import { formatDateTime } from "@/lib/format";
 interface Row {
   id: string;
   ref: string;
-  channel: "EMAIL" | "FAX";
+  channel: "EMAIL" | "FAX" | "WHATSAPP";
   fromAddress: string;
   subject: string | null;
   summary: string | null;
@@ -26,6 +26,7 @@ interface Row {
 interface Samples {
   emails: { id: string; label: string }[];
   faxes: { id: string; label: string }[];
+  whatsapps?: { id: string; label: string }[];
 }
 
 const STAGES = ["Reading attachments (OCR for scans)", "Classifying and extracting", "Matching the case", "Filing and replying"];
@@ -115,8 +116,8 @@ export default function InboxPage() {
   return (
     <div className="mx-auto max-w-7xl">
       <PageHeader
-        title="Inbox — e-mail & fax automation"
-        subtitle="Claims and hospital correspondence arrive here: AI reads every attachment (OCR for faxes and handwriting), matches the case, files claims and answers travellers — humans review anything risky."
+        title="Inbox — e-mail, fax & WhatsApp"
+        subtitle="Claims and hospital correspondence arrive here: AI reads every attachment (OCR for faxes and handwriting), matches the case, files claims and answers travellers on the channel they wrote on — humans review anything risky."
       />
       {error ? (
         <div className="mb-4">
@@ -144,6 +145,13 @@ export default function InboxPage() {
               {samples?.faxes.map((f) => (
                 <option key={f.id} value={`fax:${f.id}`}>
                   {f.label}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="WhatsApp">
+              {samples?.whatsapps?.map((w) => (
+                <option key={w.id} value={`whatsapp:${w.id}`}>
+                  {w.label}
                 </option>
               ))}
             </optgroup>
@@ -203,7 +211,13 @@ export default function InboxPage() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-slate-800">
-                        {r.channel === "FAX" ? <Printer size={14} className="shrink-0 text-slate-400" aria-hidden /> : <Mail size={14} className="shrink-0 text-slate-400" aria-hidden />}
+                        {r.channel === "FAX" ? (
+                          <Printer size={14} className="shrink-0 text-slate-400" aria-hidden />
+                        ) : r.channel === "WHATSAPP" ? (
+                          <MessageCircle size={14} className="shrink-0 text-live" aria-label="WhatsApp" />
+                        ) : (
+                          <Mail size={14} className="shrink-0 text-slate-400" aria-hidden />
+                        )}
                         <span className="truncate">{r.subject ?? r.fromAddress}</span>
                       </span>
                       <StatusBadge value={r.status} />

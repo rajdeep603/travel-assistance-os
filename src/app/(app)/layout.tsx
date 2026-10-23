@@ -10,17 +10,23 @@ import { BRAND } from "@/lib/brand";
 import { SessionWatch } from "@/components/session-watch";
 import { TimeZoneProvider, TimeZoneSwitch } from "@/components/time-zone";
 import { OPERATION_TIME_ZONE, TIME_ZONE_COOKIE, isTimeZone } from "@/lib/time-zone";
+import { UiLanguageProvider, UiLanguageSwitch } from "@/components/i18n";
+import { InterfaceTranslator } from "@/components/interface-translator";
+import { UI_LANGUAGE_COOKIE, isUiLanguage } from "@/lib/i18n";
 
 /** The operator workspace: sidebar navigation, header and page content. */
 export default function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // The viewer's display time zone, kept in a cookie so the server renders in it too.
   const saved = cookies().get(TIME_ZONE_COOKIE)?.value;
   const timeZone = isTimeZone(saved) ? saved : OPERATION_TIME_ZONE;
+  const savedLang = cookies().get(UI_LANGUAGE_COOKIE)?.value;
   return (
+    <UiLanguageProvider initial={isUiLanguage(savedLang) ? savedLang : "en"}>
     <AssistantProvider>
       <TimeZoneProvider initial={timeZone}>
       <div className="flex min-h-dvh">
         <SessionWatch />
+        <InterfaceTranslator />
         <CommandPalette />
         <AssistantLauncher />
         <DockedSidebar />
@@ -37,6 +43,10 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
             </div>
             <div className="flex items-center gap-2">
               <OperatorMenu />
+              {/* Tablets and up; on a phone, ⌘K's "Interface in …" commands change it. */}
+              <div className="hidden md:block">
+                <UiLanguageSwitch />
+              </div>
               <TimeZoneSwitch />
               <PresentToggle />
             </div>
@@ -53,5 +63,6 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
       </div>
       </TimeZoneProvider>
     </AssistantProvider>
+    </UiLanguageProvider>
   );
 }

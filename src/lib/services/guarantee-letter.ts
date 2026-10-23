@@ -9,9 +9,10 @@ import { round2 } from "@/lib/fx";
 import { reviewBillForDocument, reviewResult } from "./bill-review-service";
 import { committedGuarantees, convert } from "./exposure";
 import { decideGuarantee } from "./guarantee-decision";
-import { renderGuaranteeLetter } from "./guarantee-pdf";
+import { letterLanguageFor, renderGuaranteeLetter } from "./guarantee-pdf";
 import { sendEmail, sendFax } from "./outbox";
 import type { Benefit } from "./policy";
+import { emit } from "./webhooks";
 
 // ---------------------------------------------------------------------------
 // Letters of Guarantee: a hospital's cost estimate comes in (upload, e-mail
@@ -28,14 +29,14 @@ async function findProvider(hospital: string | null, caseId: string, sender: str
   if (sender) {
     const digits = sender.replace(/[^\d]/g, "");
     const email = (sender.match(/<([^>]+)>/)?.[1] ?? sender).toLowerCase();
-    const all = await prisma.provider.findMany();
+    const all = await prisma.provider.findMany({ where: { mergedIntoId: null } });
     const bySender = all.find(
       (p) => (digits.length >= 8 && p.phone.replace(/[^\d]/g, "") === digits) || p.email.toLowerCase() === email
     );
     if (bySender) return bySender;
   }
   if (hospital) {
-    const all = await prisma.provider.findMany();
+    const all = await prisma.provider.findMany({ where: { mergedIntoId: null } });
     const h = norm(hospital);
     const hit = all.find((p) => norm(p.facility) === h) ?? all.find((p) => h.includes(norm(p.facility)) || norm(p.facility).includes(h));
     if (hit) return hit;
@@ -149,7 +150,7 @@ async function remainingForLetter(letter: { id: string; currency: string; case: 
 
 type LetterForPdf = GuaranteeLetter & {
   case: { ref: string; title: string; patient: { id: string; firstName: string; lastName: string; dateOfBirth: Date; nationality: string; policyNumber: string; policy: { plan: string } | null } };
-  provider: { address: string; district: string; city: string; phone: string | null; email: string | null } | null;
+  provider: { address: string; district: string; city: string; country?: string; phone: string | null; email: string | null } | null;
 };
 
 /** Renders the letter's PDF and files it as a generated document on the case. */
@@ -173,6 +174,8 @@ async function storeLetterPdf(letter: LetterForPdf, guaranteed: number, by: stri
     currency: letter.currency,
     conditions: letter.conditions,
     approvedBy: by.startsWith("system") ? "automatic approval (within policy and limits)" : by,
+    // The hospital reads it in its own language too; without a known hospital, Turkish as before.
+    lang: letter.provider ? letterLanguageFor(letter.provider.country) : "tr",
   });
   const filename = `letter-of-guarantee-${letter.ref.toLowerCase()}.pdf`;
   return prisma.document.create({
@@ -354,6 +357,7 @@ async function deliver(
           approvedBy: by,
         });
   if (out.status === "FAILED") throw conflict(`Sending ${letter.ref} failed: ${out.error ?? "provider error"}.`);
+  emit("guarantee.sent", { ref: letter.ref, case: letter.case.ref, amount: Number(letter.guaranteedAmount), currency: letter.currency, hospital: letter.hospitalName, via, sentAt: new Date().toISOString() });
   return { via, to: via === "FAX" ? fax : email };
 }
 

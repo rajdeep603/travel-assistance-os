@@ -22,6 +22,16 @@ export const PATIENTS = [
   // Asia-Pacific
   { ref: "PAT-0951", firstName: "Daniel", lastName: "Tan", dateOfBirth: "1964-03-03", nationality: "Singapore", language: "English", phone: "+65 0000 0951", email: "daniel.tan@example.com", policyNumber: "POL-SG-200101" },
   { ref: "PAT-0952", firstName: "Rachel", lastName: "Lim", dateOfBirth: "1991-08-17", nationality: "Singapore", language: "English", phone: "+65 0000 0952", email: "rachel.lim@example.com", policyNumber: "POL-SG-200102" },
+  // The booth's other regions: the Red Sea, the Caribbean, North Africa,
+  // Florida, the Western Balkans, the Gulf, Switzerland and Brazil.
+  { ref: "PAT-0961", firstName: "Hannah", lastName: "Becker", dateOfBirth: "1983-05-09", nationality: "Germany", language: "German", phone: "+49 1512 0000961", email: "hannah.becker@example.com", policyNumber: "POL-EG-300101" },
+  { ref: "PAT-0962", firstName: "Robert", lastName: "Tremblay", dateOfBirth: "1954-01-22", nationality: "Canada", language: "French", phone: "+1 514 000 0962", email: "robert.tremblay@example.com", policyNumber: "POL-CA-400101" },
+  { ref: "PAT-0963", firstName: "Sarah", lastName: "Whitfield", dateOfBirth: "1990-06-25", nationality: "United Kingdom", language: "English", phone: "+44 7700 900963", email: "sarah.whitfield@example.com", policyNumber: "POL-DO-500101" },
+  { ref: "PAT-0964", firstName: "Pierre", lastName: "Lambert", dateOfBirth: "1958-02-11", nationality: "France", language: "French", phone: "+33 6 00 00 09 64", email: "pierre.lambert@example.com", policyNumber: "POL-TN-600101" },
+  { ref: "PAT-0965", firstName: "Matteo", lastName: "Ferraro", dateOfBirth: "1996-09-03", nationality: "Italy", language: "Italian", phone: "+39 320 000 0965", email: "matteo.ferraro@example.com", policyNumber: "POL-AL-700101" },
+  { ref: "PAT-0966", firstName: "Thandiwe", lastName: "Nkosi", dateOfBirth: "1985-12-14", nationality: "South Africa", language: "English", phone: "+27 82 000 0966", email: "thandiwe.nkosi@example.com", policyNumber: "POL-ZA-800101" },
+  { ref: "PAT-0967", firstName: "Khalid", lastName: "Al Suwaidi", dateOfBirth: "1979-04-18", nationality: "United Arab Emirates", language: "Arabic", phone: "+971 50 000 0967", email: "khalid.alsuwaidi@example.com", policyNumber: "POL-AE-900101" },
+  { ref: "PAT-0968", firstName: "Mia", lastName: "Andersson", dateOfBirth: "1994-07-30", nationality: "Sweden", language: "English", phone: "+46 70 000 0968", email: "mia.andersson@example.com", policyNumber: "POL-BR-910101" },
 ];
 
 // Weekly availability templates (expanded to concrete dates at query time),
@@ -51,6 +61,9 @@ const LATE_DAY = [...slots("08:00", "17:00"), ...slots("17:30", "23:30", 30)];
 const LATE = week(LATE_DAY, LATE_DAY, LATE_DAY);
 // Resort clinic: every day 09:00–23:00.
 const RESORT = week(slots("09:00", "23:00"), slots("09:00", "23:00"), slots("09:00", "23:00"));
+// Video consultations and operations desks: around the clock, every half hour.
+const ALL_DAY = slots("00:00", "23:30", 30);
+const TELEMEDICINE = week(ALL_DAY, ALL_DAY, ALL_DAY);
 
 export const PROVIDERS = [
   { ref: "PRV-2001", name: "Dr. Deniz Arslan", facility: "Taksim Demo International Clinic", specialty: "General Medicine", address: "Istiklal Cd. 12", district: "Taksim", city: "Istanbul", latitude: 41.037, longitude: 28.9857, languages: ["Turkish", "English"], phone: "+90 212 000 2001", email: "d.arslan@demo-clinic.example", rating: 4.8, availability: LATE },
@@ -80,7 +93,65 @@ export const PROVIDERS = [
   { ref: "PRV-2024", name: "Dr. Kanya Srisuk", facility: "Sukhumvit Demo International Hospital", specialty: "General Medicine", address: "Sukhumvit Soi 3", district: "Watthana", city: "Bangkok", country: "Thailand", latitude: 13.74, longitude: 100.556, languages: ["Thai", "English"], phone: "+66 0000 2024", email: "k.srisuk@demo-sukhumvit.example", rating: 4.6, availability: LATE },
   { ref: "PRV-2025", name: "Dr. Farid Hassan", facility: "Ampang Demo Medical Centre", specialty: "Emergency Medicine", address: "Jalan Ampang 50", district: "KLCC", city: "Kuala Lumpur", country: "Malaysia", latitude: 3.1579, longitude: 101.712, languages: ["Malay", "English", "Mandarin"], phone: "+60 0000 2025", email: "f.hassan@demo-ampang.example", rating: 4.5, availability: LATE },
   { ref: "PRV-2026", name: "Dr. Zhang Wei", facility: "Pudong Demo Medical Center", specialty: "Neurology", address: "Demo Rd 88", district: "Pudong", city: "Shanghai", country: "China", latitude: 31.2304, longitude: 121.544, languages: ["Mandarin", "English"], phone: "+86 0000 2026", email: "z.wei@demo-pudong.example", rating: 4.8, availability: SPECIALIST },
+  // The booth's other regions.
+  { ref: "PRV-2027", name: "Dr. Karim Mansour", facility: "Red Sea Demo Hospital", specialty: "General Medicine", address: "Sheraton Road", district: "El Dahar", city: "Hurghada", country: "Egypt", latitude: 27.2579, longitude: 33.8116, languages: ["Arabic", "English", "German", "Russian"], phone: "+20 0000 2027", email: "tourists@redsea-demo.example", rating: 4.1, availability: RESORT },
+  { ref: "PRV-2028", name: "Dra. Carolina Peña", facility: "Clínica Demo Bávaro", specialty: "Orthopedics", address: "Av. Barceló", district: "Bávaro", city: "Punta Cana", country: "Dominican Republic", latitude: 18.6828, longitude: -68.4119, languages: ["Spanish", "English"], phone: "+1 809 000 2028", email: "internacional@bavaro-demo.example", rating: 4.5, availability: RESORT },
+  { ref: "PRV-2029", name: "Dr. Sami Ben Salah", facility: "Clinique Demo Les Oliviers", specialty: "Internal Medicine", address: "Boulevard du 14 Janvier", district: "Khezama", city: "Sousse", country: "Tunisia", latitude: 35.8456, longitude: 10.6084, languages: ["French", "Arabic", "English", "German"], phone: "+216 00 002 029", email: "international@oliviers-demo.example", rating: 4.6, availability: LATE },
+  { ref: "PRV-2030", name: "Dr. Rachel Goldman", facility: "Atlantic Demo Medical Center", specialty: "Internal Medicine", address: "1200 Demo Boulevard", district: "Downtown", city: "Fort Lauderdale", country: "United States", latitude: 26.1224, longitude: -80.1373, languages: ["English", "Spanish", "French"], phone: "+1 954 000 2030", email: "pfs@atlantic-demo.example", rating: 4.4, availability: LATE },
+  { ref: "PRV-2031", name: "Dr. Arben Hoxha", facility: "Saranda Demo Polyclinic", specialty: "General Surgery", address: "Rruga Demo 12", district: "Qender", city: "Saranda", country: "Albania", latitude: 39.8756, longitude: 20.0053, languages: ["Albanian", "Italian", "English", "Greek"], phone: "+355 00 002 031", email: "patients@saranda-demo.example", rating: 4.3, availability: RESORT },
+  { ref: "PRV-2032", name: "Dr. Fatima Al Hashimi", facility: "Jumeirah Demo Hospital", specialty: "Urology", address: "Al Wasl Road", district: "Jumeirah 2", city: "Dubai", country: "United Arab Emirates", latitude: 25.1972, longitude: 55.2384, languages: ["Arabic", "English", "Hindi", "Urdu"], phone: "+971 0 000 2032", email: "insurance@jumeirah-demo.example", rating: 4.7, availability: LATE },
+  { ref: "PRV-2033", name: "Dr. Luc Favre", facility: "Lac Léman Demo Clinic", specialty: "Orthopedics", address: "Route de Demo 32", district: "Champel", city: "Geneva", country: "Switzerland", latitude: 46.1983, longitude: 6.1567, languages: ["French", "German", "English", "Arabic"], phone: "+41 22 000 2033", email: "international@leman-demo.example", rating: 4.9, availability: SPECIALIST },
+  { ref: "PRV-2034", name: "Dra. Fernanda Lima", facility: "Copacabana Demo Hospital", specialty: "Emergency Medicine", address: "Rua Demo 400", district: "Copacabana", city: "Rio de Janeiro", country: "Brazil", latitude: -22.9711, longitude: -43.1822, languages: ["Portuguese", "English", "Spanish"], phone: "+55 21 0000 2034", email: "internacional@copacabana-demo.example", rating: 4.5, availability: LATE },
+  { ref: "PRV-2035", name: "Dr. Alejandro Ruiz", facility: "Cancun Demo Hospital", specialty: "General Medicine", address: "Blvd. Kukulcan km 9", district: "Zona Hotelera", city: "Cancun", country: "Mexico", latitude: 21.1325, longitude: -86.7468, languages: ["Spanish", "English"], phone: "+52 998 000 2035", email: "internacional@cancun-demo.example", rating: 4.4, availability: RESORT },
+  // The same two clinics, entered again by a second team with different
+  // spellings and numbers: what the network clean-up finds and merges.
+  { ref: "PRV-2036", name: "Dr. K. Mansour", facility: "Red Sea Demo Hosp.", specialty: "General Medicine", address: "Sheraton Rd.", district: "Dahar", city: "Hurghada", country: "Egypt", latitude: 27.2581, longitude: 33.8119, languages: ["Arabic", "English"], phone: "+20 0000-2027", email: "info@redsea-demo.example", rating: 4.0, availability: RESORT },
+  { ref: "PRV-2037", name: "Dr. Carolina Pena", facility: "Clinica Demo Bavaro", specialty: "Orthopedics", address: "Avenida Barcelo", district: "Bavaro", city: "Punta Cana", country: "Dominican Republic", latitude: 18.6831, longitude: -68.4121, languages: ["Spanish"], phone: "+1 (809) 000-2028", email: "internacional@bavaro-demo.example", rating: 4.5, availability: RESORT },
+  // A video-consultation service: offered when a traveller asks for one, in any city.
+  { ref: "PRV-2038", name: "Dr. Laura Weiss", facility: "Demo TeleDoctor 24/7", specialty: "General Medicine", address: "Online", district: "Video consultation", city: "Online", country: "International", latitude: 0, longitude: 0, languages: ["English", "German", "French", "Spanish", "Italian", "Portuguese", "Arabic", "Turkish", "Russian"], phone: "+44 0000 2038", email: "visits@teledoctor-demo.example", rating: 4.7, availability: TELEMEDICINE },
+  // Air ambulance operators that quote for medical transport, by base.
+  { ref: "PRV-2039", name: "Dr. Jan Becker", facility: "Demo AirMed Europe", specialty: "Air Ambulance", address: "Airport Demo Hangar 3", district: "Airport", city: "Istanbul", latitude: 40.976, longitude: 28.814, languages: ["English", "German", "Turkish"], phone: "+90 212 000 2039", email: "quotes@airmed-europe-demo.example", rating: 4.8, availability: TELEMEDICINE },
+  { ref: "PRV-2040", name: "Dr. Omar Haddad", facility: "Demo Jet Rescue Gulf", specialty: "Air Ambulance", address: "Al Maktoum Demo Aviation Centre", district: "Airport", city: "Dubai", country: "United Arab Emirates", latitude: 24.896, longitude: 55.161, languages: ["English", "Arabic", "Hindi"], phone: "+971 0 000 2040", email: "ops@jetrescue-demo.example", rating: 4.6, availability: TELEMEDICINE },
+  { ref: "PRV-2041", name: "Dr. Maria Torres", facility: "Demo Caribbean Air Ambulance", specialty: "Air Ambulance", address: "Executive Airport Demo Hangar 12", district: "Airport", city: "Fort Lauderdale", country: "United States", latitude: 26.197, longitude: -80.171, languages: ["English", "Spanish", "French"], phone: "+1 954 000 2041", email: "quotes@caribbean-air-demo.example", rating: 4.7, availability: TELEMEDICINE },
+  { ref: "PRV-2042", name: "Dr. Lim Wei Jie", facility: "Demo SkyCare Asia", specialty: "Air Ambulance", address: "Seletar Demo Aerospace Park", district: "Seletar", city: "Singapore", country: "Singapore", latitude: 1.417, longitude: 103.867, languages: ["English", "Mandarin", "Malay"], phone: "+65 0000 2042", email: "quotes@skycare-asia-demo.example", rating: 4.8, availability: TELEMEDICINE },
+  { ref: "PRV-2043", name: "Capt. Serkan Yildiz", facility: "Demo Budget Air Charter", specialty: "Air Ambulance", address: "General Aviation Demo Terminal", district: "Airport", city: "Istanbul", latitude: 40.899, longitude: 29.309, languages: ["Turkish", "English"], phone: "+90 216 000 2043", email: "charter@budget-air-demo.example", rating: 3.9, availability: TELEMEDICINE },
 ];
+
+/** What kind of provider each one is, its accreditations and negotiated network rates (default: a clinic without either). */
+export interface ProviderProfile {
+  kind?: "CLINIC" | "HOSPITAL" | "TELEMEDICINE" | "AIR_AMBULANCE" | "GROUND_AMBULANCE";
+  accreditations?: string[];
+  rateCard?: { name: string; multiplier?: number; perCode?: Record<string, number> };
+}
+
+export const PROVIDER_PROFILES: Record<string, ProviderProfile> = {
+  "PRV-2001": { accreditations: ["ISO 9001"] },
+  "PRV-2003": { kind: "HOSPITAL", accreditations: ["JCI", "ISO 9001"] },
+  "PRV-2005": { kind: "HOSPITAL", accreditations: ["JCI"] },
+  "PRV-2009": { kind: "HOSPITAL" },
+  "PRV-2011": { kind: "HOSPITAL", accreditations: ["ISO 9001"] },
+  "PRV-2016": { kind: "HOSPITAL" },
+  "PRV-2020": { kind: "HOSPITAL", accreditations: ["JCI"] },
+  "PRV-2021": { kind: "HOSPITAL", accreditations: ["JCI"] },
+  "PRV-2022": { accreditations: ["ISO 9001"] },
+  "PRV-2024": { kind: "HOSPITAL", accreditations: ["JCI"] },
+  "PRV-2025": { kind: "HOSPITAL", accreditations: ["MSQH"] },
+  "PRV-2026": { kind: "HOSPITAL", accreditations: ["JCI"] },
+  "PRV-2027": { kind: "HOSPITAL", accreditations: ["Ministry of Health licence"] },
+  "PRV-2029": { accreditations: ["ISO 9001"] },
+  "PRV-2030": { kind: "HOSPITAL", accreditations: ["The Joint Commission"] },
+  "PRV-2032": { kind: "HOSPITAL", accreditations: ["JCI"], rateCard: { name: "Gulf network agreement 2026", multiplier: 1.15 } },
+  "PRV-2033": { kind: "HOSPITAL", accreditations: ["ISO 9001"], rateCard: { name: "Swiss network agreement 2026", multiplier: 1.8 } },
+  "PRV-2034": { kind: "HOSPITAL", accreditations: ["ONA"] },
+  "PRV-2035": { kind: "HOSPITAL" },
+  "PRV-2036": { kind: "HOSPITAL" },
+  "PRV-2038": { kind: "TELEMEDICINE", accreditations: ["ISO 27001"] },
+  "PRV-2039": { kind: "AIR_AMBULANCE", accreditations: ["EURAMI", "ISO 9001"] },
+  "PRV-2040": { kind: "AIR_AMBULANCE", accreditations: ["EURAMI"] },
+  "PRV-2041": { kind: "AIR_AMBULANCE", accreditations: ["CAMTS", "EURAMI"] },
+  "PRV-2042": { kind: "AIR_AMBULANCE", accreditations: ["EURAMI"] },
+  "PRV-2043": { kind: "AIR_AMBULANCE" },
+};
 
 export interface SeedCase {
   ref: string;
@@ -120,6 +191,15 @@ export const CASES: SeedCase[] = [
   { ref: "CASE-1024", patientRef: "PAT-1007", title: "Hospital admission: cardiac observation — Sisli", description: "Traveller admitted for overnight cardiac observation after episode of chest tightness at hotel.", location: "Sisli, Istanbul", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Chest pain"], aiSummary: "Oliver Bennett admitted for cardiac observation at Marmara Demo Heart Center (coronary care unit). Guarantee of payment issued (LOG-0903, sent by fax); monitoring results awaited.", suggestedActions: ["Follow up on test results", "Extend guarantee of payment if required", "Plan discharge and the cardiology follow-up"], assignedTo: "Elif Demirtas (Case Manager)", daysAgo: 1, openedAt: "18:49" },
   // Asia-Pacific: the hospital's final invoice (final-invoice-rachel-lim-bangkok.pdf) is added during the demo.
   { ref: "CASE-1006", patientRef: "PAT-0952", title: "Hospitalization: dengue fever — Bangkok", description: "Traveller admitted with dengue fever with warning signs at a private hospital in Bangkok; the hospital bills the insurer directly.", location: "Bangkok", country: "Thailand", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Fever / infection"], aiSummary: "Rachel Lim was admitted with dengue fever with warning signs at Sukhumvit Demo International Hospital, Bangkok, from 9 to 12 October. Discharged stable; the hospital's final invoice needs a bill review before it is paid.", suggestedActions: ["Review the final invoice line by line", "Confirm the stay dates with the hospital", "Keep the traveller updated"], assignedTo: "Aisha Rahman (Case Manager)", daysAgo: 11, openedAt: "09:30" },
+  // The booth's other regions. Each hospital's invoice (scripts/samples/documents-regions.ts) is added during the demo.
+  { ref: "CASE-1001", patientRef: "PAT-0961", title: "Hospitalization: gastroenteritis — Hurghada", description: "Traveller admitted with gastroenteritis and dehydration at a resort hospital on the Red Sea; the hospital asks for a cash deposit before discharge.", location: "Hurghada", country: "Egypt", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Abdominal pain"], aiSummary: "Hannah Becker was admitted to Red Sea Demo Hospital, Hurghada, with acute gastroenteritis and dehydration from 18 to 20 October. Guarantee LOG-0905 was sent so she is not asked for a cash deposit; the hospital's final invoice needs a bill review before it is paid.", suggestedActions: ["Review the final invoice line by line", "Tell the hospital the guarantee covers the stay: no cash deposit", "Keep the traveller updated"], assignedTo: "Aisha Rahman (Case Manager)", daysAgo: 6, openedAt: "22:40" },
+  { ref: "CASE-1002", patientRef: "PAT-0963", title: "Wrist fracture — Punta Cana", description: "Traveller fell at the hotel pool; the resort clinic set a cast and bills the assistance company in US dollars.", location: "Punta Cana", country: "Dominican Republic", assistanceType: "MEDICAL", priority: "MEDIUM", status: "IN_PROGRESS", symptoms: ["Suspected fracture / injury"], aiSummary: "Sarah Whitfield fractured her left wrist at her hotel in Punta Cana on 20 October. Clínica Demo Bávaro set a below-elbow cast; its report is in Spanish and its invoice in US dollars, billed to us directly.", suggestedActions: ["Read the Spanish medical report", "Review the clinic's invoice", "Arrange airport assistance for the flight home"], assignedTo: "Sofia Rossi (Case Manager)", daysAgo: 4, openedAt: "17:05" },
+  { ref: "CASE-1003", patientRef: "PAT-0964", title: "Hospitalisation: pyelonephritis — Sousse", description: "Traveller admitted with fever and flank pain at a private clinic in Sousse; the clinic writes in French.", location: "Sousse", country: "Tunisia", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Fever / infection"], aiSummary: "Pierre Lambert was admitted to Clinique Demo Les Oliviers, Sousse, with acute pyelonephritis from 16 to 19 October and is fit to fly from 21 October. The clinic's discharge report and invoice are in French; the invoice is in Tunisian dinars.", suggestedActions: ["Translate the discharge report", "Review the invoice in TND", "Book the flight home"], assignedTo: "Mehmet Aksoy (Case Manager)", daysAgo: 8, openedAt: "09:15" },
+  { ref: "CASE-1004", patientRef: "PAT-0962", title: "Hospital admission: pneumonia — Fort Lauderdale", description: "Snowbird admitted with pneumonia to a Florida hospital that is out of network; itemised statement at chargemaster prices.", location: "Fort Lauderdale", country: "United States", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Fever / infection"], aiSummary: "Robert Tremblay (72) was admitted to Atlantic Demo Medical Center, Fort Lauderdale, with community-acquired pneumonia from 14 to 18 October. The hospital is out of network and billed USD 34,655 at its standard rates; the bill needs reference-based pricing and an explanation of benefits.", suggestedActions: ["Review the itemised statement (CPT codes)", "Settle the claim and send the explanation of benefits", "Agree the balance with the hospital so the traveller isn't billed"], assignedTo: "Elif Demirtas (Case Manager)", daysAgo: 10, openedAt: "02:20" },
+  { ref: "CASE-1005", patientRef: "PAT-0965", title: "Appendicitis — Saranda", description: "Traveller operated for acute appendicitis at a polyclinic on the Albanian Riviera.", location: "Saranda", country: "Albania", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Abdominal pain"], aiSummary: "Matteo Ferraro had a laparoscopic appendectomy at Saranda Demo Polyclinic and stayed 19 to 22 October. The invoice is in Albanian lek.", suggestedActions: ["Review the invoice in ALL", "Confirm fitness to fly", "Keep the family informed"], assignedTo: "Sofia Rossi (Case Manager)", daysAgo: 5, openedAt: "13:45" },
+  { ref: "CASE-1007", patientRef: "PAT-0966", title: "Renal colic — Dubai", description: "Traveller on a stopover admitted with a kidney stone; the hospital bills in dirhams against a policy in rand.", location: "Dubai", country: "United Arab Emirates", assistanceType: "HOSPITALIZATION", priority: "MEDIUM", status: "IN_PROGRESS", symptoms: ["Abdominal pain"], aiSummary: "Thandiwe Nkosi was treated at Jumeirah Demo Hospital, Dubai, for a right ureteric stone (ureteroscopy) from 21 to 23 October. The invoice is in AED; her policy is in ZAR.", suggestedActions: ["Review the invoice in AED", "Check it against the policy limit in ZAR", "Rebook the onward flight"], assignedTo: "Aisha Rahman (Case Manager)", daysAgo: 3, openedAt: "05:50" },
+  { ref: "CASE-1008", patientRef: "PAT-0967", title: "Ski accident: tibial plateau fracture — Geneva", description: "Traveller injured skiing in Zermatt, flown to Geneva by helicopter and operated; private clinic in Switzerland.", location: "Geneva", country: "Switzerland", assistanceType: "HOSPITALIZATION", priority: "HIGH", status: "IN_PROGRESS", symptoms: ["Suspected fracture / injury"], aiSummary: "Khalid Al Suwaidi fractured his left tibial plateau skiing near Zermatt on 17 October and was operated at Lac Léman Demo Clinic, Geneva (17 to 22 October). The invoice is in CHF; the clinic's negotiated network rates apply.", suggestedActions: ["Review the invoice against the clinic's network rates", "Plan the repatriation to Dubai", "Arrange physiotherapy at home"], assignedTo: "Senior Desk — Dr. Arda Yavuz", daysAgo: 7, openedAt: "15:30" },
+  { ref: "CASE-1009", patientRef: "PAT-0968", title: "Head injury after a fall — Rio de Janeiro", description: "Traveller fell on the promenade and was kept overnight for observation; the hospital writes in Portuguese.", location: "Rio de Janeiro", country: "Brazil", assistanceType: "MEDICAL", priority: "MEDIUM", status: "IN_PROGRESS", symptoms: ["Headache / dizziness"], aiSummary: "Mia Andersson fell in Copacabana on 22 October and was observed overnight at Copacabana Demo Hospital with a mild concussion; scalp wound sutured. Guarantee LOG-0906 was sent; the hospital asks about it in Portuguese.", suggestedActions: ["Answer the hospital's guarantee question", "Confirm discharge and fitness to fly", "Keep the traveller updated"], assignedTo: "Mehmet Aksoy (Case Manager)", daysAgo: 2, openedAt: "23:55" },
 ];
 
 export interface SeedClaim {
@@ -145,7 +225,12 @@ export const CLAIMS: SeedClaim[] = [
   { ref: "CLM-10243", patientRef: "PAT-1002", caseRef: "CASE-1021", status: "NEEDS_REVIEW", amount: 800, currency: "EUR", summary: "Ankle fracture treatment at Bosphorus Demo Orthopedic Clinic. Discharge summary missing.", issues: [{ severity: "ok", message: "Medical report available" }, { severity: "ok", message: "Hospital invoice available" }, { severity: "error", message: "Discharge summary missing" }, { severity: "error", message: "Policy number missing" }], daysAgo: 4 },
   { ref: "CLM-10244", patientRef: "PAT-1001", status: "REJECTED", amount: 180, currency: "TRY", summary: "Pharmacy-only claim rejected: prescription predates policy start.", issues: [{ severity: "error", message: "Treatment date outside policy period" }], daysAgo: 14 },
   { ref: "CLM-10245", patientRef: "PAT-1001", caseRef: "CASE-1020", status: "NEEDS_REVIEW", amount: 25250, currency: "TRY", summary: "Hospitalization for acute gastroenteritis at Istanbul Central Demo Hospital. Policy number missing from documents.", issues: [{ severity: "error", message: "Policy number missing" }, { severity: "ok", message: "Invoice available" }, { severity: "ok", message: "Medical report available" }, { severity: "ok", message: "Discharge summary available" }], daysAgo: 6 },
+  // The booth's other regions: an out-of-network US hospital, ready to settle with an EOB (documents in scripts/samples/documents-regions.ts).
+  { ref: "CLM-10230", patientRef: "PAT-0962", caseRef: "CASE-1004", status: "NEEDS_REVIEW", amount: 34655, currency: "USD", summary: "Inpatient stay for pneumonia at an out-of-network Florida hospital, billed at chargemaster prices with CPT codes. Medical report, discharge summary and itemised statement on file.", daysAgo: 5 },
 ];
+
+/** Claims on the regional cases that deploys add when missing, with their documents and bill review. */
+export const REGIONAL_CLAIMS = ["CLM-10230"];
 
 export interface SeedAppointment {
   ref: string;
@@ -329,6 +414,15 @@ export const PATIENT_POLICIES: { patientRef: string; plan: keyof typeof POLICY_P
   // Asia-Pacific: limits in SGD.
   { patientRef: "PAT-0951", plan: "Premier", medicalUsed: 0, currency: "SGD" },
   { patientRef: "PAT-0952", plan: "Plus", medicalUsed: 0, currency: "SGD" },
+  // The booth's other regions: each policy in its holder's currency.
+  { patientRef: "PAT-0961", plan: "Plus", medicalUsed: 0 },
+  { patientRef: "PAT-0962", plan: "Premier", medicalUsed: 2400, currency: "CAD" },
+  { patientRef: "PAT-0963", plan: "Plus", medicalUsed: 0, currency: "GBP" },
+  { patientRef: "PAT-0964", plan: "Plus", medicalUsed: 0 },
+  { patientRef: "PAT-0965", plan: "Essential", medicalUsed: 0 },
+  { patientRef: "PAT-0966", plan: "Premier", medicalUsed: 0, currency: "ZAR" },
+  { patientRef: "PAT-0967", plan: "Premier", medicalUsed: 0, currency: "AED" },
+  { patientRef: "PAT-0968", plan: "Plus", medicalUsed: 0 },
 ];
 
 // --- Activity history: calls, e-mail & fax intake, Letters of Guarantee -------
@@ -1510,6 +1604,41 @@ export const GUARANTEE_LETTERS: SeedLetter[] = [
   },
 ];
 
+/**
+ * Guarantees on the regional cases, issued from the hospital's estimate by the
+ * same rules (no estimate document is seeded). Created on every seed and on
+ * deploys when missing, like the regional cases themselves.
+ */
+export interface SeedRegionalLetter {
+  ref: string;
+  caseRef: string;
+  providerRef: string;
+  estimate: { amount: number; currency: string; diagnosis: string; treatment: string[]; admissionDate: string };
+  /** When the estimate was answered. */
+  when: SeedWhen;
+  sentVia: "EMAIL" | "FAX";
+}
+
+export const REGIONAL_LETTERS: SeedRegionalLetter[] = [
+  {
+    // So the resort hospital stops asking the traveller for a cash deposit.
+    ref: "LOG-0905",
+    caseRef: "CASE-1001",
+    providerRef: "PRV-2027",
+    estimate: { amount: 4000, currency: "USD", diagnosis: "Gastroenteritis with dehydration", treatment: ["Intravenous rehydration", "Observation, two nights"], admissionDate: "2026-10-18" },
+    when: { daysAgo: 6, time: "23:20" },
+    sentVia: "EMAIL",
+  },
+  {
+    ref: "LOG-0906",
+    caseRef: "CASE-1009",
+    providerRef: "PRV-2034",
+    estimate: { amount: 9500, currency: "BRL", diagnosis: "Concussion and scalp laceration", treatment: ["CT scan of the head", "Wound closure", "Overnight observation"], admissionDate: "2026-10-22" },
+    when: { daysAgo: 1, time: "02:10" },
+    sentVia: "EMAIL",
+  },
+];
+
 // --- Bill review history --------------------------------------------------------
 // Invoices reviewed in the last weeks (no file: the history behind the
 // overview's savings). Reviewed by the real rules at seed time; amounts EUR.
@@ -1609,5 +1738,117 @@ export const BILL_HISTORY: SeedBill[] = [
       ["600.100", "Medication", 1, 35],
     ],
     status: "PROPOSED",
+  },
+];
+
+// --- Receivables: the receiving side, for hospitals and correspondents ----------
+// Invoices the network's hospitals sent to foreign payers (fictional assistance
+// companies and insurers), at every age and status. The charge lines come from
+// the sample invoice named in `linesFrom` (scripts/samples/). Refs sit below the
+// live sequence (RCV-1001 on).
+
+export interface SeedReceivable {
+  ref: string;
+  facility: string;
+  payer: { name: string; email: string; phone: string; country: string };
+  patientName: string;
+  dateOfBirth: string;
+  policyNumber: string | null;
+  gop: { ref: string; amount: number } | null;
+  invoiceNumber: string;
+  diagnosis: string | null;
+  serviceFrom: string | null;
+  serviceTo: string | null;
+  currency: string;
+  /** A sample invoice whose lines (and total) this one carries; else `amount`. */
+  linesFrom?: string;
+  amount?: number;
+  attachments: string[];
+  status: "DRAFT" | "SUBMITTED" | "ACKNOWLEDGED" | "APPROVED" | "PARTIALLY_PAID" | "PAID" | "DISPUTED";
+  /** Days since it was sent (none for a draft). */
+  sentDaysAgo?: number;
+  /** Paid this many days after it was sent (PAID), or this much received (PARTIALLY_PAID). */
+  paidAfterDays?: number;
+  paidAmount?: number;
+  payerAnswer?: { status: string; expectedPaymentDate?: string; missing?: string[]; contact?: string; notes?: string };
+  reminders?: number[];
+}
+
+const PAYERS = {
+  britannia: { name: "Demo Britannia Assistance", email: "accounts@britannia-assist-demo.example", phone: "+44 0000 3001", country: "United Kingdom" },
+  euro: { name: "Demo Euro Assistance", email: "claims@euro-assist-demo.example", phone: "+49 0000 3002", country: "Germany" },
+  mutuelle: { name: "Demo Mutuelle Assistance", email: "factures@mutuelle-assist-demo.example", phone: "+33 0000 3003", country: "France" },
+  atlantic: { name: "Demo Atlantic Insurance", email: "claims@atlantic-insurance-demo.example", phone: "+1 416 000 3004", country: "Canada" },
+  nordic: { name: "Demo Nordic Assistance", email: "invoices@nordic-assist-demo.example", phone: "+46 0000 3005", country: "Sweden" },
+  gulf: { name: "Demo Gulf Assistance", email: "ap@gulf-assist-demo.example", phone: "+971 0 000 3006", country: "United Arab Emirates" },
+  iberia: { name: "Demo Iberia Seguros", email: "facturas@iberia-seguros-demo.example", phone: "+34 0000 3007", country: "Spain" },
+};
+
+export const RECEIVABLES: SeedReceivable[] = [
+  { ref: "RCV-0901", facility: "Clínica Demo Bávaro", payer: PAYERS.britannia, patientName: "Olivia Grant", dateOfBirth: "1988-03-12", policyNumber: "POL-UK-551204", gop: { ref: "BA-GOP-55120", amount: 1500 }, invoiceNumber: "CDB-FAC-2026-2190", diagnosis: "Distal radius fracture", serviceFrom: "2026-09-10", serviceTo: null, currency: "USD", linesFrom: "invoice-sarah-whitfield-punta-cana.pdf", attachments: ["Medical report (Spanish)", "Medical report (English translation)"], status: "SUBMITTED", sentDaysAgo: 41, reminders: [35] },
+  { ref: "RCV-0902", facility: "Red Sea Demo Hospital", payer: PAYERS.euro, patientName: "Jonas Weber", dateOfBirth: "1979-02-08", policyNumber: "POL-DE-778812", gop: { ref: "EA-GOP-88213", amount: 4000 }, invoiceNumber: "RSH-INV-2026-4471", diagnosis: "Gastroenteritis with dehydration", serviceFrom: "2026-10-18", serviceTo: "2026-10-20", currency: "USD", linesFrom: "final-invoice-hannah-becker-hurghada.pdf", attachments: ["Discharge summary (English)"], status: "DRAFT" },
+  { ref: "RCV-0903", facility: "Clinique Demo Les Oliviers", payer: PAYERS.mutuelle, patientName: "Claire Dubois", dateOfBirth: "1961-09-30", policyNumber: "POL-FR-330918", gop: { ref: "MA-PEC-20931", amount: 12000 }, invoiceNumber: "CLO-FAC-2026-3302", diagnosis: "Pyélonéphrite aiguë droite", serviceFrom: "2026-10-01", serviceTo: "2026-10-04", currency: "TND", linesFrom: "facture-pierre-lambert-sousse.pdf", attachments: ["Discharge report (French)", "Discharge report (English translation)"], status: "ACKNOWLEDGED", sentDaysAgo: 19, payerAnswer: { status: "IN_REVIEW", contact: "Accounts payable" } },
+  { ref: "RCV-0904", facility: "Atlantic Demo Medical Center", payer: PAYERS.atlantic, patientName: "Gerald Fontaine", dateOfBirth: "1950-11-04", policyNumber: "POL-CA-402277", gop: null, invoiceNumber: "ADMC-ACC-58830", diagnosis: "Community-acquired pneumonia", serviceFrom: "2026-08-02", serviceTo: "2026-08-06", currency: "USD", linesFrom: "itemized-bill-robert-tremblay-florida.pdf", attachments: ["Medical report (English)", "Discharge summary (English)"], status: "DISPUTED", sentDaysAgo: 64, reminders: [32, 47], payerAnswer: { status: "DISPUTED", contact: "Cost containment desk", notes: "Offered reference-based pricing at 9,214.67 USD; asked for the hospital's charity-care policy." } },
+  { ref: "RCV-0905", facility: "Saranda Demo Polyclinic", payer: PAYERS.nordic, patientName: "Erik Lindqvist", dateOfBirth: "1992-04-17", policyNumber: "POL-SE-118842", gop: { ref: "NA-GOP-4471", amount: 350000 }, invoiceNumber: "SDP-INV-2026-0241", diagnosis: "Acute appendicitis", serviceFrom: "2026-08-03", serviceTo: "2026-08-06", currency: "ALL", linesFrom: "invoice-matteo-ferraro-saranda.pdf", attachments: ["Discharge summary (English)"], status: "SUBMITTED", sentDaysAgo: 72, reminders: [33, 52] },
+  { ref: "RCV-0906", facility: "Jumeirah Demo Hospital", payer: PAYERS.gulf, patientName: "Priya Nair", dateOfBirth: "1987-08-21", policyNumber: "POL-AE-907733", gop: { ref: "GA-GOP-30911", amount: 30000 }, invoiceNumber: "JDH-INV-2026-8870", diagnosis: "Ureteric stone, renal colic", serviceFrom: "2026-09-24", serviceTo: "2026-09-26", currency: "AED", linesFrom: "invoice-thandiwe-nkosi-dubai.pdf", attachments: ["Medical report (English)", "Discharge summary (English)"], status: "APPROVED", sentDaysAgo: 25, payerAnswer: { status: "PAYMENT_SCHEDULED", expectedPaymentDate: "next Thursday's payment run", contact: "Accounts payable" } },
+  { ref: "RCV-0907", facility: "Lac Léman Demo Clinic", payer: PAYERS.gulf, patientName: "Hamad Al Mazrouei", dateOfBirth: "1975-01-15", policyNumber: "POL-AE-901128", gop: { ref: "GA-GOP-29954", amount: 22000 }, invoiceNumber: "LLC-INV-2026-0954", diagnosis: "Tibial plateau fracture", serviceFrom: "2026-08-20", serviceTo: "2026-08-25", currency: "CHF", linesFrom: "invoice-khalid-al-suwaidi-geneva.pdf", attachments: ["Medical report (English)", "Discharge summary (English)"], status: "PAID", sentDaysAgo: 50, paidAfterDays: 38 },
+  { ref: "RCV-0908", facility: "Marmara Demo Heart Center", payer: PAYERS.nordic, patientName: "Astrid Holm", dateOfBirth: "1958-05-02", policyNumber: "POL-NO-220517", gop: { ref: "NA-GOP-4102", amount: 8000 }, invoiceNumber: "MHC-INV-2026-0977", diagnosis: "Unstable angina", serviceFrom: "2026-07-08", serviceTo: "2026-07-10", currency: "EUR", linesFrom: "final-invoice-lena-koch.pdf", attachments: ["Discharge summary (English)", "Epikriz (Turkish)"], status: "PARTIALLY_PAID", sentDaysAgo: 103, paidAmount: 7582.5, reminders: [40, 70, 95], payerAnswer: { status: "DISPUTED", contact: "Claims handler", notes: "Paid the reviewed amount; the balance is above their reference tariff." } },
+  { ref: "RCV-0909", facility: "Sukhumvit Demo International Hospital", payer: PAYERS.britannia, patientName: "Daniel Okafor", dateOfBirth: "1984-10-03", policyNumber: "POL-UK-560981", gop: { ref: "BA-GOP-56007", amount: 120000 }, invoiceNumber: "SDI-INV-2026-7810", diagnosis: "Dengue with warning signs", serviceFrom: "2026-10-09", serviceTo: "2026-10-12", currency: "THB", linesFrom: "final-invoice-rachel-lim-bangkok.pdf", attachments: ["Discharge summary (English)"], status: "SUBMITTED", sentDaysAgo: 8 },
+  { ref: "RCV-0910", facility: "Copacabana Demo Hospital", payer: PAYERS.iberia, patientName: "Lucía Fernández", dateOfBirth: "1990-12-19", policyNumber: "POL-ES-447120", gop: { ref: "IS-GP-77310", amount: 10000 }, invoiceNumber: "CDH-FAT-2026-1544", diagnosis: "Concussion, scalp laceration", serviceFrom: "2026-10-15", serviceTo: "2026-10-16", currency: "BRL", amount: 9200, attachments: [], status: "DRAFT" },
+  { ref: "RCV-0911", facility: "Clínica Demo Bávaro", payer: PAYERS.iberia, patientName: "Javier Ortega", dateOfBirth: "1976-06-28", policyNumber: "POL-ES-441876", gop: { ref: "IS-GP-76012", amount: 800 }, invoiceNumber: "CDB-FAC-2026-1874", diagnosis: "Otitis media", serviceFrom: "2026-08-14", serviceTo: null, currency: "USD", amount: 640, attachments: ["Medical report (English)"], status: "PAID", sentDaysAgo: 60, paidAfterDays: 22 },
+];
+
+// --- The network between companies -------------------------------------------
+// Partners we hand cases to (correspondents in the booth's regions, a
+// federation member) and the assistance companies an insurer oversees.
+// All fictional.
+
+export interface SeedPartner {
+  ref: string;
+  name: string;
+  kind: "ASSISTANCE" | "CORRESPONDENT" | "INSURER";
+  country: string;
+  regions: string[];
+  services: string[];
+  languages: string[];
+  email: string;
+  phone: string;
+  sla?: { firstResponseMinutes: number; gopHours: number; reportHours?: number };
+}
+
+export const PARTNERS: SeedPartner[] = [
+  { ref: "NP-01", name: "Balkan Demo Assistance", kind: "CORRESPONDENT", country: "Albania", regions: ["Albania", "Kosovo", "North Macedonia", "Montenegro", "Serbia"], services: ["Hospital visits", "Guarantees to local hospitals", "Ground ambulance", "Repatriation"], languages: ["Albanian", "Italian", "English", "Serbian"], email: "cases@balkan-assist-demo.example", phone: "+355 00 004 001" },
+  { ref: "NP-02", name: "Caribe Demo Correspondents", kind: "CORRESPONDENT", country: "Dominican Republic", regions: ["Dominican Republic", "Haiti", "Puerto Rico"], services: ["Hospital visits", "Bill audit", "Ground ambulance", "Payment coordination"], languages: ["Spanish", "English", "French"], email: "casos@caribe-corr-demo.example", phone: "+1 809 000 4002" },
+  { ref: "NP-03", name: "Red Sea Demo Medical Services", kind: "CORRESPONDENT", country: "Egypt", regions: ["Egypt"], services: ["Doctor house calls", "Hospital visits", "Guarantees to local hospitals", "Ground ambulance"], languages: ["Arabic", "English", "German", "Russian"], email: "ops@redsea-medical-demo.example", phone: "+20 0000 4003" },
+  { ref: "NP-04", name: "Maghreb Demo Assistance", kind: "CORRESPONDENT", country: "Tunisia", regions: ["Tunisia", "Algeria", "Libya"], services: ["Hospital visits", "Cost control", "Repatriation on scheduled flights"], languages: ["French", "Arabic", "English"], email: "dossiers@maghreb-assist-demo.example", phone: "+216 00 004 004" },
+  { ref: "NP-05", name: "Alpine Demo Medical Agents", kind: "CORRESPONDENT", country: "Switzerland", regions: ["Switzerland", "Liechtenstein"], services: ["Local agent", "Medical reports in English", "Guarantees to clinics"], languages: ["French", "German", "Italian", "English"], email: "cases@alpine-agents-demo.example", phone: "+41 22 000 4005" },
+  { ref: "NP-06", name: "Carioca Demo Assistance", kind: "CORRESPONDENT", country: "Brazil", regions: ["Brazil"], services: ["Hospital visits", "Guarantees to local hospitals", "Ground ambulance"], languages: ["Portuguese", "Spanish", "English"], email: "casos@carioca-assist-demo.example", phone: "+55 21 0000 4006" },
+  { ref: "NP-07", name: "Danube Demo Assistance", kind: "CORRESPONDENT", country: "Romania", regions: ["Romania", "Bulgaria", "Moldova"], services: ["24/7 call centre", "Hospital visits", "Road assistance"], languages: ["Romanian", "Bulgarian", "English", "French"], email: "dosare@danube-assist-demo.example", phone: "+40 00 004 007" },
+  // Assistance companies an insurer oversees.
+  { ref: "NP-11", name: "Demo Global Assist", kind: "ASSISTANCE", country: "United Kingdom", regions: ["Europe", "Türkiye"], services: ["24/7 assistance", "Case management", "Guarantees"], languages: ["English", "German", "Turkish"], email: "ops@global-assist-demo.example", phone: "+44 0000 4011", sla: { firstResponseMinutes: 15, gopHours: 4 } },
+  { ref: "NP-12", name: "Demo EuroCare Assistance", kind: "ASSISTANCE", country: "Germany", regions: ["Europe"], services: ["24/7 assistance", "Case management", "Cost containment"], languages: ["German", "English", "French"], email: "ops@eurocare-demo.example", phone: "+49 0000 4012", sla: { firstResponseMinutes: 15, gopHours: 6 } },
+  { ref: "NP-13", name: "Demo Southern Cross Assistance", kind: "ASSISTANCE", country: "South Africa", regions: ["Africa", "Middle East", "Americas", "Asia"], services: ["24/7 assistance", "Case management", "Repatriation"], languages: ["English", "Afrikaans", "Arabic", "Spanish"], email: "ops@southern-cross-demo.example", phone: "+27 0000 4013", sla: { firstResponseMinutes: 20, gopHours: 8 } },
+];
+
+/** Which assistance company handles each case for the insurer (Partner oversight). */
+export const CASE_VENDORS: Record<string, string> = {
+  "CASE-1010": "NP-11", "CASE-1011": "NP-11", "CASE-1012": "NP-11", "CASE-1013": "NP-11", "CASE-1014": "NP-11", "CASE-1020": "NP-11", "CASE-1021": "NP-11", "CASE-1024": "NP-11",
+  "CASE-1015": "NP-12", "CASE-1016": "NP-12", "CASE-1017": "NP-12", "CASE-1018": "NP-12", "CASE-1019": "NP-12", "CASE-1022": "NP-12", "CASE-1023": "NP-12",
+  "CASE-1001": "NP-13", "CASE-1002": "NP-13", "CASE-1003": "NP-13", "CASE-1004": "NP-13", "CASE-1005": "NP-13", "CASE-1006": "NP-13", "CASE-1007": "NP-13", "CASE-1008": "NP-13", "CASE-1009": "NP-13",
+};
+
+/** A case already with a partner, so the case page shows the flow before anyone sends one. */
+export const SEED_HANDOFFS: { ref: string; caseRef: string; partnerRef: string; scope: string; token: string; sentDaysAgo: number; updates: { afterMinutes: number; status: "ACCEPTED" | "IN_PROGRESS" | "COMPLETED"; note: string; eta?: string; by: string }[] }[] = [
+  {
+    ref: "HO-0901",
+    caseRef: "CASE-1005",
+    partnerRef: "NP-01",
+    scope: "Hospital visit and daily medical updates",
+    token: "pX7rQ2mK9vL4tB8nW3cZ6yHd",
+    sentDaysAgo: 4,
+    updates: [
+      { afterMinutes: 22, status: "ACCEPTED", note: "Accepted. Our doctor in Saranda visits this afternoon.", by: "Dr. Elira Kola" },
+      { afterMinutes: 300, status: "IN_PROGRESS", note: "Visited after surgery: stable, eating, wound clean. Surgeon expects discharge on the 22nd; fit to fly from the 24th.", eta: "Discharge 22 Oct, 11:00", by: "Dr. Elira Kola" },
+    ],
   },
 ];

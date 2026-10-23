@@ -4,7 +4,7 @@ import WebSocket from "ws";
 import { PrismaClient } from "@prisma/client";
 import { getExpectedTwilioSignature } from "twilio/lib/webhooks/webhooks";
 import { createGateway } from "../../voice-gateway/gateway";
-import { setTelephony, type TelephonyService, type TransferInput } from "@/lib/services/telephony";
+import { callerNumber, setTelephony, transferTwiml, type TelephonyService, type TransferInput } from "@/lib/services/telephony";
 import { startFakeXai } from "../fakes/fake-xai";
 
 // Inbound hotline end to end: Twilio webhook (signed) → TwiML media stream →
@@ -37,6 +37,8 @@ const fakeTelephony: TelephonyService = {
     hangups.push(sid);
   },
   sendSms: async () => ({ sid: "SM_test" }),
+  sendWhatsApp: async () => ({ sid: "WA_test" }),
+  fetchMedia: async () => Buffer.alloc(0),
 };
 
 function signedRequest(path: string, params: Record<string, string>, { tamper = false } = {}) {
@@ -104,6 +106,35 @@ describe("Twilio inbound webhook", () => {
     // Twilio retries webhooks: the same CallSid must not create a second call.
     await POST(signedRequest("/api/twilio/voice/inbound", { CallSid: sid, From: "+447700900002", To: "+15550100199" }));
     expect(await prisma.call.count({ where: { twilioCallSid: sid } })).toBe(1);
+  });
+});
+
+describe("SIP connector (a contact centre's overflow over SIP)", () => {
+  it("links the call to the case and language the contact centre passes in SIP headers", async () => {
+    const { POST } = await import("@/app/api/twilio/voice/inbound/route");
+    const sid = `CA_sip_${Date.now()}`;
+    const res = await POST(
+      signedRequest("/api/twilio/voice/inbound", {
+        CallSid: sid,
+        From: "sip:+447700900104@carrier.example;user=phone",
+        To: "sip:overflow@demo.sip.twilio.com",
+        "SipHeader_X-Case-Ref": "case-1024",
+        "SipHeader_X-Language": "German",
+      })
+    );
+    expect(await res.text()).toContain("<Stream");
+    const call = await prisma.call.findUniqueOrThrow({ where: { twilioCallSid: sid }, include: { case: true } });
+    expect(call).toMatchObject({ fromNumber: "+447700900104", language: "German" });
+    expect(call.case?.ref).toBe("CASE-1024");
+    await prisma.call.delete({ where: { id: call.id } });
+  });
+
+  it("transfers to a contact centre's SIP address, with the whisper", () => {
+    const xml = transferTwiml({ number: "sip:overflow@acme.byoc.example", announcement: "Connecting you.", whisperUrl: "https://x/whisper", actionUrl: "https://x/dial" }, "+15550100199");
+    expect(xml).toContain('<Sip url="https://x/whisper">sip:overflow@acme.byoc.example</Sip>');
+    expect(transferTwiml({ number: "+905550000111", announcement: "Connecting you.", whisperUrl: "https://x/w", actionUrl: "https://x/d" }, null)).toContain("<Number");
+    expect(callerNumber("sip:alice@pbx.example")).toBe("sip:alice@pbx.example");
+    expect(callerNumber("+905550000111")).toBe("+905550000111");
   });
 });
 

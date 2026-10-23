@@ -102,6 +102,57 @@ export const EMAIL_SAMPLES: EmailSample[] = [
       "Dear colleagues,\n\nCould you please confirm the status of the guarantee of payment for your insured Lena Koch (born 29.07.1964)? Our billing team cannot find the letter.\n\nBest regards,\nInternational Patients Desk",
     attachments: [],
   },
+  // The booth's other regions.
+  {
+    id: "hospital-final-invoice-hurghada",
+    label: "Red Sea hospital bills the final invoice and asks for a cash deposit",
+    from: "Red Sea Demo Hospital Accounts <tourists@redsea-demo.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "Final invoice RSH-INV-2026-4418 — Hannah Becker (LOG-0905)",
+    body:
+      "Dear sirs,\n\nPlease find attached the final invoice for your insured Hannah Becker (policy POL-EG-300101), admitted 18–20 October, for direct settlement under LOG-0905.\n\nThe total of USD 7,405.00 is above your guarantee. Unless you confirm the difference today, the patient must pay a cash deposit of USD 3,000 before discharge.\n\nRegards,\nAccounts Department",
+    attachments: ["demo-documents/final-invoice-hannah-becker-hurghada.pdf"],
+  },
+  {
+    id: "clinic-invoice-punta-cana-es",
+    label: "Caribbean clinic sends a Spanish report and its invoice in USD",
+    from: "Clínica Demo Bávaro <internacional@bavaro-demo.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "Informe médico y factura — Sarah Whitfield (POL-DO-500101)",
+    body:
+      "Estimados señores:\n\nAdjuntamos el informe médico y la factura de su asegurada Sarah Whitfield, atendida el 20 de octubre por una fractura de muñeca. Les rogamos el pago por transferencia en dólares.\n\nSaludos cordiales,\nDepartamento Internacional",
+    attachments: ["demo-documents/informe-medico-sarah-whitfield.pdf", "demo-documents/invoice-sarah-whitfield-punta-cana.pdf"],
+  },
+  {
+    id: "clinic-discharge-sousse-fr",
+    label: "Tunisian clinic sends a French discharge report and invoice in TND",
+    from: "Clinique Demo Les Oliviers <international@oliviers-demo.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "Compte rendu et facture — Pierre Lambert (POL-TN-600101)",
+    body:
+      "Bonjour,\n\nVeuillez trouver ci-joint le compte rendu d'hospitalisation et la facture de votre assuré Pierre Lambert, sorti le 19 octobre. Merci de nous confirmer la prise en charge.\n\nBien cordialement,\nService des patients internationaux",
+    attachments: ["demo-documents/compte-rendu-pierre-lambert-sousse.pdf", "demo-documents/facture-pierre-lambert-sousse.pdf"],
+  },
+  {
+    id: "hospital-us-bill-florida",
+    label: "US hospital sends an itemised statement (CPT codes)",
+    from: "Atlantic Demo Medical Center PFS <pfs@atlantic-demo.example>",
+    to: "claims@inbound.demo-assistance.example",
+    subject: "Itemized statement ADMC-ACC-60412 — Robert Tremblay",
+    body:
+      "Hello,\n\nAttached is the itemized statement for Robert Tremblay (policy POL-CA-400101), admitted October 14–18. As an out-of-network facility we bill at standard rates; any balance not paid by the plan will be billed to the patient.\n\nPatient Financial Services",
+    attachments: ["demo-documents/itemized-bill-robert-tremblay-florida.pdf"],
+  },
+  {
+    id: "hospital-gop-enquiry-pt",
+    label: "Brazilian hospital asks in Portuguese about its guarantee",
+    from: "Copacabana Demo Hospital <internacional@copacabana-demo.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "Garantia de pagamento — Mia Andersson (LOG-0906)",
+    body:
+      "Prezados,\n\nPoderiam confirmar a garantia de pagamento da sua segurada Mia Andersson (nascida em 30/07/1994)? Nosso faturamento não encontra a carta.\n\nAtenciosamente,\nAtendimento Internacional",
+    attachments: [],
+  },
   {
     id: "complaint",
     label: "Upset traveller threatens legal action",
@@ -110,6 +161,41 @@ export const EMAIL_SAMPLES: EmailSample[] = [
     subject: "Unacceptable — claim still not paid",
     body:
       "This is the third time I am writing. My dental claim CLM-10237 is still not paid. If I don't hear back this week I will contact my lawyer and file a formal complaint.\n\nMarco Bianchi, policy POL-TR-100948",
+    attachments: [],
+  },
+];
+
+/** A WhatsApp message to the assistance number, as Twilio delivers it. */
+export interface WhatsAppSample {
+  id: string;
+  label: string;
+  /** The sender's number (the traveller's own, when it should match their record). */
+  from: string;
+  body: string;
+  /** Documents sent with it (paths under public/). */
+  attachments: string[];
+}
+
+export const WHATSAPP_SAMPLES: WhatsAppSample[] = [
+  {
+    id: "wa-traveller-bill-punta-cana",
+    label: "Traveller sends the clinic's bill on WhatsApp (Punta Cana)",
+    from: "+44 7700 900963",
+    body: "Hi, Sarah Whitfield here, policy POL-DO-500101. The clinic in Punta Cana gave me this bill for my wrist. Do I have to pay it before I fly home?",
+    attachments: ["demo-documents/invoice-sarah-whitfield-punta-cana.pdf"],
+  },
+  {
+    id: "wa-traveller-status-es",
+    label: "Traveller asks in Spanish on WhatsApp: where is my case?",
+    from: "+34 600 000 109",
+    body: "Hola, soy Carlos García, póliza POL-TR-100952. ¿Me podéis decir en qué estado está mi caso y si el hospital ya tiene la garantía de pago? Gracias",
+    attachments: [],
+  },
+  {
+    id: "wa-hotel-hurghada",
+    label: "Resort guest relations on WhatsApp (Hurghada, no case yet)",
+    from: "+20 0000 4110",
+    body: "Good evening, guest relations of a resort in Hurghada. Guest Jonas Weber, policy POL-EG-300188, came back from a dive with severe chest pain. The hospital asks for a cash deposit. Can you send a guarantee?",
     attachments: [],
   },
 ];

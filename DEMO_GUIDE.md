@@ -54,7 +54,8 @@ Open the **Voice Agents** page (`/voice`) before they sit down. Pick the
 agent and **set the language to theirs** (Spanish, Arabic, Turkish, German,
 Italian, French, Portuguese, Russian, Polish, Czech, Swedish, Norwegian,
 Hindi, Romanian, Serbian, Danish, Dutch, Greek, Ukrainian, Persian, Urdu,
-the Asian languages or English): the agent greets them in it. Outbound agents run here
+Albanian, Macedonian, Bulgarian, Croatian, Hungarian, Afrikaans, the Asian
+languages or English): the agent greets them in it. Outbound agents run here
 too: you play the hospital, the doctor or the traveller being called, on a
 ready demo case. Press **⌘K** (Ctrl K) anywhere to jump to a case, a
 guarantee (`LOG-0902`), a call or a voice agent.
@@ -66,7 +67,7 @@ guarantee (`LOG-0902`), a call or a voice agent.
 | **Cost containment** (bill review) | Inbox: the overbilled final invoice → bill review finds €4,802.50 | Bill negotiation: push back as the billing office; it holds its line and records the hospital's agreement and that the patient isn't billed the difference | The money card and the overview's savings row |
 | **Hospital international desk** | Hospital & provider line from the hospital's side: the guarantee, its amount and a top-up request in one call | Medical transport assessment as the treating doctor; the plan shows what an air ambulance would have cost | "Your desk stops chasing guarantees by phone" |
 | **Air ambulance / repatriation** | Medical transport assessment: answer as the doctor (stretcher, oxygen, escort) | The transport card: the least intensive safe option, every option's cost, quote requests sent | First call to quote request, automatically |
-| **Tech partner / CTO** | Any agent, then the case timeline and the call's tool steps | ⌘K search, the decision trace on a guarantee, bill review rules | Integration by API and webhooks (roadmap) |
+| **Tech partner / CTO** | Any agent, then the case timeline and the call's tool steps | ⌘K search, the decision trace on a guarantee, bill review rules | Integration by API and signed webhooks (Developers page) |
 
 Before each meeting: if you'll show the bill negotiation, receive
 **Hospital bills the final invoice against a guarantee (overbilled)** first
@@ -88,6 +89,35 @@ Moments that answer what a veteran asks first:
   **Medical Document AI** or **Inbox → Import**; the bundled samples still
   give the rehearsed figures. Afterwards, **Delete document** / **Delete
   message** removes it with everything read from it.
+
+## More meetings: correspondents, hospitals, insurers, transport, networks
+
+The booked meetings include many companies on the *receiving* side of a
+guarantee (hospitals, local correspondents, collectors), regional
+assistance companies in the Red Sea, North Africa, the Gulf, the Caribbean,
+Latin America and the Western Balkans, insurers that outsource assistance,
+and air ambulance people. One demo serves them all:
+
+| Who | Minutes 1–8 | Minutes 8–15 | Close on |
+|---|---|---|---|
+| **Local correspondent / hospital desk** (they receive guarantees and chase payers) | **Receivables**: ageing by payer; open `RCV-0902` and run the **payer-ready check** (VIP suite, minibar, duplicate lab, 4 nights for a 2-night stay) | **Call the payer (AI)** on the 72-day invoice (`RCV-0905`): you play the payer's accounts desk | "Invoices that are clean the first time get paid" |
+| **Regional assistance company** (Red Sea, North Africa, Gulf) | Inbox → *Red Sea hospital bills the final invoice and asks for a cash deposit*: bill review against `LOG-0905` | Inbox → *Tunisian clinic sends a French discharge report and invoice in TND*: read, translated, reviewed | The traveller isn't asked for cash; the bill comes back inside the guarantee |
+| **Caribbean / Latin America** | Inbox → WhatsApp: *Traveller sends the clinic's bill on WhatsApp (Punta Cana)*: filed on `CASE-1002`, answered on WhatsApp | Inbox → *Brazilian hospital asks in Portuguese about its guarantee*: answered in Portuguese with `LOG-0906`; interface in Spanish or Portuguese (language picker) | Their language, on their channel |
+| **Insurer that outsources assistance** | **Claims** → `CLM-10230`: a US hospital's USD 34,655 bill, CPT codes, settled at USD 9,214.67 with the **EOB** | **Partner oversight**: the assistance companies handling its travellers, scored side by side; export the scorecard | One scorecard for every vendor |
+| **Air ambulance / medical transport** | `CASE-1008` (Geneva → Dubai): **Receive the operators' quotes**: accredited vs. the cheaper unaccredited one, flagged | **Book** the best value and step the **mission** to handover; for a stretcher seat, the pre-filled **MEDIF** | "Accredited, bed to bed, the crew the doctor asked for" |
+| **Network or federation** (independent members, correspondents) | **Provider network**: two duplicates found and merged, with **Undo**; accreditation badges; network rates change bill review (`CASE-1008`'s Geneva invoice) | `CASE-1005` → **Network partners**: the hand-off already accepted with an update; open the **Partner's view** link on a phone | One case, many companies, one timeline |
+| **CTO / build-vs-buy** | **Developers**: API v1 *Try it* on `CASE-1024`; add a webhook endpoint and press **Test** | **Trust & Integration**: where data can live by country and law, and the product grid (time to go live, pricing model, security) | A pilot plugs into what they run |
+
+Regional samples (Sample files → *Hospitals around the world*) are in USD,
+TND, AED, ALL, CHF and more; the Asia-Pacific set is unchanged. Telemedicine:
+tick **Include video consultations** in Provider Search, or ask the booking
+agent for a video consultation: the booking carries a join link.
+
+The interface language picker (header; ⌘K "Interface in …" on a phone)
+switches the whole interface to Spanish, French, Portuguese or Arabic (right
+to left): menus, pages, buttons, forms and messages. Records (names, notes,
+documents, letters) stay in the language they were written in, as they would
+in a real operation.
 
 ## After each meeting
 

@@ -34,7 +34,7 @@ describe("sample library", () => {
     expect(new Set(SAMPLE_KITS.map((k) => k.id)).size).toBe(SAMPLE_KITS.length);
   });
 
-  const expected: Record<string, { kind: string; patient: string; policy?: string; amount?: [number, string]; scanned?: boolean }> = {
+  const expected: Record<string, { kind: string; patient: string; policy?: string; amount?: [number, string]; scanned?: boolean; overbilled?: boolean }> = {
     "demo-documents/medical-report-aylin-yilmaz.pdf": { kind: "MEDICAL_REPORT", patient: "Aylin Yilmaz" },
     "demo-documents/hospital-invoice-aylin-yilmaz.pdf": { kind: "HOSPITAL_INVOICE", patient: "Aylin Yilmaz", amount: [25250, "TRY"] },
     "demo-documents/discharge-summary-aylin-yilmaz.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Aylin Yilmaz" },
@@ -52,6 +52,16 @@ describe("sample library", () => {
     "demo-inbound/fax-medical-report-lena-koch.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Lena Koch", policy: "POL-TR-100946", scanned: true },
     "demo-documents/medical-report-daniel-tan.pdf": { kind: "MEDICAL_REPORT", patient: "Daniel Tan", policy: "POL-SG-200101" },
     "demo-documents/final-invoice-rachel-lim-bangkok.pdf": { kind: "HOSPITAL_INVOICE", patient: "Rachel Lim", policy: "POL-SG-200102", amount: [115550, "THB"] },
+    // The booth's other regions, in their own languages and currencies.
+    "demo-documents/final-invoice-hannah-becker-hurghada.pdf": { kind: "HOSPITAL_INVOICE", patient: "Hannah Becker", policy: "POL-EG-300101", amount: [7405, "USD"], overbilled: true },
+    "demo-documents/informe-medico-sarah-whitfield.pdf": { kind: "MEDICAL_REPORT", patient: "Sarah Whitfield", policy: "POL-DO-500101" },
+    "demo-documents/invoice-sarah-whitfield-punta-cana.pdf": { kind: "HOSPITAL_INVOICE", patient: "Sarah Whitfield", policy: "POL-DO-500101", amount: [1270, "USD"], overbilled: true },
+    "demo-documents/compte-rendu-pierre-lambert-sousse.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Pierre Lambert", policy: "POL-TN-600101" },
+    "demo-documents/facture-pierre-lambert-sousse.pdf": { kind: "HOSPITAL_INVOICE", patient: "Pierre Lambert", policy: "POL-TN-600101", amount: [11030, "TND"], overbilled: true },
+    "demo-documents/itemized-bill-robert-tremblay-florida.pdf": { kind: "HOSPITAL_INVOICE", patient: "Robert Tremblay", policy: "POL-CA-400101", amount: [34655, "USD"], overbilled: true },
+    "demo-documents/invoice-matteo-ferraro-saranda.pdf": { kind: "HOSPITAL_INVOICE", patient: "Matteo Ferraro", policy: "POL-AL-700101", amount: [342000, "ALL"], overbilled: true },
+    "demo-documents/invoice-thandiwe-nkosi-dubai.pdf": { kind: "HOSPITAL_INVOICE", patient: "Thandiwe Nkosi", policy: "POL-ZA-800101", amount: [26330, "AED"], overbilled: true },
+    "demo-documents/invoice-khalid-al-suwaidi-geneva.pdf": { kind: "HOSPITAL_INVOICE", patient: "Khalid Al Suwaidi", policy: "POL-AE-900101", amount: [21295, "CHF"], overbilled: true },
   };
 
   it("covers every PDF in the library", () => {
@@ -98,7 +108,7 @@ describe("sample library", () => {
         dischargeDate: e.dischargeDate,
       });
     };
-    for (const rel of Object.keys(expected).filter((r) => expected[r].amount && !expected[r].scanned && !r.includes("final-invoice"))) {
+    for (const rel of Object.keys(expected).filter((r) => expected[r].amount && !expected[r].scanned && !expected[r].overbilled && !r.includes("final-invoice"))) {
       expect((await review(rel)).savings, rel).toBe(0);
     }
     const lena = await review("demo-documents/final-invoice-lena-koch.pdf");
@@ -114,6 +124,20 @@ describe("sample library", () => {
       ["DUPLICATE", "EXTRA_NIGHTS", "NON_MEDICAL", "NON_MEDICAL", "NON_MEDICAL", "PRICE_ABOVE_REFERENCE", "PRICE_ABOVE_REFERENCE"]
     );
     expect(rachel.findings.find((f) => f.rule === "NO_REFERENCE")?.line).toBe(5);
+    // The regional invoices: the figures the presenter quotes, per currency.
+    const figures: [string, string, number, number][] = [
+      ["final-invoice-hannah-becker-hurghada.pdf", "USD", 7405, 3067.17],
+      ["invoice-sarah-whitfield-punta-cana.pdf", "USD", 1270, 1117.39],
+      ["facture-pierre-lambert-sousse.pdf", "TND", 11030, 7344.69],
+      ["itemized-bill-robert-tremblay-florida.pdf", "USD", 34655, 9214.67],
+      ["invoice-matteo-ferraro-saranda.pdf", "ALL", 342000, 312375],
+      ["invoice-thandiwe-nkosi-dubai.pdf", "AED", 26330, 24828.12],
+      ["invoice-khalid-al-suwaidi-geneva.pdf", "CHF", 21295, 11987.03],
+    ];
+    for (const [file, currency, billed, recommended] of figures) {
+      const r = await review(`demo-documents/${file}`);
+      expect([r.currency, r.billed, r.recommended], file).toEqual([currency, billed, recommended]);
+    }
   });
 
   it("reads a renamed copy of a fax scan", () => {
@@ -164,6 +188,8 @@ describe("sample assistance requests", () => {
     "email-tour-operator-case-1013.txt": { patient: "Oliver Bennett", location: "Besiktas, Istanbul", country: "Turkiye", urgency: "MEDIUM", type: "MEDICAL", caseRef: "CASE-1013" },
     "call-transcript-sisli-chest-pain.txt": { patient: "Thomas Weber", location: "Sisli, Istanbul", country: "Turkiye", urgency: "CRITICAL", type: "MEDICAL" },
     "email-family-shanghai-stroke.txt": { patient: "Daniel Tan", location: "Shanghai", country: "China", urgency: "CRITICAL", type: "REPATRIATION" },
+    "whatsapp-hurghada-resort-diver.txt": { patient: "Jonas Weber", location: "Hurghada", country: "Egypt", urgency: "CRITICAL", type: "MEDICAL" },
+    "email-punta-cana-resort-child-ear.txt": { patient: "Olivia Grant", location: "Punta Cana", country: "Dominican Republic", urgency: "MEDIUM", type: "MEDICAL" },
   };
 
   it("are all in the library and on disk, as written", () => {

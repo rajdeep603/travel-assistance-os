@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Presentation } from "lucide-react";
 import { PRESENT_EVENT, setPresentMode } from "@/lib/present-mode";
+import { T } from "@/components/i18n";
 
 /**
  * Toggles presentation mode: a root font-size bump that scales the whole UI
@@ -37,7 +38,7 @@ export function PresentToggle() {
       }`}
     >
       <Presentation size={13} aria-hidden />
-      <span className="hidden sm:inline">Present</span>
+      <span className="hidden sm:inline"><T>Present</T></span>
     </button>
   );
 }

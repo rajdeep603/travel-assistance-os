@@ -16,6 +16,7 @@ const bodySchema = z.object({
   timeOfDay: z.string().trim().max(20).optional(),
   language: z.string().trim().max(30).optional(),
   limit: z.number().int().min(1).max(10).optional(),
+  includeTelemedicine: z.boolean().optional(),
 });
 
 export const POST = withErrorHandling(async (req: Request) => {

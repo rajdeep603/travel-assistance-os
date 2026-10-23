@@ -3,12 +3,15 @@ import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { withRef } from "@/lib/refs";
 import { escapeXml, publicBase, readTwilioRequest, twiml, withTwiml } from "@/lib/twilio-webhook";
+import { callerNumber } from "@/lib/services/telephony";
 import { getAgent } from "@/lib/voice/agents/registry";
+import { voiceLanguage } from "@/lib/voice/languages";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Twilio "A call comes in" webhook for the hotline number: records the call
+ * Twilio "A call comes in" webhook for the hotline number, and for the SIP
+ * domain a contact centre sends overflow calls to: records the call
  * and connects its audio to the voice gateway (bidirectional Media Stream).
  * The gateway authenticates the stream with the signed ticket parameter —
  * Twilio drops query strings from Stream URLs, so it travels as a <Parameter>.
@@ -31,6 +34,13 @@ export const POST = withTwiml(async (req) => {
     );
   }
 
+  // A call a contact centre passes over SIP (Genesys Cloud BYOC, Avaya, a PBX) can
+  // carry the case and the caller's language in custom headers, so the agent
+  // starts with the context the contact centre already has.
+  const sipCaseRef = (p["SipHeader_X-Case-Ref"] ?? p["SipHeader_X-CareTrail-Case"] ?? "").trim().toUpperCase();
+  const sipCase = sipCaseRef ? await prisma.case.findUnique({ where: { ref: sipCaseRef }, select: { id: true } }) : null;
+  const sipLanguage = voiceLanguage(p["SipHeader_X-Language"] ?? null)?.name ?? null;
+
   // Twilio retries webhooks; one CallSid is one Call.
   const call =
     (await prisma.call.findUnique({ where: { twilioCallSid: p.CallSid } })) ??
@@ -43,8 +53,10 @@ export const POST = withTwiml(async (req) => {
           agentProfile: profile.id,
           status: "RINGING",
           twilioCallSid: p.CallSid,
-          fromNumber: p.From ?? null,
-          toNumber: p.To ?? null,
+          fromNumber: callerNumber(p.From),
+          toNumber: callerNumber(p.To),
+          caseId: sipCase?.id ?? null,
+          language: sipLanguage,
         },
       })
     ));

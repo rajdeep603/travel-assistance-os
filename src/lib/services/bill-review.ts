@@ -45,6 +45,8 @@ export interface BillReviewInput {
   diagnosis: string | null;
   admissionDate: string | null;
   dischargeDate: string | null;
+  /** The hospital's negotiated network rates, when it has them: they replace the reference prices. */
+  rates?: { name: string; multiplier?: number; perCode?: Record<string, number> } | null;
 }
 
 export interface BillReviewResult {
@@ -141,13 +143,17 @@ export function reviewBill(input: BillReviewInput): BillReviewResult {
       if (!entry) findings.push({ line: i, rule: "NO_REFERENCE", reason: "No reference price for this item: check it by hand.", saving: 0 });
       return out;
     }
-    const capUnit = fromEur(entry.eur * PRICE_TOLERANCE, currency);
-    const refUnit = fromEur(entry.eur, currency);
+    // A network agreement sets the price instead of the reference tariff.
+    const agreed = input.rates?.perCode?.[entry.code] ?? (input.rates?.multiplier ? entry.eur * input.rates.multiplier : null);
+    const refEur = agreed ?? entry.eur;
+    const capUnit = fromEur(refEur * PRICE_TOLERANCE, currency);
+    const refUnit = fromEur(refEur, currency);
     const unit = l.unitPrice ?? (quantity > 0 ? out.recommended / quantity : null);
     if (capUnit != null && refUnit != null && unit != null && unit > capUnit + 0.005) {
+      const basis = agreed != null ? `the network rate (${input.rates!.name})` : "the reference";
       cut(
         "PRICE_ABOVE_REFERENCE",
-        `Billed ${money(unit, currency)} ${PER[entry.unit]}; the reference is ${money(round2(refUnit), currency)}, and up to ${money(round2(capUnit), currency)} is accepted.`,
+        `Billed ${money(unit, currency)} ${PER[entry.unit]}; ${basis} is ${money(round2(refUnit), currency)}, and up to ${money(round2(capUnit), currency)} is accepted.`,
         quantity * capUnit
       );
     }
@@ -169,7 +175,7 @@ export function reviewBill(input: BillReviewInput): BillReviewResult {
   const notCovered = round2(lines.filter((l) => !l.covered).reduce((s, l) => s + l.billed, 0));
   const eur = toEur(savings, currency);
   return {
-    ruleset: TARIFF_VERSION,
+    ruleset: input.rates ? `${TARIFF_VERSION} · ${input.rates.name}` : TARIFF_VERSION,
     currency,
     billed,
     recommended,

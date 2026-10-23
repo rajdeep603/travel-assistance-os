@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { conflict, notFound } from "@/lib/errors";
 import { round2, toEur } from "@/lib/fx";
 import { reviewBill, type BillLine, type BillReviewResult } from "./bill-review";
+import { providerForBill, rateCardOf } from "./provider-network";
 
 // ---------------------------------------------------------------------------
 // Runs bill review on a stored invoice or cost estimate, with the context of
@@ -53,7 +54,6 @@ export async function reviewBillForDocument(documentId: string): Promise<BillRev
   const currency = (ex.currency ?? "EUR").toUpperCase();
   const kind = doc.kind as (typeof BILL_KINDS)[number];
   const total = ex.invoiceAmount == null ? null : Number(ex.invoiceAmount);
-  const base = reviewBill({ kind, lines, total, currency, diagnosis, admissionDate: ex.admissionDate, dischargeDate: ex.dischargeDate });
 
   // An estimate is answered by the letter drafted from it; a final invoice settles the case's open guarantee.
   const letter =
@@ -62,6 +62,10 @@ export async function reviewBillForDocument(documentId: string): Promise<BillRev
       : doc.caseId
         ? await prisma.guaranteeLetter.findFirst({ where: { caseId: doc.caseId, ...OPEN_LETTER }, orderBy: { createdAt: "desc" } })
         : null;
+  // The hospital's negotiated network rates, when it has them, replace the reference prices.
+  const provider = await providerForBill({ providerId: letter?.providerId, hospital: ex.hospital });
+  const rates = rateCardOf(provider);
+  const base = reviewBill({ kind, lines, total, currency, diagnosis, admissionDate: ex.admissionDate, dischargeDate: ex.dischargeDate, rates });
   let guarantee: StoredReview["guarantee"] = null;
   if (letter && kind === "HOSPITAL_INVOICE") {
     const amount = Number(letter.guaranteedAmount);

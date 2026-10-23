@@ -75,6 +75,21 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 | `VisitorQr` | `src/components/leads/visitor-qr.tsx` | the booth's QR code (`/api/leads/qr`), shown big and printable as a table card; visitors land on `/meet` |
 | `JourneyRoute` | `src/components/dashboard/journey-route.tsx` | the dashboard's signature: the assistance journey as a route map on the stage, a live count at each stop; draws once on load (across on desktop, down on phones) |
 | `MoneyPanel`, `NeedsPerson`, `StatusMix` | `src/components/dashboard/` | medical spend (identified vs accepted bar, saving ring, committed guarantees); decisions waiting, each linked to its record; a status distribution as one segmented bar with a legend |
+| `SettlementCard` | `src/components/claims/settlement-card.tsx` | a claim's settlement: billed → never covered → above reference → allowed → excess, plan pays / traveller pays, checks, what needs a person; approving issues the EOB |
+| `AirAmbulancePanel`, `TransportPlanForm` | `src/components/cases/` | operators' quotes side by side (accreditation, crew, bed to bed, wheels up; concerns in `warn`), booking, the mission's steps; the doctor's assessment typed in |
+| `HandoffCard` | `src/components/cases/handoff-card.tsx` | hand a case to a network partner; their updates and the partner's link |
+| `AccreditationBadge` | `src/components/providers/accreditation-badge.tsx` | JCI, ISO 9001, EURAMI… on a provider or an operator's quote |
+| `T`, `useT`, `UiLanguageSwitch` | `src/components/i18n.tsx` | the interface language (English, Spanish, French, Portuguese, Arabic); see below |
+
+## Interface language
+
+- Two layers, both keyed by the English text; an untranslated string shows in English, and records stay in the language they were written in.
+  - **The shell** (`src/lib/i18n.ts`, hand-written): navigation, header, `PageHeader` titles and introductions, plain-string `SectionTitle`s and the dashboard, rendered through `<T>` (server components) or `useT()` (client). These render translated on the server, with no flash.
+  - **Everything else** (`src/lib/i18n-interface/*.json`, generated): `InterfaceTranslator` (mounted in the workspace layout) swaps any text node, `placeholder`, `title`, `aria-label` or `alt` whose text is an interface string (whole, part by part around " · ", or a label before ": ", " (" or " — " with its value kept), in place and only after React has hydrated it. It loads only for a non-English language. Mark an area `translate="no"` (or `data-no-translate`) to keep it as written.
+- After adding or changing interface text, run `npm run i18n:translate` (needs `AI_API_KEY`): `scripts/i18n/strings.ts` collects the strings and only new ones are translated. Text built with a template string (`` `${n} cases` ``) can't be matched: split it into JSX text around the value, put the value after a label (`` `Policy number found (${ref})` ``), or use whole sentences per case instead of `` `${label} available` ``. Lib modules whose text is shown as it is are listed in `SCREEN_LIB_FILES` in `scripts/i18n/strings.ts`.
+- New page titles, introductions and section titles still go in the hand-written dictionary with `<T>`/`useT()`.
+- Arabic sets `dir="rtl"` on `<html>`. Use logical utilities in new code (`ms-`/`me-`, `ps-`/`pe-`, `start-`/`end-`) so things land on the right side; English left in an Arabic page keeps its own word order (`unicode-bidi: plaintext` in `globals.css`).
+- On phones the picker is hidden; ⌘K's "Interface in …" commands change it.
 
 ## Time on screen
 

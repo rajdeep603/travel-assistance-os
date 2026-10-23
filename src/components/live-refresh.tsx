@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getDisplayTimeZone } from "@/lib/time-zone";
+import { useT } from "@/components/i18n";
 
 /**
  * Keeps a server-rendered page current during a demo: re-renders it when a
@@ -12,6 +13,7 @@ import { getDisplayTimeZone } from "@/lib/time-zone";
 export function LiveRefresh({ intervalMs = 30_000, tone = "light" }: { intervalMs?: number; tone?: "light" | "stage" }) {
   const router = useRouter();
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -57,7 +59,7 @@ export function LiveRefresh({ intervalMs = 30_000, tone = "light" }: { intervalM
         <span className={`animate-live-ping absolute inset-0 rounded-full ${tone === "stage" ? "bg-live" : "bg-emerald-500"}`} />
         <span className={`relative h-2 w-2 rounded-full ${tone === "stage" ? "bg-live" : "bg-emerald-500"}`} />
       </span>
-      Live{updatedAt ? ` · updated ${updatedAt}` : ""}
+      {t("Live")}{updatedAt ? ` · ${t("updated")} ${updatedAt}` : ""}
     </span>
   );
 }

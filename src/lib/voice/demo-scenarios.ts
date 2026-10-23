@@ -13,13 +13,14 @@ import { toolAbilityLabel } from "./tool-labels";
 // the presenter answers as the hospital or traveller being called.
 // ---------------------------------------------------------------------------
 
-export type ScenarioGroup = "travellers-call" | "providers-call" | "we-call-providers" | "we-call-travellers";
+export type ScenarioGroup = "travellers-call" | "providers-call" | "we-call-providers" | "we-call-travellers" | "hospital-calls-payers";
 
 export const SCENARIO_GROUPS: Record<ScenarioGroup, string> = {
   "travellers-call": "Travellers call us",
   "providers-call": "Hospitals call us",
   "we-call-providers": "We call hospitals",
   "we-call-travellers": "We call travellers",
+  "hospital-calls-payers": "For hospitals: we call payers",
 };
 
 interface ScenarioDef {
@@ -29,6 +30,8 @@ interface ScenarioDef {
   tryLine: string;
   /** Finds a demo case this agent can call about (outbound agents). */
   findCase?: () => Promise<{ id: string; ref: string } | null>;
+  /** Finds the record (not a case) this agent calls about: an invoice for the payment follow-up. */
+  findRecord?: () => Promise<{ ref: string; label: string } | null>;
   /** Something to do first, when the case isn't ready for this agent yet. */
   prerequisite?: (caseId: string) => Promise<ScenarioNeed | null>;
 }
@@ -49,6 +52,8 @@ export interface VoiceScenario {
   tryLine: string;
   defaultLanguage: string;
   case: { id: string; ref: string } | null;
+  /** The record it calls about, for agents that don't call about a case. */
+  record: { ref: string; label: string } | null;
   needs: ScenarioNeed | null;
   howItWorks: HowItWorks;
 }
@@ -170,6 +175,17 @@ const DEFS: ScenarioDef[] = [
         select: { case: { select: { id: true, ref: true } } },
       }))?.case ?? null,
   },
+  {
+    agentId: "outbound-payment-followup",
+    group: "hospital-calls-payers",
+    youPlay: "The payer's accounts desk (an assistance company abroad)",
+    tryLine: "Answer as accounts payable: say it's in review and will be paid next week, or that the medical report is missing.",
+    findRecord: async () => {
+      const { receivableToChase } = await import("@/lib/services/receivables");
+      const r = await receivableToChase();
+      return r ? { ref: r.ref, label: `${r.ref} · ${r.facility} → ${r.payerName}` } : null;
+    },
+  },
 ];
 
 export async function voiceScenarios(): Promise<VoiceScenario[]> {
@@ -178,6 +194,7 @@ export async function voiceScenarios(): Promise<VoiceScenario[]> {
     const profile = getAgent(def.agentId);
     if (!profile) continue;
     const kase = def.findCase ? await def.findCase().catch(() => null) : null;
+    const record = def.findRecord ? await def.findRecord().catch(() => null) : null;
     out.push({
       agentId: profile.id,
       label: profile.label,
@@ -188,6 +205,7 @@ export async function voiceScenarios(): Promise<VoiceScenario[]> {
       tryLine: def.tryLine,
       defaultLanguage: profile.languageHint === "tr" ? "Turkish" : "the caller's",
       case: kase,
+      record,
       howItWorks: howItWorks(profile),
       needs: kase && def.prerequisite ? await def.prerequisite(kase.id).catch(() => null) : !kase && profile.requiresCase ? { label: "No demo case is ready for this agent." } : null,
     });

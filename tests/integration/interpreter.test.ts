@@ -21,6 +21,8 @@ const fakeTelephony: TelephonyService = {
   redirect: async () => undefined,
   hangup: async (sid) => void hangups.push(sid),
   sendSms: async () => ({ sid: "SM" }),
+  sendWhatsApp: async () => ({ sid: "WA_test" }),
+  fetchMedia: async () => Buffer.alloc(0),
 };
 
 let fake: Awaited<ReturnType<typeof startFakeXai>>;

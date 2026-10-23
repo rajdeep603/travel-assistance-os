@@ -62,6 +62,11 @@ export interface AgentProfile {
   requiresCase?: boolean;
   /** Outbound only: facts for the agent, built from the case before dialling. */
   buildBrief?(caseId: string): Promise<Record<string, unknown>>;
+  /**
+   * Outbound only, for calls about a record rather than a case (an invoice,
+   * "RCV-1003"): its facts; the longest-waiting suitable record when none is given.
+   */
+  buildRecordBrief?(record?: string | null): Promise<Record<string, unknown>>;
   /** Outbound only: the number to suggest (patient's or provider's phone). */
   suggestNumber?(caseId: string): Promise<string | null>;
   /**

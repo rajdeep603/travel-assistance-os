@@ -118,6 +118,14 @@ export function AgentPicker({
                 </Link>
               </span>
             ) : null}
+            {!kase && scenario.record ? (
+              <span>
+                <span className="font-semibold text-ink">Invoice:</span>{" "}
+                <Link href={`/receivables?open=${scenario.record.ref}`} className="font-semibold text-brand underline-offset-2 hover:underline">
+                  {scenario.record.label}
+                </Link>
+              </span>
+            ) : null}
           </p>
           {scenario.needs && !caseOverride ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-ink" role="status">

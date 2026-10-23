@@ -8,7 +8,7 @@ import { processDocument } from "@/lib/services/document-extraction";
 import { emailAddress } from "@/lib/services/email";
 import { reviewBillForDocument } from "@/lib/services/bill-review-service";
 import { draftFromCostEstimate, letterPdf } from "@/lib/services/guarantee-letter";
-import { sendEmail } from "@/lib/services/outbox";
+import { sendEmail, sendWhatsApp } from "@/lib/services/outbox";
 import { utcToZoned } from "@/lib/time";
 import { ALLOWED_UPLOAD_TYPES, processingErrorMessage, sniffType, storeUpload } from "@/lib/uploads";
 import { MATCH_THRESHOLD, matchCase, type CaseCandidate } from "./case-matching";
@@ -17,7 +17,7 @@ import { guaranteeEnquiryReply, missingItem, travellerReply, type MissingItem, t
 import { intakeSummary } from "./summary";
 
 // ---------------------------------------------------------------------------
-// Intake automation for inbound e-mail and fax:
+// Intake automation for inbound e-mail, fax and WhatsApp:
 //   store → read every attachment (OCR for scans) → classify + extract →
 //   detect language and risk → match the case → attach to the claim (or open
 //   one) → auto-reply in the sender's language when it's safe, otherwise
@@ -31,7 +31,7 @@ export interface InboundFile {
 }
 
 export interface InboundInput {
-  channel: "EMAIL" | "FAX";
+  channel: "EMAIL" | "FAX" | "WHATSAPP";
   externalId?: string | null;
   from: string;
   to?: string | null;
@@ -52,6 +52,9 @@ const RISK_RULES: [string, RegExp][] = [
 
 /** A hospital asking whether a guarantee of payment was issued (no documents attached). */
 const GUARANTEE_ENQUIRY = /\b(guarantee|GOP|LOG-\d+|letter of guarantee|garanti|provizyon|ödeme taahh|Kostenübernahme|garantía de pago)/i;
+
+/** The last nine digits of a phone number or WhatsApp address: how numbers written differently still match. */
+const phoneKey = (phone: string) => phone.replace(/\D/g, "").slice(-9);
 
 const domainOf = (address: string | null | undefined) => (address ?? "").toLowerCase().split("@")[1]?.replace(/>$/, "") ?? "";
 
@@ -130,9 +133,12 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
 
     // 3. Case match.
     const fromAddress = message.channel === "EMAIL" ? emailAddress(message.fromAddress) : null;
+    // A WhatsApp message comes from a phone number: the traveller's, when it matches their record.
+    const fromPhone = message.channel === "WHATSAPP" ? phoneKey(message.fromAddress) : null;
     const candidates = await matchCase({
       text: allText,
       fromAddress,
+      fromPhone,
       people: processed.map((d) => ({
         patientName: d.extraction?.patientName ?? null,
         dateOfBirth: d.extraction?.dateOfBirth ?? null,
@@ -148,7 +154,9 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
     let claimRef: string | null = null;
     let claimId: string | null = null;
     const fromTraveller = Boolean(
-      matched && fromAddress && (await prisma.patient.findFirst({ where: { id: matched.patientId, email: { equals: fromAddress, mode: "insensitive" } } }))
+      matched &&
+        ((fromAddress && (await prisma.patient.findFirst({ where: { id: matched.patientId, email: { equals: fromAddress, mode: "insensitive" } } }))) ||
+          (fromPhone && phoneKey((await prisma.patient.findUnique({ where: { id: matched.patientId }, select: { phone: true } }))?.phone ?? "") === fromPhone))
     );
     if (matched) {
       await prisma.document.updateMany({
@@ -210,7 +218,7 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
     // 5. Summary and case timeline.
     const kinds = processed.map((d) => d.kind.replace(/_/g, " ").toLowerCase());
     const summary = intakeSummary({
-      channel: message.channel === "EMAIL" ? "EMAIL" : "FAX",
+      channel: message.channel === "EMAIL" ? "EMAIL" : message.channel === "WHATSAPP" ? "WHATSAPP" : "FAX",
       from: message.fromAddress,
       caseRef: matched?.caseRef ?? null,
       kinds,
@@ -222,8 +230,8 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
       await prisma.caseEvent.create({
         data: {
           caseId: matched.caseId,
-          type: message.channel === "EMAIL" ? "EMAIL" : "FAX",
-          title: `${message.channel === "EMAIL" ? "E-mail" : "Fax"} ${message.ref} received${message.subject ? `: ${message.subject}` : ""}`,
+          type: message.channel === "EMAIL" ? "EMAIL" : message.channel === "WHATSAPP" ? "WHATSAPP" : "FAX",
+          title: `${message.channel === "EMAIL" ? "E-mail" : message.channel === "WHATSAPP" ? "WhatsApp" : "Fax"} ${message.ref} received${message.subject ? `: ${message.subject}` : ""}`,
           body: summary,
           data: { messageRef: message.ref, documents: processed.map((d) => d.filename), riskFlags } as Prisma.InputJsonValue,
           actor: "agent:intake",
@@ -233,7 +241,19 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
 
     // 6. Reply: automatic when it's a confident traveller e-mail with no risk; else drafted for review.
     let status: InboundMessage["status"] = matched ? "MATCHED" : "NEEDS_REVIEW";
-    if (message.channel === "EMAIL" && matched && fromTraveller) {
+    if (message.channel === "WHATSAPP" && matched && fromTraveller) {
+      // The same reply as by e-mail, on WhatsApp: sent when it's safe, else drafted for a person.
+      const draft = await draftReply(matched, claimId, processed.map((d) => d.filename), language);
+      if (riskFlags.length === 0) {
+        await sendWhatsApp({ to: message.fromAddress, text: draft, caseId: matched.caseId, inReplyToId: message.id, automatic: true });
+        status = "REPLIED";
+      } else {
+        await prisma.outboundMessage.create({
+          data: { channel: "WHATSAPP", toAddress: message.fromAddress, body: draft, status: "QUEUED", automatic: false, caseId: matched.caseId, inReplyToId: message.id },
+        });
+        status = "NEEDS_REVIEW";
+      }
+    } else if (message.channel === "EMAIL" && matched && fromTraveller) {
       const draft = await draftReply(matched, claimId, processed.map((d) => d.filename), language);
       if (riskFlags.length === 0) {
         await sendEmail({

@@ -3,6 +3,7 @@ import path from "node:path";
 import type { CaseEventType, Prisma } from "@prisma/client";
 import { PrismaClient } from "@prisma/client";
 import { DEMO_DOCUMENTS } from "../scripts/demo-documents";
+import { SAMPLE_DOCS } from "../scripts/samples/documents";
 import { env } from "../src/lib/env";
 import { maskPhone } from "../src/lib/format";
 import { MATCH_THRESHOLD } from "../src/lib/intake/case-matching";
@@ -23,6 +24,13 @@ import {
   PATIENT_POLICIES,
   POLICY_PLANS,
   PROVIDERS,
+  PROVIDER_PROFILES,
+  CASE_VENDORS,
+  PARTNERS,
+  RECEIVABLES,
+  REGIONAL_CLAIMS,
+  SEED_HANDOFFS,
+  REGIONAL_LETTERS,
   seedCalls,
   seedInboundMessages,
   type SeedClock,
@@ -108,11 +116,20 @@ async function main() {
   // --- Providers ---------------------------------------------------------------
   const providerIds = new Map<string, string>();
   for (const p of PROVIDERS) {
+    const profile = PROVIDER_PROFILES[p.ref] ?? {};
+    const data = { ...p, ...profile, rateCard: profile.rateCard ? json(profile.rateCard) : undefined };
     const row = await prisma.provider.upsert({
       where: { ref: p.ref },
-      create: p,
-      update: keep(p),
+      create: data,
+      update: keep(data),
     });
+    // A deploy fills in kinds, accreditations and rates the record doesn't have yet, and changes nothing else.
+    if (addOnly && (profile.kind || profile.accreditations || profile.rateCard) && row.kind === "CLINIC" && row.accreditations.length === 0 && row.rateCard == null) {
+      await prisma.provider.update({
+        where: { id: row.id },
+        data: { kind: profile.kind, accreditations: profile.accreditations, rateCard: profile.rateCard ? json(profile.rateCard) : undefined },
+      });
+    }
     providerIds.set(p.ref, row.id);
   }
   console.log(`  providers: ${providerIds.size}`);
@@ -135,7 +152,12 @@ async function main() {
     caseIds.set(c.ref, row.id);
   }
   console.log(`  cases: ${caseIds.size}`);
+  await seedRegionalLetters(caseIds, providerIds, addOnly);
+  await seedReceivables(addOnly);
+  await seedNetwork(caseIds, addOnly);
+  await seedTransportPlans(caseIds, addOnly);
   if (addOnly) {
+    await seedRegionalClaims({ patientIds, caseIds }, true);
     await seedCallHistory(SEED_CLOCK, caseIds, { onlyMissing: true });
     await syncRefSequences(prisma);
     console.log("Added the missing demo records; everything else is as it was.");
@@ -204,71 +226,10 @@ async function main() {
   // --- Demo medical documents + real extractions -------------------------------
   // Runs the actual extraction pipeline (pdf-parse + demo AI provider) against
   // the generated fictional PDFs so seeded extractions match module output.
-  const { extractTextFromFile } = await import("../src/lib/services/pdf");
-  const { MockAIService } = await import("../src/lib/services/ai/mock");
-  const ai = new MockAIService();
-
-  const demoDocumentIds = new Map<string, string>();
-  for (const def of DEMO_DOCUMENTS) {
-    const filePath = path.join(process.cwd(), "public", "demo-documents", def.file);
-    if (!fs.existsSync(filePath)) {
-      console.warn(`  ! demo PDF missing, skipping: ${def.file} (run npm run demo:pdfs)`);
-      continue;
-    }
-    const buffer = fs.readFileSync(filePath);
-    const text = await extractTextFromFile(buffer, "application/pdf");
-    const result = await ai.extractMedicalDocument(text);
-
-    const existing = await prisma.document.findFirst({
-      where: { filename: def.file, storagePath: `demo-documents/${def.file}` },
-    });
-    const docData = {
-      filename: def.file,
-      mimeType: "application/pdf",
-      sizeBytes: buffer.length,
-      kind: def.kind,
-      status: "PROCESSED" as const,
-      storagePath: `demo-documents/${def.file}`,
-      textContent: text.slice(0, 20000),
-      patientId: patientIds.get(def.patientRef),
-      caseId: def.caseRef ? caseIds.get(def.caseRef) : undefined,
-      claimId: def.claimRef ? claimIds.get(def.claimRef) : undefined,
-    };
-    const doc = existing
-      ? await prisma.document.update({ where: { id: existing.id }, data: docData })
-      : await prisma.document.create({ data: docData });
-
-    const e = result.extraction;
-    const extractionData = {
-      patientName: e.patientName,
-      dateOfBirth: e.dateOfBirth,
-      hospital: e.hospital,
-      doctor: e.doctor,
-      diagnosis: e.diagnosis,
-      symptoms: e.symptoms,
-      admissionDate: e.admissionDate,
-      dischargeDate: e.dischargeDate,
-      procedures: e.procedures,
-      medications: e.medications,
-      invoiceAmount: e.invoiceAmount,
-      currency: e.currency,
-      policyReference: e.policyReference,
-      documentNumber: result.documentNumber ?? null,
-      lineItems: result.lineItems?.length ? JSON.parse(JSON.stringify(result.lineItems)) : undefined,
-      summary: result.summary,
-      missingInfo: result.missingInfo,
-      confidence: result.confidence,
-      raw: JSON.parse(JSON.stringify(result)),
-    };
-    await prisma.documentExtraction.upsert({
-      where: { documentId: doc.id },
-      create: { documentId: doc.id, ...extractionData },
-      update: extractionData,
-    });
-    demoDocumentIds.set(def.file, doc.id);
-  }
+  const demoDocumentIds = await seedDemoDocuments(DEMO_DOCUMENTS, { patientIds, caseIds, claimIds });
   console.log(`  demo documents with extractions: ${demoDocumentIds.size}`);
 
+  await seedRegionalClaims({ patientIds, caseIds }, false);
   await seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDocumentIds });
   await seedBillHistory({ patientIds, caseIds });
 
@@ -674,6 +635,385 @@ async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDo
   await seedCallHistory(clock, caseIds);
 }
 
+
+/**
+ * Files the fictional demo PDFs as processed documents, running the real
+ * extraction pipeline (pdf-parse + the offline AI) so seeded extractions
+ * match what the modules produce. Returns the document ids by file name.
+ */
+async function seedDemoDocuments(
+  defs: typeof DEMO_DOCUMENTS,
+  { patientIds, caseIds, claimIds }: { patientIds: Map<string, string>; caseIds: Map<string, string>; claimIds: Map<string, string> }
+): Promise<Map<string, string>> {
+  const { extractTextFromFile } = await import("../src/lib/services/pdf");
+  const { MockAIService } = await import("../src/lib/services/ai/mock");
+  const ai = new MockAIService();
+
+  const demoDocumentIds = new Map<string, string>();
+  for (const def of defs) {
+    const filePath = path.join(process.cwd(), "public", "demo-documents", def.file);
+    if (!fs.existsSync(filePath)) {
+      console.warn(`  ! demo PDF missing, skipping: ${def.file} (run npm run demo:pdfs)`);
+      continue;
+    }
+    const buffer = fs.readFileSync(filePath);
+    const text = await extractTextFromFile(buffer, "application/pdf");
+    const result = await ai.extractMedicalDocument(text);
+
+    const existing = await prisma.document.findFirst({
+      where: { filename: def.file, storagePath: `demo-documents/${def.file}` },
+    });
+    const docData = {
+      filename: def.file,
+      mimeType: "application/pdf",
+      sizeBytes: buffer.length,
+      kind: def.kind,
+      status: "PROCESSED" as const,
+      storagePath: `demo-documents/${def.file}`,
+      textContent: text.slice(0, 20000),
+      patientId: patientIds.get(def.patientRef),
+      caseId: def.caseRef ? caseIds.get(def.caseRef) : undefined,
+      claimId: def.claimRef ? claimIds.get(def.claimRef) : undefined,
+    };
+    const doc = existing
+      ? await prisma.document.update({ where: { id: existing.id }, data: docData })
+      : await prisma.document.create({ data: docData });
+
+    const e = result.extraction;
+    const extractionData = {
+      patientName: e.patientName,
+      dateOfBirth: e.dateOfBirth,
+      hospital: e.hospital,
+      doctor: e.doctor,
+      diagnosis: e.diagnosis,
+      symptoms: e.symptoms,
+      admissionDate: e.admissionDate,
+      dischargeDate: e.dischargeDate,
+      procedures: e.procedures,
+      medications: e.medications,
+      invoiceAmount: e.invoiceAmount,
+      currency: e.currency,
+      policyReference: e.policyReference,
+      documentNumber: result.documentNumber ?? null,
+      lineItems: result.lineItems?.length ? JSON.parse(JSON.stringify(result.lineItems)) : undefined,
+      summary: result.summary,
+      missingInfo: result.missingInfo,
+      confidence: result.confidence,
+      raw: JSON.parse(JSON.stringify(result)),
+    };
+    await prisma.documentExtraction.upsert({
+      where: { documentId: doc.id },
+      create: { documentId: doc.id, ...extractionData },
+      update: extractionData,
+    });
+    demoDocumentIds.set(def.file, doc.id);
+  }
+  return demoDocumentIds;
+}
+
+/**
+ * The regional claims, ready to settle: on a deploy (addOnly) the ones the
+ * database lacks are created with their documents and bill review; existing
+ * claims are left exactly as a demo left them.
+ */
+async function seedRegionalClaims(
+  { patientIds, caseIds }: { patientIds: Map<string, string>; caseIds: Map<string, string> },
+  addOnly: boolean
+): Promise<void> {
+  const claimIds = new Map<string, string>();
+  for (const ref of REGIONAL_CLAIMS) {
+    const def = CLAIMS.find((c) => c.ref === ref)!;
+    const existing = await prisma.claim.findUnique({ where: { ref }, select: { id: true } });
+    if (existing && addOnly) continue;
+    const { patientRef, caseRef, daysAgo: ago, ...rest } = def;
+    const data = {
+      ...rest,
+      issues: undefined,
+      patientId: patientIds.get(patientRef)!,
+      caseId: caseRef ? caseIds.get(caseRef) : undefined,
+      createdAt: daysAgo(ago),
+      history: [{ at: daysAgo(ago).toISOString(), action: "Claim submitted", note: null }],
+    };
+    const row = existing
+      ? await prisma.claim.update({ where: { ref }, data })
+      : await prisma.claim.create({ data });
+    claimIds.set(ref, row.id);
+  }
+  if (claimIds.size === 0) return;
+  try {
+    const defs = DEMO_DOCUMENTS.filter((d) => d.claimRef && claimIds.has(d.claimRef));
+    const ids = await seedDemoDocuments(defs, { patientIds, caseIds, claimIds });
+    const { reviewBillForDocument } = await import("../src/lib/services/bill-review-service");
+    const { checkCompleteness } = await import("../src/lib/services/claims");
+    for (const def of defs.filter((d) => d.kind === "HOSPITAL_INVOICE")) await reviewBillForDocument(ids.get(def.file)!);
+    for (const id of claimIds.values()) {
+      const claim = await prisma.claim.findUniqueOrThrow({ where: { id }, include: { patient: true, documents: { include: { extraction: true } } } });
+      await prisma.claim.update({ where: { id }, data: { issues: json(checkCompleteness(claim)) } });
+    }
+    console.log(`  regional claims with documents: ${claimIds.size}`);
+  } catch (err) {
+    // A deploy without the PDF tooling still gets the claims; their documents can be added in the app.
+    console.warn(`  ! regional claim documents skipped: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+/**
+ * Network partners, which assistance company handles each case for the
+ * insurer, and one case already handed to a partner. A deploy (addOnly)
+ * creates what's missing and only fills in a case's vendor when it has none.
+ */
+async function seedNetwork(caseIds: Map<string, string>, addOnly: boolean): Promise<void> {
+  const partnerIds = new Map<string, string>();
+  for (const p of PARTNERS) {
+    const data = { name: p.name, kind: p.kind, country: p.country, regions: p.regions, services: p.services, languages: p.languages, email: p.email, phone: p.phone, sla: p.sla ? json(p.sla) : undefined };
+    const row = await prisma.networkPartner.upsert({ where: { ref: p.ref }, create: { ref: p.ref, ...data }, update: addOnly ? {} : data });
+    partnerIds.set(p.ref, row.id);
+  }
+  for (const [caseRef, partnerRef] of Object.entries(CASE_VENDORS)) {
+    const caseId = caseIds.get(caseRef);
+    if (!caseId) continue;
+    await prisma.case.updateMany({ where: { id: caseId, ...(addOnly ? { vendorId: null } : {}) }, data: { vendorId: partnerIds.get(partnerRef)! } });
+  }
+  for (const h of SEED_HANDOFFS) {
+    if (addOnly && (await prisma.caseHandoff.findUnique({ where: { ref: h.ref }, select: { id: true } }))) continue;
+    const caseId = caseIds.get(h.caseRef)!;
+    const partner = PARTNERS.find((p) => p.ref === h.partnerRef)!;
+    const kase = await prisma.case.findUniqueOrThrow({ where: { id: caseId }, include: { patient: { include: { policy: true } } } });
+    const policy = kase.patient.policy;
+    const sentAt = at({ daysAgo: h.sentDaysAgo, time: "09:40" });
+    const minutes = (m: number) => new Date(sentAt.getTime() + m * 60_000);
+    const last = h.updates[h.updates.length - 1];
+    const pack = {
+      caseRef: kase.ref,
+      title: kase.title,
+      summary: kase.aiSummary ?? kase.description,
+      location: `${kase.location}, ${kase.country}`,
+      priority: kase.priority,
+      patient: { name: `${kase.patient.firstName} ${kase.patient.lastName}`, dateOfBirth: kase.patient.dateOfBirth.toISOString().slice(0, 10), nationality: kase.patient.nationality, language: kase.patient.language, phone: kase.patient.phone },
+      policy: policy ? { number: policy.number, plan: policy.plan, currency: policy.currency, remaining: Number(policy.medicalLimit) - Number(policy.medicalUsed) } : null,
+      guarantee: null,
+      documents: [],
+      instructions: [`Scope: ${h.scope}.`, "Accept or decline within two hours; post an update after every contact with the patient or the hospital."],
+      contact: "Medical assistance desk, medical@demo-assistance.example",
+    };
+    const data = {
+      caseId,
+      partnerId: partnerIds.get(h.partnerRef)!,
+      scope: h.scope,
+      pack: json(pack),
+      token: h.token,
+      status: last?.status ?? "SENT",
+      updates: json(h.updates.map((u) => ({ at: minutes(u.afterMinutes).toISOString(), by: `partner:${partner.name} (${u.by})`, status: u.status, note: u.note, eta: u.eta ?? null }))),
+      sentBy: "sofia",
+      respondBy: minutes(120),
+      acceptedAt: h.updates.find((u) => u.status === "ACCEPTED") ? minutes(h.updates.find((u) => u.status === "ACCEPTED")!.afterMinutes) : null,
+      createdAt: sentAt,
+    };
+    await prisma.caseHandoff.upsert({ where: { ref: h.ref }, create: { ref: h.ref, ...data }, update: data });
+    await timeline(caseId, { type: "HANDOFF", title: `Handed to ${partner.name} (${h.ref}): ${h.scope}`, body: `Pack and secure link sent to ${partner.email}; answer due within 2 hours.`, actor: "operator:sofia", at: sentAt });
+    for (const u of h.updates) {
+      const verb = u.status === "ACCEPTED" ? "accepted" : u.status === "COMPLETED" ? "completed" : "posted an update on";
+      await timeline(caseId, { type: "HANDOFF", title: `${partner.name} ${verb} ${h.ref}${u.status === "IN_PROGRESS" ? ` (${u.eta ?? "update"})` : ""}`, body: u.note, actor: `partner:${partner.name} (${u.by})`, at: minutes(u.afterMinutes) });
+    }
+  }
+  console.log(`  network partners: ${PARTNERS.length}, hand-offs: ${SEED_HANDOFFS.length}`);
+}
+
+/**
+ * A repatriation that needs an air ambulance, with quote requests out to the
+ * network's operators (Geneva → Dubai), so the quote comparison can be shown
+ * without the AI call first. Created when missing; a demo's booking is kept.
+ */
+async function seedTransportPlans(caseIds: Map<string, string>, addOnly: boolean): Promise<void> {
+  const { recommendTransport, TRANSPORT_TARIFF_VERSION } = await import("../src/lib/services/transport");
+  const ref = "MT-0901";
+  if (addOnly && (await prisma.transportPlan.findUnique({ where: { ref }, select: { id: true } }))) return;
+  const caseId = caseIds.get("CASE-1008");
+  if (!caseId) return;
+  const assessment = {
+    diagnosis: "Tibial plateau fracture after surgery; deep vein thrombosis on day 4, on anticoagulation",
+    fitToFly: true,
+    fitFrom: "Tuesday",
+    mobility: "STRETCHER" as const,
+    oxygenLpm: 2,
+    monitoring: "CONTINUOUS" as const,
+    intensiveCare: false,
+    escort: "DOCTOR" as const,
+    destination: "Dubai",
+    destinationCountry: "United Arab Emirates",
+  };
+  const rec = recommendTransport({ ...assessment, originCountry: "Switzerland" });
+  const createdAt = at({ daysAgo: 1, time: "15:10" });
+  const data = {
+    caseId,
+    callRef: null,
+    assessment: json({ ...assessment, tariff: TRANSPORT_TARIFF_VERSION }),
+    mode: rec.mode,
+    reasons: rec.reasons,
+    options: json({ distance: rec.distance, origin: rec.origin, options: rec.options, avoidedVsAirAmbulance: rec.avoidedVsAirAmbulance }),
+    currency: rec.currency,
+    estimateLow: rec.low,
+    estimateHigh: rec.high,
+    status: "QUOTES_REQUESTED" as const,
+    quotes: undefined,
+    mission: undefined,
+    createdAt,
+  };
+  await prisma.transportPlan.upsert({ where: { ref }, create: { ref, ...data }, update: data });
+  await timeline(caseId, {
+    type: "TRANSPORT",
+    title: `Medical transport ${ref}: ${rec.label.toLowerCase()} (indicative ${rec.low.toLocaleString("en-GB")}–${rec.high.toLocaleString("en-GB")} ${rec.currency})`,
+    body: `${rec.reasons.join(" ")} Quote requests sent to the network's air ambulance operators.`,
+    actor: "operator:arda",
+    at: createdAt,
+  });
+  console.log(`  transport plans: 1 (${rec.mode.toLowerCase()})`);
+}
+
+/** A sample invoice's charge lines, as the invoice prints them. */
+function sampleLines(file: string): { code: string; description: string; quantity: number; unitPrice: number; amount: number }[] {
+  const doc = SAMPLE_DOCS.find((d) => d.file === file);
+  const table = doc?.blocks.find((b) => b.type === "table");
+  if (!table || table.type !== "table") throw new Error(`No charge table in ${file}`);
+  const n = (v: string) => Number(v.replace(/,/g, ""));
+  return table.rows.map(([code, description, q, unit, amount]) => ({ code, description, quantity: n(q), unitPrice: n(unit), amount: n(amount) }));
+}
+
+/**
+ * Invoices the network's hospitals sent to foreign payers (the Receivables
+ * page). A deploy (addOnly) creates the ones missing and leaves the rest as a
+ * demo left them.
+ */
+async function seedReceivables(addOnly: boolean): Promise<void> {
+  const day = 86_400_000;
+  let created = 0;
+  for (const r of RECEIVABLES) {
+    if (addOnly && (await prisma.receivable.findUnique({ where: { ref: r.ref }, select: { id: true } }))) continue;
+    const lines = r.linesFrom ? sampleLines(r.linesFrom) : null;
+    const amount = lines ? Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100 : r.amount!;
+    const sentAt = r.sentDaysAgo != null ? at({ daysAgo: r.sentDaysAgo, time: "10:15" }) : null;
+    const paidAt = sentAt && r.paidAfterDays != null ? new Date(sentAt.getTime() + r.paidAfterDays * day) : null;
+    const paidAmount = r.status === "PAID" ? amount : (r.paidAmount ?? 0);
+    const chases = [
+      ...(sentAt ? [{ at: sentAt.toISOString(), channel: "EMAIL", outcome: "Invoice sent", by: "billing" }] : []),
+      ...(r.reminders ?? []).map((d) => ({ at: new Date(sentAt!.getTime() + d * day).toISOString(), channel: "EMAIL", outcome: "Reminder sent", by: "billing" })),
+      ...(r.paidAmount && sentAt ? [{ at: new Date(sentAt.getTime() + 60 * day).toISOString(), channel: "EMAIL", outcome: `Payment received: ${r.paidAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} ${r.currency}`, by: "billing" }] : []),
+      ...(paidAt ? [{ at: paidAt.toISOString(), channel: "EMAIL", outcome: `Payment received: ${amount.toLocaleString("en-GB", { minimumFractionDigits: 2 })} ${r.currency}`, by: "billing" }] : []),
+    ];
+    const data = {
+      facility: r.facility,
+      payerName: r.payer.name,
+      payerEmail: r.payer.email,
+      payerPhone: r.payer.phone,
+      payerCountry: r.payer.country,
+      patientName: r.patientName,
+      dateOfBirth: r.dateOfBirth,
+      policyNumber: r.policyNumber,
+      gopRef: r.gop?.ref ?? null,
+      gopAmount: r.gop?.amount ?? null,
+      invoiceNumber: r.invoiceNumber,
+      diagnosis: r.diagnosis,
+      serviceFrom: r.serviceFrom,
+      serviceTo: r.serviceTo,
+      amount,
+      currency: r.currency,
+      paidAmount,
+      lines: lines ? json(lines) : undefined,
+      attachments: r.attachments,
+      status: r.status,
+      submittedAt: sentAt,
+      dueAt: sentAt ? new Date(sentAt.getTime() + 30 * day) : null,
+      paidAt,
+      readiness: undefined,
+      chases: json(chases),
+      payerAnswer: r.payerAnswer ? json({ ...r.payerAnswer, at: new Date(Date.now() - 2 * day).toISOString() }) : undefined,
+      createdAt: sentAt ?? at({ daysAgo: 1, time: "16:30" }),
+    };
+    await prisma.receivable.upsert({ where: { ref: r.ref }, create: { ref: r.ref, ...data }, update: data });
+    created++;
+  }
+  console.log(`  receivables: ${created}`);
+}
+
+/**
+ * The regional cases' guarantees, decided by the app's rules against the
+ * seeded policy. A deploy (addOnly) creates the ones the database lacks and
+ * leaves existing letters exactly as a demo left them.
+ */
+async function seedRegionalLetters(caseIds: Map<string, string>, providerIds: Map<string, string>, addOnly: boolean): Promise<void> {
+  let created = 0;
+  for (const def of REGIONAL_LETTERS) {
+    if (addOnly && (await prisma.guaranteeLetter.findUnique({ where: { ref: def.ref }, select: { id: true } }))) continue;
+    const caseId = caseIds.get(def.caseRef)!;
+    const provider = PROVIDERS.find((p) => p.ref === def.providerRef)!;
+    const kase = await prisma.case.findUniqueOrThrow({ where: { id: caseId }, include: { patient: { include: { policy: true } } } });
+    const policy = kase.patient.policy;
+    const createdAt = at(def.when);
+    const decision = decideGuarantee({
+      estimate: { amount: def.estimate.amount, currency: def.estimate.currency, diagnosis: def.estimate.diagnosis, treatment: def.estimate.treatment, admissionDate: def.estimate.admissionDate },
+      policy: policy
+        ? {
+            number: policy.number,
+            plan: policy.plan,
+            validFrom: policy.validFrom,
+            validTo: policy.validTo,
+            currency: policy.currency,
+            medicalLimit: Number(policy.medicalLimit),
+            medicalUsed: Number(policy.medicalUsed),
+            benefits: policy.benefits as unknown as Benefit[],
+          }
+        : null,
+      autoApproveLimitEur: env.logAutoApproveLimitEur,
+      on: createdAt,
+    });
+    const approvedAt = later(createdAt, 1);
+    const sentAt = later(createdAt, 2);
+    const sentTo = def.sentVia === "EMAIL" ? provider.email : provider.phone.replace(/[^\d+]/g, "");
+    const money = (n: number) => `${n.toLocaleString("en-GB")} ${def.estimate.currency}`;
+    const data = {
+      caseId,
+      providerId: providerIds.get(def.providerRef)!,
+      hospitalName: provider.facility,
+      estimateDocumentId: null,
+      estimatedAmount: def.estimate.amount,
+      currency: def.estimate.currency,
+      guaranteedAmount: decision.guaranteedAmount,
+      excess: decision.excess,
+      conditions: decision.conditions,
+      flags: decision.flags,
+      validUntil: new Date(`${addDays(utcToZoned(createdAt).date, env.logValidDays)}T21:00:00Z`),
+      status: decision.autoApprove ? ("SENT" as const) : ("DRAFT" as const),
+      approvedBy: decision.autoApprove ? "system:auto-approval" : null,
+      rejectionReason: null,
+      pdfDocumentId: null,
+      sentVia: decision.autoApprove ? def.sentVia : null,
+      sentTo: decision.autoApprove ? sentTo : null,
+      sentAt: decision.autoApprove ? sentAt : null,
+      acknowledgedAt: null,
+      decisionTrace: json(decision.trace),
+      createdAt,
+    };
+    await prisma.guaranteeLetter.upsert({ where: { ref: def.ref }, create: { ref: def.ref, ...data }, update: data });
+    created++;
+    await timeline(caseId, {
+      type: "LETTER_OF_GUARANTEE",
+      title: `${def.ref} drafted from the cost estimate (${money(def.estimate.amount)})`,
+      body: decision.autoApprove ? `Guarantee of ${money(decision.guaranteedAmount)} is within policy and the automatic approval limit.` : `Needs a human decision: ${decision.flags.join("; ")}.`,
+      actor: "agent:guarantee",
+      at: createdAt,
+    });
+    if (decision.autoApprove) {
+      await timeline(caseId, {
+        type: "LETTER_OF_GUARANTEE",
+        title: `${def.ref} sent by ${def.sentVia === "EMAIL" ? "e-mail" : "fax"} to ${provider.facility}`,
+        body: def.sentVia === "EMAIL" ? `E-mail ${sentTo}` : `Fax ${sentTo}`,
+        actor: "system:auto-approval",
+        at: sentAt,
+      });
+    }
+  }
+  console.log(`  regional letters of guarantee: ${created}`);
+}
 
 /**
  * Calls (phone and browser) with their transcripts and timeline entries. With

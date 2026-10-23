@@ -5,7 +5,9 @@ const SIGNALS: [string, RegExp, RegExp][] = [
   ["tr", /[ğışİĞŞ]/, /\b(ve|bir|için|hasta|tarihi|sayın|saygılarımızla|taburcu|tanı|hastane)\b/gi],
   ["de", /[äöüßÄÖÜ]/, /\b(und|der|die|das|ist|nicht|mit|bitte|danke|krankenhaus)\b/gi],
   ["fr", /[éèêàçù]/, /\b(le|la|les|et|est|pour|merci|bonjour|avec|hôpital)\b/gi],
-  ["es", /[ñ¿¡]/, /\b(el|la|los|las|y|es|para|gracias|hola|hospital)\b/gi],
+  // Not "hospital": it is English too, and every English invoice says it.
+  ["es", /[ñ¿¡]/, /\b(el|la|los|las|y|es|para|gracias|hola|del|con|una)\b/gi],
+  ["pt", /[ãõ]/, /\b(não|obrigad[oa]|olá|uma|meu|minha|prezad[oa]s|atenciosamente|garantia|pagamento|você)\b/gi],
   ["ru", /[а-яА-Я]/, /[а-яА-Я]{3,}/g],
   ["ar", /[؀-ۿ]/, /[؀-ۿ]{3,}/g],
 ];
@@ -34,6 +36,7 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   ru: "Russian",
   ar: "Arabic",
   it: "Italian",
+  pt: "Portuguese",
 };
 
 /** Patient profile language ("German") → ISO code ("de"). */

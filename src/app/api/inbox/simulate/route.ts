@@ -5,13 +5,13 @@ import { json, serialize, withErrorHandling } from "@/lib/api";
 import { notFound } from "@/lib/errors";
 import { processInbound, receiveInbound } from "@/lib/intake/intake";
 import { withOfflineAI } from "@/lib/services/ai";
-import { EMAIL_SAMPLES, FAX_SAMPLES } from "@/lib/intake/samples";
+import { EMAIL_SAMPLES, FAX_SAMPLES, WHATSAPP_SAMPLES } from "@/lib/intake/samples";
 
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ kind: z.enum(["email", "fax"]), sample: z.string() });
+const Body = z.object({ kind: z.enum(["email", "fax", "whatsapp"]), sample: z.string() });
 
-/** Feeds a bundled fictional e-mail or fax through the real intake pipeline. */
+/** Feeds a bundled fictional e-mail, fax or WhatsApp message through the real intake pipeline. */
 export const POST = withErrorHandling(async (req: Request) => {
   const { kind, sample } = Body.parse(await req.json().catch(() => ({})));
   const publicDir = path.join(process.cwd(), "public");
@@ -24,6 +24,11 @@ export const POST = withErrorHandling(async (req: Request) => {
     if (!s) throw notFound("Sample e-mail");
     files = await Promise.all(s.attachments.map(read));
     message = await receiveInbound({ channel: "EMAIL", from: s.from, to: s.to, subject: s.subject, body: s.body, files });
+  } else if (kind === "whatsapp") {
+    const s = WHATSAPP_SAMPLES.find((w) => w.id === sample);
+    if (!s) throw notFound("Sample WhatsApp message");
+    files = await Promise.all(s.attachments.map(read));
+    message = await receiveInbound({ channel: "WHATSAPP", from: `whatsapp:${s.from.replace(/[^\d+]/g, "")}`, to: "whatsapp:assistance", body: s.body, files });
   } else {
     const s = FAX_SAMPLES.find((f) => f.id === sample);
     if (!s) throw notFound("Sample fax");
@@ -40,5 +45,6 @@ export const GET = withErrorHandling(async () => {
   return json({
     emails: EMAIL_SAMPLES.map((e) => ({ id: e.id, label: e.label })),
     faxes: FAX_SAMPLES.map((f) => ({ id: f.id, label: f.label })),
+    whatsapps: WHATSAPP_SAMPLES.map((w) => ({ id: w.id, label: w.label })),
   });
 });

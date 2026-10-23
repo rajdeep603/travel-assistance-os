@@ -95,7 +95,9 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
   const tiles = returnTiles(report);
 
   return (
+    // A document for the customer, in English like the PDF: not translated with the interface.
     <article
+      translate="no"
       aria-label={`Quotation ${meta.number}`}
       className="mx-auto w-full max-w-[820px] rounded-xl bg-white px-6 py-7 text-ink shadow-sm ring-1 ring-line sm:px-10 sm:py-9 print:max-w-none print:rounded-none print:p-0 print:shadow-none print:ring-0"
     >

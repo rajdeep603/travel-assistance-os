@@ -35,6 +35,7 @@ const VOICES: Record<string, string> = {
   hi: "Lekha", ru: "Milena", fr: "Thomas", pl: "Zosia", cs: "Zuzana", pt: "Luciana",
   zh: "Tingting", yue: "Sinji", ja: "Kyoko", th: "Kanya", ms: "Amira", id: "Damayanti",
   ro: "Ioana", sr: "Lana", da: "Sara", nl: "Xander", el: "Melina", uk: "Lesya",
+  bg: "Daria", hr: "Lana", hu: "Tünde",
 };
 
 function args() {

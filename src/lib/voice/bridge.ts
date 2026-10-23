@@ -12,6 +12,7 @@ import { monitorBus } from "./monitor";
 import { XaiRealtimeSession } from "./realtime/xai-session";
 import { executeTool, realtimeTools } from "./tools/registry";
 import type { ToolContext } from "./tools/types";
+import { emit as emitWebhook } from "@/lib/services/webhooks";
 
 // ---------------------------------------------------------------------------
 // A live voice session: joins a caller leg (browser or phone) to a Grok Voice
@@ -395,6 +396,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     ]).catch((err) => console.error(`[voice] ${call.ref} finalisation failed:`, err));
 
     publish({ type: "call_ended", status, durationSec, summary, reason });
+    if (!profile.internal) emitWebhook("call.completed", { ref: call.ref, agent: profile.id, channel, status, durationSec, summary, caseId: ctx.caseId ?? null, outcome });
   }
 
   // --- Connect to the model -------------------------------------------------

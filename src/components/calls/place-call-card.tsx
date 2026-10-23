@@ -131,7 +131,7 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
               </label>
               {agent.suggestedNumber && !agent.suggestedAllowed ? (
                 <p className="text-xs text-slate-500">
-                  The {agent.audience === "provider" ? "hospital's" : "patient's"} number ({maskPhone(agent.suggestedNumber)}) isn&apos;t on the approved call list.
+                  {agent.audience === "provider" ? "The hospital's number" : "The patient's number"} ({maskPhone(agent.suggestedNumber)}) isn&apos;t on the approved call list.
                 </p>
               ) : null}
               {error ? <ErrorBanner message={error} /> : null}

@@ -49,6 +49,60 @@ export const APAC_CITIES: readonly { key: string; name: string; country: string 
   { key: "singapore", name: "Singapore", country: "Singapore" },
 ];
 
+// Resorts and cities where the booth's other regions see travellers: the
+// Red Sea and North Africa, the Gulf, the Caribbean and Latin America, North
+// America, the Western Balkans and Southern Africa. Whole-word matching, after
+// the Asia-Pacific list.
+export const WORLD_CITIES: readonly { key: string; name: string; country: string }[] = [
+  { key: "hurghada", name: "Hurghada", country: "Egypt" },
+  { key: "sharm el sheikh", name: "Sharm El Sheikh", country: "Egypt" },
+  { key: "marsa alam", name: "Marsa Alam", country: "Egypt" },
+  { key: "cairo", name: "Cairo", country: "Egypt" },
+  { key: "sousse", name: "Sousse", country: "Tunisia" },
+  { key: "hammamet", name: "Hammamet", country: "Tunisia" },
+  { key: "djerba", name: "Djerba", country: "Tunisia" },
+  { key: "monastir", name: "Monastir", country: "Tunisia" },
+  { key: "tunis", name: "Tunis", country: "Tunisia" },
+  { key: "dubai", name: "Dubai", country: "United Arab Emirates" },
+  { key: "abu dhabi", name: "Abu Dhabi", country: "United Arab Emirates" },
+  { key: "punta cana", name: "Punta Cana", country: "Dominican Republic" },
+  { key: "juan dolio", name: "Juan Dolio", country: "Dominican Republic" },
+  { key: "santo domingo", name: "Santo Domingo", country: "Dominican Republic" },
+  { key: "puerto plata", name: "Puerto Plata", country: "Dominican Republic" },
+  { key: "la romana", name: "La Romana", country: "Dominican Republic" },
+  { key: "cancun", name: "Cancun", country: "Mexico" },
+  { key: "playa del carmen", name: "Playa del Carmen", country: "Mexico" },
+  { key: "tulum", name: "Tulum", country: "Mexico" },
+  { key: "los cabos", name: "Los Cabos", country: "Mexico" },
+  { key: "mexico city", name: "Mexico City", country: "Mexico" },
+  { key: "rio de janeiro", name: "Rio de Janeiro", country: "Brazil" },
+  { key: "sao paulo", name: "Sao Paulo", country: "Brazil" },
+  { key: "florianopolis", name: "Florianopolis", country: "Brazil" },
+  { key: "orlando", name: "Orlando", country: "United States" },
+  { key: "miami", name: "Miami", country: "United States" },
+  { key: "fort lauderdale", name: "Fort Lauderdale", country: "United States" },
+  { key: "tampa", name: "Tampa", country: "United States" },
+  { key: "toronto", name: "Toronto", country: "Canada" },
+  { key: "montreal", name: "Montreal", country: "Canada" },
+  { key: "vancouver", name: "Vancouver", country: "Canada" },
+  { key: "tirana", name: "Tirana", country: "Albania" },
+  { key: "durres", name: "Durres", country: "Albania" },
+  { key: "saranda", name: "Saranda", country: "Albania" },
+  { key: "vlore", name: "Vlore", country: "Albania" },
+  { key: "ohrid", name: "Ohrid", country: "North Macedonia" },
+  { key: "skopje", name: "Skopje", country: "North Macedonia" },
+  { key: "budva", name: "Budva", country: "Montenegro" },
+  { key: "kotor", name: "Kotor", country: "Montenegro" },
+  { key: "bucharest", name: "Bucharest", country: "Romania" },
+  { key: "constanta", name: "Constanta", country: "Romania" },
+  { key: "geneva", name: "Geneva", country: "Switzerland" },
+  { key: "zurich", name: "Zurich", country: "Switzerland" },
+  { key: "zermatt", name: "Zermatt", country: "Switzerland" },
+  { key: "cape town", name: "Cape Town", country: "South Africa" },
+  { key: "johannesburg", name: "Johannesburg", country: "South Africa" },
+  { key: "durban", name: "Durban", country: "South Africa" },
+];
+
 export interface SymptomRule {
   keywords: string[];
   symptom: string;
@@ -110,7 +164,8 @@ export function findDistrict(text: string): string | null {
   return null;
 }
 
-const apacCityRe = new Map(APAC_CITIES.map((c) => [c.key, new RegExp(`\\b${c.key}\\b`)]));
+const OTHER_CITIES = [...APAC_CITIES, ...WORLD_CITIES];
+const otherCityRe = new Map(OTHER_CITIES.map((c) => [c.key, new RegExp(`\\b${c.key}\\b`)]));
 
 export function findCity(text: string): string | null {
   const t = norm(text);
@@ -119,8 +174,8 @@ export function findCity(text: string): string | null {
   }
   // Any known district implies Istanbul.
   if (findDistrict(text)) return "Istanbul";
-  for (const city of APAC_CITIES) {
-    if (apacCityRe.get(city.key)!.test(t)) return city.name;
+  for (const city of OTHER_CITIES) {
+    if (otherCityRe.get(city.key)!.test(t)) return city.name;
   }
   return null;
 }
@@ -129,7 +184,7 @@ export function findCity(text: string): string | null {
 export function countryOf(city: string | null): string | null {
   if (!city) return null;
   if (CITIES.includes(city.toLowerCase())) return "Turkiye";
-  return APAC_CITIES.find((c) => c.name === city)?.country ?? null;
+  return OTHER_CITIES.find((c) => c.name === city)?.country ?? null;
 }
 
 const EMERGENCY_NUMBERS: Record<string, string> = {
@@ -141,6 +196,19 @@ const EMERGENCY_NUMBERS: Record<string, string> = {
   Japan: "119",
   Philippines: "911",
   Indonesia: "118",
+  Egypt: "123",
+  Tunisia: "190",
+  "United Arab Emirates": "998",
+  "Dominican Republic": "911",
+  Mexico: "911",
+  Brazil: "192",
+  "United States": "911",
+  Canada: "911",
+  Albania: "127",
+  "North Macedonia": "194",
+  Montenegro: "124",
+  Switzerland: "144",
+  "South Africa": "10177",
 };
 
 /** The local ambulance number; 112 across Turkiye and Europe. */

@@ -64,6 +64,29 @@ const entries: TariffEntry[] = [
   { code: "802.310", label: "MRI scan", eur: 420, unit: "item", category: "IMAGING", keywords: ["mri"] },
   { code: "803.120", label: "Optical coherence tomography (OCT)", eur: 140, unit: "item", category: "IMAGING", keywords: ["optical coherence", "oct scan"] },
   { code: "901.050", label: "Laboratory: basic panel", eur: 45, unit: "item", category: "LAB", keywords: ["basic panel"] },
+  // Added for the regional samples (Red Sea, North Africa, the Gulf, the
+  // Balkans, Switzerland). Matched by code only, so the wording of other
+  // invoices — and the figures rehearsed on them — doesn't change.
+  { code: "612.020", label: "Wound closure (sutures)", eur: 150, unit: "item", category: "PROCEDURE", keywords: [] },
+  { code: "612.500", label: "Laparoscopic appendectomy", eur: 2600, unit: "item", category: "PROCEDURE", keywords: [] },
+  { code: "612.700", label: "Ureteroscopy with stone removal", eur: 2800, unit: "item", category: "PROCEDURE", keywords: [] },
+  { code: "612.800", label: "Open reduction and internal fixation, tibial plateau", eur: 6500, unit: "item", category: "PROCEDURE", keywords: [] },
+  { code: "802.050", label: "Ultrasound", eur: 90, unit: "item", category: "IMAGING", keywords: [] },
+  { code: "802.110", label: "CT scan", eur: 260, unit: "item", category: "IMAGING", keywords: [] },
+  { code: "901.060", label: "Laboratory: urinalysis and culture", eur: 35, unit: "item", category: "LAB", keywords: [] },
+  // US bills: CPT, HCPCS and revenue codes against a fictional reference-based
+  // price (a multiple of public programme rates), as US cost containment does.
+  { code: "99285", label: "Emergency department visit, high complexity", eur: 650, unit: "item", category: "ADMISSION", keywords: [] },
+  { code: "99223", label: "Initial hospital care, high complexity", eur: 330, unit: "item", category: "PHYSICIAN", keywords: [] },
+  { code: "99233", label: "Subsequent hospital care", eur: 170, unit: "item", category: "PHYSICIAN", keywords: [] },
+  { code: "71046", label: "Chest X-ray, 2 views", eur: 85, unit: "item", category: "IMAGING", keywords: [] },
+  { code: "85025", label: "Complete blood count", eur: 18, unit: "item", category: "LAB", keywords: [] },
+  { code: "80053", label: "Comprehensive metabolic panel", eur: 25, unit: "item", category: "LAB", keywords: [] },
+  { code: "87040", label: "Blood culture", eur: 30, unit: "item", category: "LAB", keywords: [] },
+  { code: "94640", label: "Nebulizer treatment", eur: 35, unit: "item", category: "THERAPY", keywords: [] },
+  { code: "J0696", label: "Ceftriaxone injection, 250 mg", eur: 8, unit: "item", category: "MEDICATION", keywords: [] },
+  { code: "0120", label: "Room and board, semi-private", eur: 1100, unit: "night", category: "ROOM", keywords: [] },
+  { code: "0990", label: "Patient convenience items", eur: null, unit: "item", category: "NON_MEDICAL", keywords: [] },
 ];
 
 export const REFERENCE_TARIFF: ReadonlyMap<string, TariffEntry> = new Map(entries.map((e) => [e.code, e]));
@@ -94,6 +117,8 @@ const STAY_NORMS: [RegExp, number][] = [
   [/fracture/i, 2],
   [/appendicitis/i, 3],
   [/pneumonia/i, 5],
+  [/pyelonephritis|pyélonéphrite/i, 3],
+  [/ureteric stone|renal colic|kidney stone/i, 2],
 ];
 
 export function stayNorm(diagnosis: string | null): number | null {

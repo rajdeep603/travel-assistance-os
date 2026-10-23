@@ -36,6 +36,8 @@ const fakeTelephony: TelephonyService = {
     sms.push({ to, body });
     return { sid: "SM1" };
   },
+  sendWhatsApp: async () => ({ sid: "WA1" }),
+  fetchMedia: async () => Buffer.alloc(0),
 };
 
 function signed(pathWithQuery: string, params: Record<string, string>) {

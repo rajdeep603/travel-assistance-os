@@ -37,6 +37,8 @@ export interface PlaceCallInput {
   amd?: boolean;
   /** Language the agent opens in (English name, e.g. "Spanish"); detected otherwise. */
   language?: string | null;
+  /** For agents that call about a record rather than a case: which one (e.g. "RCV-1003"). */
+  record?: string | null;
 }
 
 export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
@@ -62,7 +64,12 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
     throw notFound("Case");
   }
 
-  const brief = input.caseId && profile.buildBrief ? await profile.buildBrief(input.caseId) : null;
+  const brief =
+    input.caseId && profile.buildBrief
+      ? await profile.buildBrief(input.caseId)
+      : profile.buildRecordBrief
+        ? await profile.buildRecordBrief(input.record ?? null)
+        : null;
   const retries = input.retryOf
     ? (((await prisma.call.findUnique({ where: { id: input.retryOf } }))?.outcome as { retries?: number } | null)?.retries ?? 0) + 1
     : 0;

@@ -27,6 +27,15 @@ const FAINT = "#94a3b8";
 const RULE = "#cbd5e1";
 const PEN = "#1e2f6e";
 
+/** Letterhead and footer words, in the document's language. */
+const CHROME: Record<SampleDoc["lang"], { tel: string; fax: string; email: string; page: string; fictional: (brand: string) => string }> = {
+  en: { tel: "Tel", fax: "Fax", email: "E-mail", page: "Page 1 of 1", fictional: (b) => `Fictional sample document prepared for the ${b} demonstration. Not a real record.` },
+  tr: { tel: "Tel", fax: "Faks", email: "E-posta", page: "Sayfa 1 / 1", fictional: (b) => `${b} demosu için hazırlanmış kurgusal örnek belge. Gerçek bir kayıt değildir.` },
+  fr: { tel: "Tél", fax: "Fax", email: "E-mail", page: "Page 1 sur 1", fictional: (b) => `Document fictif préparé pour la démonstration ${b}. Ce n'est pas un vrai dossier.` },
+  es: { tel: "Tel", fax: "Fax", email: "Correo", page: "Página 1 de 1", fictional: (b) => `Documento ficticio preparado para la demostración de ${b}. No es un registro real.` },
+  pt: { tel: "Tel", fax: "Fax", email: "E-mail", page: "Página 1 de 1", fictional: (b) => `Documento fictício preparado para a demonstração ${b}. Não é um registo real.` },
+};
+
 export interface Fonts {
   regular: string;
   bold: string;
@@ -117,11 +126,11 @@ export function renderPdf(d: SampleDoc, fonts: Fonts, opts: RenderOptions = {}):
     put(d.issuer.tagline, M + 46, 57, { size: 8.5, color: MUTED, max: 300 });
     put(d.issuer.address[0], M + 46, 69, { size: 8, color: MUTED });
     put(d.issuer.address[1], M + 46, 79, { size: 8, color: MUTED });
-    const tr = d.lang === "tr";
+    const words = CHROME[d.lang];
     const contact = [
-      `Tel: ${d.issuer.phone}`,
-      `${tr ? "Faks" : "Fax"}: ${d.issuer.fax}`,
-      `${tr ? "E-posta" : "E-mail"}: ${d.issuer.email}`,
+      `${words.tel}: ${d.issuer.phone}`,
+      `${words.fax}: ${d.issuer.fax}`,
+      `${words.email}: ${d.issuer.email}`,
       d.issuer.web,
     ];
     contact.forEach((line, i) => put(line, PAGE_W - M, 40 + i * 10.5, { size: 8, color: MUTED, right: true }));
@@ -272,15 +281,8 @@ export function renderPdf(d: SampleDoc, fonts: Fonts, opts: RenderOptions = {}):
     // --- Footer -----------------------------------------------------------
     doc.moveTo(M, PAGE_H - 50).lineTo(M + CW, PAGE_H - 50).lineWidth(0.6).strokeColor(RULE).stroke();
     put(d.issuer.registry, M, PAGE_H - 43, { size: 7, color: FAINT, max: CW - 70 });
-    put(
-      tr
-        ? `${BRAND.name} demosu için hazırlanmış kurgusal örnek belge. Gerçek bir kayıt değildir.`
-        : `Fictional sample document prepared for the ${BRAND.name} demonstration. Not a real record.`,
-      M,
-      PAGE_H - 33,
-      { size: 7, color: FAINT, max: CW - 70 }
-    );
-    put(tr ? "Sayfa 1 / 1" : "Page 1 of 1", PAGE_W - M, PAGE_H - 43, { size: 7, color: FAINT, right: true });
+    put(words.fictional(BRAND.name), M, PAGE_H - 33, { size: 7, color: FAINT, max: CW - 70 });
+    put(words.page, PAGE_W - M, PAGE_H - 43, { size: 7, color: FAINT, right: true });
 
     doc.on("end", () => resolve({ pdf: Buffer.concat(chunks), hand }));
     doc.end();

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { AlertCircle, ArrowLeft, CheckCircle2, MinusCircle, RefreshCw } from "lucide-react";
 import {
   AISourceBadge,
@@ -20,6 +20,7 @@ import {
 import { Timeline } from "@/components/ui";
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
 import { IntegrityCard, type Signal } from "@/components/integrity-card";
+import { SettlementCard } from "@/components/claims/settlement-card";
 import { formatDateTime, formatEnum, formatMoney } from "@/lib/format";
 
 interface Issue {
@@ -45,6 +46,8 @@ interface ClaimDetail {
   issues: Issue[] | null;
   signals: Signal[] | null;
   history: HistoryEntry[] | null;
+  settlement: ComponentProps<typeof SettlementCard>["settled"];
+  eobDocumentId: string | null;
   createdAt: string;
   patient: { ref: string; firstName: string; lastName: string; policyNumber: string };
   case: { ref: string } | null;
@@ -306,6 +309,16 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
                 onChanged={() => void load()}
               />
             ))}
+
+          {claim.documents.some((d) => d.kind === "HOSPITAL_INVOICE") || claim.settlement ? (
+            <SettlementCard
+              key={claim.settlement ? "settled" : `${claim.status}-${claim.documents.map((d) => d.billReview?.status ?? "").join("")}`}
+              claimId={claim.id}
+              settled={claim.settlement}
+              eobDocumentId={claim.eobDocumentId}
+              onSettled={() => void load()}
+            />
+          ) : null}
 
           {claim.history?.length ? (
             <Card>

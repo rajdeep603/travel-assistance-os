@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import localFont from "next/font/local";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { PRESENT_STORAGE_KEY } from "@/lib/present-mode";
 import { SIDEBAR_STORAGE_KEY } from "@/lib/sidebar";
 import { MotionProvider } from "@/components/motion-provider";
+import { UI_LANGUAGE_COOKIE, directionOf, uiLanguageFromCookie } from "@/lib/i18n";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -24,8 +26,10 @@ const displayScript = `try{var d=document.documentElement;if(localStorage.getIte
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // The interface language (and direction, for Arabic) the viewer chose.
+  const lang = uiLanguageFromCookie(`${UI_LANGUAGE_COOKIE}=${cookies().get(UI_LANGUAGE_COOKIE)?.value ?? ""}`);
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={lang} dir={directionOf(lang)} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: displayScript }} />
       </head>

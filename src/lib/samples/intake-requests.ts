@@ -105,4 +105,25 @@ Grace Tan
 +65 0000 0953
 `,
   },
+  {
+    file: "whatsapp-hurghada-resort-diver.txt",
+    text: `[23/10/2026, 21:14:05] Resort Guest Relations: Good evening from the guest relations desk of a hotel in Hurghada.
+[23/10/2026, 21:14:40] Resort Guest Relations: His name is Jonas Weber, policy POL-EG-300188. He came back from a dive with severe chest pain and difficulty breathing.
+[23/10/2026, 21:15:02] Resort Guest Relations: The hotel doctor says he needs a hospital now. Which hospital will accept your guarantee? They are asking for a cash deposit.
+`,
+  },
+  {
+    file: "email-punta-cana-resort-child-ear.txt",
+    text: `From: Front Desk <frontdesk@resort-bavaro.example>
+To: assistance@demo-assistance.example
+Date: Wed, 21 Oct 2026 19:22:00 -0400
+Subject: Guest needs a doctor — child with ear pain
+
+Hello,
+
+Our guest's name is Olivia Grant, policy POL-DO-500144, staying with her family in Punta Cana. Her daughter, 7, has had ear pain and a fever since this afternoon. They would like a doctor who speaks English, tonight or early tomorrow.
+
+Front Desk
+`,
+  },
 ];
