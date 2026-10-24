@@ -8,6 +8,7 @@ import { storeUpload } from "@/lib/uploads";
 import { round2 } from "@/lib/fx";
 import { reviewBillForDocument, reviewResult } from "./bill-review-service";
 import { committedGuarantees, convert } from "./exposure";
+import { notifyFamily } from "./family-updates";
 import { decideGuarantee } from "./guarantee-decision";
 import { letterLanguageFor, renderGuaranteeLetter } from "./guarantee-pdf";
 import { sendEmail, sendFax } from "./outbox";
@@ -73,6 +74,7 @@ export async function draftFromCostEstimate(
   const committed = policy ? (await committedGuarantees(kase.patientId, policy.currency)).total : 0;
 
   const decision = decideGuarantee({
+    country: kase.country,
     estimate: {
       amount: Number(ex.invoiceAmount),
       currency,
@@ -281,6 +283,7 @@ export async function sendLetter(id: string, by: string): Promise<GuaranteeLette
       actor: actorOf(by),
     },
   });
+  await notifyFamily(letter.caseId, "guarantee", { hospital: letter.hospitalName, letterRef: letter.ref });
   return updated;
 }
 

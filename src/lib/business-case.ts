@@ -32,6 +32,8 @@ export interface OperationInputs {
   costPerHour: number;
   /** Productive hours of one full-time agent a month (FTE conversion). */
   productiveHoursPerMonth: number;
+  /** The busiest month against an average one, % (140 = 40% more work); 100 or less shows no peak. */
+  peakMonthPct: number;
 }
 
 /** What the platform takes off people's desks, 0–100 each. Assumptions, not claims. */
@@ -139,6 +141,7 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 4,
       costPerHour: 12,
       productiveHoursPerMonth: 150,
+      peakMonthPct: 160,
     },
   },
   {
@@ -157,6 +160,7 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 5,
       costPerHour: 28,
       productiveHoursPerMonth: 140,
+      peakMonthPct: 140,
     },
   },
   {
@@ -177,6 +181,7 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 5,
       costPerHour: 15,
       productiveHoursPerMonth: 150,
+      peakMonthPct: 130,
     },
   },
   {
@@ -195,6 +200,7 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 5,
       costPerHour: 30,
       productiveHoursPerMonth: 140,
+      peakMonthPct: 140,
     },
   },
   {
@@ -216,6 +222,7 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 5,
       costPerHour: 18,
       productiveHoursPerMonth: 150,
+      peakMonthPct: 130,
     },
   },
   {
@@ -234,6 +241,7 @@ export const PRESETS: readonly Preset[] = [
       inboundMinutes: 5,
       costPerHour: 35,
       productiveHoursPerMonth: 140,
+      peakMonthPct: 125,
     },
   },
 ];
@@ -709,6 +717,8 @@ export interface QuoteDetails {
   pilot?: string;
   /** Services left out of this quotation (see COST_ITEMS); absent for all of them. */
   excluded?: CostItem[];
+  /** Bill review paid from what it saves: % of the verified savings; 0 or absent when not offered. */
+  gainsharePct?: number;
 }
 
 export const EMPTY_QUOTE: QuoteDetails = { customerName: "", companyName: "", email: "", phone: "", services: [] };
@@ -820,6 +830,14 @@ export interface BusinessCaseReport {
   running: RunningCostResult;
   cost: CostContainmentResult;
   quote: QuoteResult;
+  /** The busiest month: null without a peak. */
+  capacity: CapacityResult | null;
+  /** Handling cost per assistance case, today and with the AI; null without cases. */
+  perCase: { today: number; withAi: number } | null;
+  /** Net saving a year from the conservative case to the assumptions as entered. */
+  range: { low: number; high: number };
+  /** Bill review paid from savings: null when not offered. */
+  gainshare: { pct: number; fee: number; kept: number } | null;
   headline: string;
   /** Plain text, as copied and as the body of the e-mail. */
   summary: string;
@@ -830,11 +848,128 @@ export function businessCaseReport(input: BusinessCaseInput): BusinessCaseReport
   const running = calculateRunningCost(input.operation, input.assumptions, input.prices, result);
   const cost = calculateCostContainment(input.costContainment);
   const quote = calculateQuote(input.quote, running);
-  const summary = withQuote(
-    withCostContainment(withRunningCost(buildSummary(input.operation, input.assumptions, result), running), input.costContainment, cost),
-    quote
+  const capacity = peakCapacity(input.operation, result);
+  const perCase = costPerCase(input.operation, result, running);
+  const range = savingRange(input, running);
+  const gainshare = gainshareFor(input.quote, cost);
+  const extras = readingLines({ result, range, capacity, perCase, gainshare });
+  const summary = withExtras(
+    withQuote(withCostContainment(withRunningCost(buildSummary(input.operation, input.assumptions, result), running), input.costContainment, cost), quote),
+    extras
   );
-  return { input, result, running, cost, quote, headline: netHeadline(result, running), summary };
+  return { input, result, running, cost, quote, capacity, perCase, range, gainshare, headline: netHeadline(result, running), summary };
+}
+
+// ---------------------------------------------------------------------------
+// How a buyer judges it. Headcount savings are discounted ("you won't fire
+// anyone"), so the case also speaks in capacity (the busiest month without
+// temporary staff), in cost per case (an assistance company's margin), as a
+// range rather than one number, and with bill review payable from its savings.
+// ---------------------------------------------------------------------------
+
+/** The share of each assumption the conservative case keeps. */
+export const CONSERVATIVE_SHARE = 0.75;
+
+export interface CapacityResult {
+  /** The busiest month against an average one, %. */
+  peakPct: number;
+  /** Extra agent hours the busiest month needs today. */
+  extraHours: number;
+  /** Agent hours the AI frees in the busiest month. */
+  freedHours: number;
+}
+
+export function peakCapacity(op: OperationInputs, result: BusinessCaseResult): CapacityResult | null {
+  const peak = amount(op.peakMonthPct);
+  if (peak <= 100 || result.hoursToday <= 0) return null;
+  return { peakPct: peak, extraHours: (result.hoursToday * (peak - 100)) / 100, freedHours: (result.hoursFreed * peak) / 100 };
+}
+
+export function peakLine(c: CapacityResult): string {
+  const season = `In your busiest month (${formatCount(c.peakPct - 100)}% more work)`;
+  const extra = formatCount(roughly(c.extraHours));
+  if (c.freedHours >= c.extraHours) {
+    return `${season} the team needs about ${extra} extra agent hours; ${BRAND.name} frees about ${formatCount(roughly(c.freedHours))} that month, so the peak needs no temporary staff.`;
+  }
+  return `${season} ${BRAND.name} covers about ${formatCount((c.freedHours / c.extraHours) * 100)}% of the ${extra} extra agent hours, so far fewer temporary staff.`;
+}
+
+export function costPerCase(op: OperationInputs, result: BusinessCaseResult, running: RunningCostResult): { today: number; withAi: number } | null {
+  const cases = amount(op.monthlyCases);
+  if (!cases || result.hoursToday <= 0) return null;
+  const rate = amount(op.costPerHour);
+  return { today: (result.hoursToday * rate) / cases, withAi: ((result.hoursToday - result.hoursFreed) * rate + running.monthlyCost) / cases };
+}
+
+export function perCaseLine(c: { today: number; withAi: number }): string {
+  return `Handling cost per case: about ${quoteEur(c.today)} of team time today, about ${quoteEur(c.withAi)} with ${BRAND.name}, the AI's running cost included.`;
+}
+
+export function savingRange(input: BusinessCaseInput, running: RunningCostResult): { low: number; high: number } {
+  const scaled = Object.fromEntries(
+    Object.entries(input.assumptions).map(([k, v]) => [k, amount(v) * CONSERVATIVE_SHARE])
+  ) as unknown as Assumptions;
+  const low = calculateBusinessCase(input.operation, scaled, input.quote.excluded);
+  const lowRunning = calculateRunningCost(input.operation, scaled, input.prices, low);
+  return { low: lowRunning.netAnnualSaving, high: running.netAnnualSaving };
+}
+
+export function rangeLine(r: { low: number; high: number }): string {
+  return `A range, not a promise: ${quoteEur(roughly(r.low))} to ${quoteEur(roughly(r.high))} a year after running costs, from ${formatCount(CONSERVATIVE_SHARE * 100)}% of the assumptions to the assumptions as entered.`;
+}
+
+export function gainshareFor(quote: QuoteDetails, cost: CostContainmentResult): { pct: number; fee: number; kept: number } | null {
+  const pct = Math.min(100, amount(quote.gainsharePct ?? 0));
+  if (pct <= 0 || cost.annualSaving <= 0) return null;
+  const fee = (cost.annualSaving * pct) / 100;
+  return { pct, fee, kept: cost.annualSaving - fee };
+}
+
+export function gainshareLine(g: { pct: number; fee: number; kept: number }): string {
+  return `Bill review paid from what it saves: ${formatCount(g.pct)}% of the savings it verifies, about ${quoteEur(roughly(g.fee))} a year on the figures above, and you keep ${quoteEur(roughly(g.kept))}. No saving, no fee.`;
+}
+
+/** The lead for the buyer in front of you, by the preset that describes them. */
+export function buyerLead(presetId: string | undefined, report: BusinessCaseReport): string | null {
+  const { perCase, cost, result } = report;
+  const caseCost = perCase ? `about ${quoteEur(perCase.today)} of team time per case today, about ${quoteEur(perCase.withAi)} with ${BRAND.name}` : null;
+  switch (presetId) {
+    case "specialist":
+    case "large":
+      return cost.annualSaving > 0
+        ? `For an insurer, the number is claims cost: reviewing hospital bills line by line saves about ${quoteEur(roughly(cost.annualSaving))} of medical spend a year, before any operating saving.`
+        : null;
+    case "hospital":
+      return result.hoursFreed >= 1 ? `For an international desk, the number is time back for patients: about ${formatCount(roughly(result.hoursFreed))} desk hours a month.` : null;
+    case "correspondent":
+      return caseCost ? `For a correspondent, the number is cost per case: ${caseCost}, so each coordinator handles more cases.` : null;
+    case "regional":
+    case "apac":
+      return caseCost ? `For an assistance company, the number is cost per case: ${caseCost}. Your per-case fees stay the same, so the difference is margin.` : null;
+    default:
+      return caseCost ? `Cost per case: ${caseCost}.` : null;
+  }
+}
+
+/** Operating and medical savings together, net of the bill review share when one is quoted. */
+export function combinedSavingLine(r: Pick<BusinessCaseReport, "cost" | "running" | "gainshare">): string {
+  const medical = r.gainshare ? r.gainshare.kept : r.cost.annualSaving;
+  const after = r.gainshare ? "after running costs and the bill review share" : "after running costs";
+  return `With the operating savings, ${after}: ${quoteEur(medical + r.running.netAnnualSaving)} a year.`;
+}
+
+/** "How to read it", the same on the page, the quotation, the PDF and the e-mail. */
+export function readingLines(r: Pick<BusinessCaseReport, "result" | "range" | "capacity" | "perCase" | "gainshare">): string[] {
+  const own = r.result.hoursFreed >= 1 ? [rangeLine(r.range), r.capacity ? peakLine(r.capacity) : null, r.perCase ? perCaseLine(r.perCase) : null] : [];
+  return [...own, r.gainshare ? gainshareLine(r.gainshare) : null].filter(isSome);
+}
+
+/** The range, the busiest month, cost per case and the savings share, before the closing line. */
+function withExtras(summary: string, extras: string[]): string {
+  if (!extras.length) return summary;
+  const lines = summary.split("\n");
+  const closing = lines.pop() ?? "";
+  return [...lines, "How to read it", ...extras.map((e) => `- ${e}`), "", closing].join("\n");
 }
 
 // ---------------------------------------------------------------------------

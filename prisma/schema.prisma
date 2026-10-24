@@ -202,6 +202,13 @@ model Case {
   /// The assistance company handling the case for the insurer (insurer oversight); null when we handle it ourselves.
   vendor           NetworkPartner?   @relation("CaseVendor", fields: [vendorId], references: [id])
   vendorId         String?
+  // The relative kept informed (e.g. the daughter who called), and whether
+  // updates go to them automatically at each step.
+  familyContactName     String?
+  familyContactRelation String?
+  familyContactPhone    String?
+  familyContactLanguage String?
+  familyUpdates         Boolean  @default(false)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

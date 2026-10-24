@@ -25,6 +25,8 @@ import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { MoneyPanel } from "@/components/dashboard/money-panel";
 import { NeedsPerson } from "@/components/dashboard/needs-person";
 import { NightShift } from "@/components/dashboard/night-shift";
+import { ServiceLevels } from "@/components/dashboard/service-levels";
+import { getServiceLevels, type ServiceLevel } from "@/lib/services/service-levels";
 import { InsightsCard, RecentActivityCard, RecentCasesCard } from "@/components/dashboard/recent";
 import { StatusDonut } from "@/components/dashboard/status-donut";
 import { POWERED_BY } from "@/lib/brand";
@@ -203,11 +205,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   const savedLang = jar.get(UI_LANGUAGE_COOKIE)?.value;
   const locale = localeOf(isUiLanguage(savedLang) ? savedLang : "en");
   const now = new Date();
-  const [stats, activity, recent, recentCases] = await Promise.all([
+  const [stats, activity, recent, recentCases, levels] = await Promise.all([
     settled<Overview>(getOverview({ days, night })),
     settled<Activity>(getActivity(days, now)),
     settled<RecentActivity[]>(getRecentActivity(4, now)),
     settled<RecentCase[]>(getRecentCases(4, now)),
+    settled<ServiceLevel[]>(getServiceLevels(days, now)),
   ]);
   return (
     <div className="mx-auto max-w-[90rem] space-y-5">
@@ -235,6 +238,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
             </div>
             <NeedsPerson decisions={stats.decisions} />
           </div>
+          {levels ? <ServiceLevels levels={levels} days={days} /> : null}
           {stats.handover ? <NightShift handover={stats.handover} timeZone={timeZone} waiting={stats.decisions.reduce((n, d) => n + d.count, 0)} /> : null}
           <JourneyCard stats={stats} />
         </>

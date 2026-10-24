@@ -9,6 +9,7 @@ import { maskPhone } from "../src/lib/format";
 import { MATCH_THRESHOLD } from "../src/lib/intake/case-matching";
 import { intakeSummary } from "../src/lib/intake/summary";
 import { isUniqueViolation, syncRefSequences } from "../src/lib/refs";
+import { familyUpdateText } from "../src/lib/family-update-text";
 import { decideGuarantee } from "../src/lib/services/guarantee-decision";
 import type { Benefit } from "../src/lib/services/policy";
 import { addDays, formatPlainDate, utcToZoned, zonedToUtc, zonedToday } from "../src/lib/time";
@@ -156,6 +157,7 @@ async function main() {
   await seedReceivables(addOnly);
   await seedNetwork(caseIds, addOnly);
   await seedTransportPlans(caseIds, addOnly);
+  await seedFamilyUpdates(caseIds);
   if (addOnly) {
     await seedRegionalClaims({ patientIds, caseIds }, true);
     await seedCallHistory(SEED_CLOCK, caseIds, { onlyMissing: true });
@@ -389,6 +391,7 @@ async function seedActivity({ patientIds, caseIds, claimIds, providerIds, demoDo
     });
     const policy = kase.patient.policy;
     const decision = decideGuarantee({
+      country: kase.country,
       estimate: {
         amount: estimate.invoiceAmount!,
         currency: estimate.currency!,
@@ -824,6 +827,54 @@ async function seedNetwork(caseIds: Map<string, string>, addOnly: boolean): Prom
  * network's operators (Geneva → Dubai), so the quote comparison can be shown
  * without the AI call first. Created when missing; a demo's booking is kept.
  */
+/**
+ * CASE-1024: Oliver Bennett's daughter called (CALL-0913, from her number), so
+ * she gets the updates on WhatsApp: the case opened, the hospital's news, the
+ * guarantee. Once a case has a family contact (seeded, or set in a demo) it is
+ * left alone.
+ */
+async function seedFamilyUpdates(caseIds: Map<string, string>): Promise<void> {
+  const caseId = caseIds.get("CASE-1024");
+  if (!caseId) return;
+  const kase = await prisma.case.findUniqueOrThrow({ where: { id: caseId }, select: { familyContactPhone: true, createdAt: true } });
+  if (kase.familyContactPhone) return;
+  // Timed from the case's own opening (18:49), so a server seeded days ago gets them in place.
+  const after = (minutes: number) => new Date(kase.createdAt.getTime() + minutes * 60_000);
+  const phone = "+447700900218";
+  const contact = "Grace Bennett (daughter)";
+  await prisma.case.update({
+    where: { id: caseId },
+    data: { familyContactName: "Grace Bennett", familyContactRelation: "Daughter", familyContactPhone: phone, familyContactLanguage: "English", familyUpdates: true },
+  });
+  const updates = [
+    { at: after(3), automatic: true, text: familyUpdateText("opened", { ref: "CASE-1024", contactName: "Grace Bennett", patientFirstName: "Oliver", hospital: "Marmara Demo Heart Center" }) },
+    { at: after(81), automatic: false, text: "Update on Oliver: he is in the coronary care unit (bed 4) at Marmara Demo Heart Center and stable on monitoring. The doctors expect his report tomorrow around noon. Case CASE-1024." },
+    { at: after(96), automatic: true, text: familyUpdateText("guarantee", { ref: "CASE-1024", contactName: "Grace Bennett", patientFirstName: "Oliver", hospital: "Marmara Demo Heart Center", letterRef: "LOG-0903" }) },
+  ];
+  for (const [i, u] of updates.entries()) {
+    const sentAt = u.at;
+    await prisma.outboundMessage.create({
+      data: {
+        channel: "WHATSAPP",
+        toAddress: phone,
+        body: u.text,
+        status: "SENT",
+        provider: "mock",
+        providerMessageId: `mock_wa_seed_family_${i + 1}`,
+        automatic: u.automatic,
+        approvedBy: u.automatic ? null : "Elif Demirtas (Case Manager)",
+        caseId,
+        sentAt,
+        createdAt: sentAt,
+      },
+    });
+    await prisma.caseEvent.create({
+      data: { caseId, type: "WHATSAPP", title: `Update sent to ${contact} on WhatsApp`, body: u.text, actor: u.automatic ? "AI agent" : "Elif Demirtas (Case Manager)", createdAt: sentAt },
+    });
+  }
+  console.log(`  family updates: ${updates.length} (CASE-1024)`);
+}
+
 async function seedTransportPlans(caseIds: Map<string, string>, addOnly: boolean): Promise<void> {
   const { recommendTransport, TRANSPORT_TARIFF_VERSION } = await import("../src/lib/services/transport");
   const ref = "MT-0901";
@@ -950,6 +1001,7 @@ async function seedRegionalLetters(caseIds: Map<string, string>, providerIds: Ma
     const policy = kase.patient.policy;
     const createdAt = at(def.when);
     const decision = decideGuarantee({
+      country: kase.country,
       estimate: { amount: def.estimate.amount, currency: def.estimate.currency, diagnosis: def.estimate.diagnosis, treatment: def.estimate.treatment, admissionDate: def.estimate.admissionDate },
       policy: policy
         ? {

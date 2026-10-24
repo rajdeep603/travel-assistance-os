@@ -52,6 +52,8 @@ export interface QuoteDraft {
   pilot: string;
   /** Monthly services unticked, as ticked off (dependents are worked out by the calculation). */
   excluded: CostItem[];
+  /** Bill review paid from its savings, % as typed; "" when not offered. */
+  gainshare: string;
 }
 
 const MAX_SERVICES = 20;
@@ -70,6 +72,7 @@ export function emptyQuoteDraft(): QuoteDraft {
     services: SERVICE_HINTS.map((_, i) => ({ id: i + 1, description: "", amount: "" })),
     pilot: "",
     excluded: [],
+    gainshare: "",
   };
 }
 
@@ -83,6 +86,7 @@ export function draftToQuote(draft: QuoteDraft): QuoteDetails {
     pilot: draft.pilot || undefined,
     // Left out of the JSON when nothing is excluded, so earlier quotations keep their numbers.
     ...(draft.excluded.length ? { excluded: draft.excluded } : {}),
+    ...(Number(draft.gainshare) > 0 ? { gainsharePct: Math.min(100, Number(draft.gainshare)) } : {}),
   };
 }
 
@@ -522,6 +526,27 @@ export function QuotationWorkspace({
                 </option>
               ))}
             </select>
+          </fieldset>
+
+          <fieldset className="min-w-0">
+            <legend className="text-sm font-semibold text-ink">Bill review, paid from its savings</legend>
+            <p className="mt-0.5 text-xs text-muted">
+              Optional: a share of the savings bill review verifies, instead of a price per bill. No saving, no fee. Leave empty to leave it out.
+            </p>
+            <label className="mt-2 flex items-center gap-2 text-sm text-ink">
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={100}
+                step={1}
+                aria-label="Share of verified savings, percent"
+                value={draft.gainshare}
+                onChange={(e) => set({ gainshare: e.target.value })}
+                className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-right text-sm tabular-nums text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+              % of the verified savings
+            </label>
           </fieldset>
 
           <fieldset className="min-w-0">

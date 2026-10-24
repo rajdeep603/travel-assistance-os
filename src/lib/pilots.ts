@@ -22,10 +22,10 @@ export const PILOT_DAYS = 60;
 export const PILOT_BILLING_NOTE = "During the pilot, services are billed on actual use on this flow only, not at the full monthly volumes above.";
 
 export const PILOT_PHASES: { days: string; what: string }[] = [
-  { days: "Days 1–14", what: "Set-up: connect the line or the inbox, load your rules and knowledge, test in your languages." },
+  { days: "Days 1–14", what: "Set-up: connect the line or the inbox, load your rules and knowledge, test in your languages, and record today's figures for each measure as the baseline." },
   { days: "Days 15–28", what: "Shadow: the AI works alongside your team and a person checks every outcome." },
   { days: "Days 29–56", what: "Live on the agreed share of the traffic, with weekly results against the measures." },
-  { days: "Days 57–60", what: "Results review, and the decision to roll out or stop." },
+  { days: "Days 57–60", what: "Results review against the baseline. If the measures are met, the roll-out follows on the terms of this quotation, without renegotiation." },
 ];
 
 export const PILOTS: PilotPlan[] = [

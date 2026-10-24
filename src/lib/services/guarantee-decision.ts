@@ -1,3 +1,4 @@
+import { benchmarkEstimate, overRange } from "@/lib/cost-benchmarks";
 import { fromEur, round2, toEur } from "@/lib/fx";
 import type { Benefit } from "./policy";
 
@@ -31,6 +32,8 @@ export interface GuaranteeInputs {
   } | null;
   /** EUR amount up to which no human approval is needed. */
   autoApproveLimitEur: number;
+  /** Where the treatment is, for the usual-price check (src/lib/cost-benchmarks.ts). */
+  country?: string | null;
   /** Date of treatment (defaults to today). */
   on: Date;
 }
@@ -106,6 +109,13 @@ export function decideGuarantee(input: GuaranteeInputs): GuaranteeDecision {
   if (excessEur > 0) conditions.push(`An excess of ${round2(fromEur(excessEur, estimate.currency) ?? 0)} ${estimate.currency} is payable by the patient.`);
 
   const clinical = [estimate.diagnosis ?? "", ...estimate.treatment].join(" ");
+  // Is the estimate in the usual range for this treatment there? Far above it,
+  // a person agrees the price with the hospital before it is guaranteed.
+  const benchmark = benchmarkEstimate({ amount: estimate.amount, currency: estimate.currency, text: clinical, country: input.country });
+  if (benchmark) trace.benchmark = benchmark;
+  if (benchmark?.position === "well-above") {
+    flags.push(`Estimate ${overRange(benchmark)} for this treatment: agree the price with the hospital before guaranteeing`);
+  }
   const preExistingCovered = policy.benefits.find((b) => b.code === "PRE_EXISTING_CONDITIONS")?.covered ?? false;
   if (PRE_EXISTING.test(clinical)) {
     if (preExistingCovered) conditions.push("Treatment of a possibly pre-existing condition: covered under the plan's pre-existing conditions benefit.");

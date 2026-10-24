@@ -15,6 +15,8 @@ import {
   servicesCaption,
   type BusinessCaseReport,
   type QuoteMeta,
+  combinedSavingLine,
+  readingLines,
 } from "@/lib/business-case";
 import { formatMoney } from "@/lib/format";
 import { PILOT_BILLING_NOTE, PILOT_DAYS, PILOT_PHASES } from "@/lib/pilots";
@@ -272,20 +274,28 @@ export function renderQuotationPdf(report: BusinessCaseReport, meta: QuoteMeta):
         .font(B)
         .fontSize(10.5)
         .fillColor(C.accent)
-        .text(`With the operating savings, after running costs: ${eur(cost.annualSaving + running.netAnnualSaving)} a year.`, left, doc.y - 6, { width });
-      doc.moveDown(1.4);
+        .text(combinedSavingLine(report), left, doc.y - 6, { width });
+      doc.moveDown(0.9);
+    }
+    const reading = readingLines(report);
+    if (reading.length) {
+      room(60);
+      doc.font(R).fontSize(8.5).fillColor(C.ink).list(reading, left, doc.y - 4, { width, bulletRadius: 1.5, textIndent: 9, paragraphGap: 1.5, lineGap: 0.5 });
+      doc.moveDown(0.9);
     }
 
     heading("What this is based on", undefined, 120);
+    // Three across, as on the printed page.
     const basis = quoteBasis(report);
-    const colW = (width - 20) / 2;
-    for (let r = 0; r < basis.length; r += 2) {
-      const pair = basis.slice(r, r + 2);
+    const cols = 3;
+    const colW = (width - 16 * (cols - 1)) / cols;
+    for (let r = 0; r < basis.length; r += cols) {
+      const pair = basis.slice(r, r + cols);
       const h = Math.max(...pair.map(([, v]) => doc.font(R).fontSize(9).heightOfString(v, { width: colW }))) + 19;
       room(h);
       const y = doc.y;
       pair.forEach(([label, value], c) => {
-        const x = left + c * (colW + 20);
+        const x = left + c * (colW + 16);
         doc.font(R).fontSize(8).fillColor(C.muted).text(label, x, y + 3, { width: colW });
         doc.font(R).fontSize(9).fillColor(C.ink).text(value, x, y + 13, { width: colW });
       });

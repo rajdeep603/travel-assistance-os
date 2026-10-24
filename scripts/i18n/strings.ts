@@ -44,6 +44,9 @@ const SCREEN_LIB_FILES = [
   "src/lib/time-zone.ts",
   "src/lib/format.ts",
   "src/lib/services/dashboard.ts",
+  "src/lib/sla.ts",
+  "src/lib/services/service-levels.ts",
+  "src/lib/cost-benchmarks.ts",
   "src/lib/dashboard-series.ts",
 ];
 

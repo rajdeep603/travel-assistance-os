@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, FileCheck2, FileDown, Send, ShieldCheck } from "lucide-react";
+import { AlertTriangle, FileCheck2, FileDown, Scale, Send, ShieldCheck } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle, StatusBadge, readApiError } from "@/components/ui";
+import { overRange, type Benchmark } from "@/lib/cost-benchmarks";
 import { formatActor, formatMoney } from "@/lib/format";
 import { describeGuaranteeDecision } from "@/lib/guarantee-trace";
 import { formatPlainDate } from "@/lib/time";
@@ -25,12 +26,35 @@ interface Letter {
   sentVia: string | null;
   sentTo: string | null;
   decisionTrace: Record<string, unknown>;
+  benchmark: Benchmark | null;
 }
 
 interface Estimate {
   id: string;
   filename: string;
   extraction: { invoiceAmount: number | null; currency: string | null; hospital: string | null } | null;
+}
+
+const POSITION: Record<Benchmark["position"], string> = {
+  below: "bg-sky-50 text-sky-700 ring-sky-200",
+  within: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  above: "bg-amber-50 text-amber-800 ring-amber-200",
+  "well-above": "bg-rose-50 text-rose-700 ring-rose-200",
+};
+
+/** Is the estimate in the usual range for the treatment there? Checked before guaranteeing. */
+function BenchmarkLine({ b }: { b: Benchmark }) {
+  const verdict = b.position === "within" ? "Within the usual range" : b.position === "below" ? "Below the usual range" : overRange(b);
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
+      <Scale size={13} className="shrink-0 text-slate-500" aria-hidden />
+      <span>
+        Usual for {b.label.charAt(0).toLowerCase() + b.label.slice(1)} in {b.country}: {formatMoney(b.lowEur, "EUR")}–{formatMoney(b.highEur, "EUR")}
+      </span>
+      <span className={`rounded-full px-2 py-0.5 font-medium ring-1 ${POSITION[b.position]}`}>{verdict}</span>
+      <span className="text-[11px] text-muted" title={b.source}>fictional demo range</span>
+    </div>
+  );
 }
 
 /** Letters of Guarantee on a case: draft from a cost estimate, decide, send, confirm. */
@@ -155,6 +179,7 @@ export function GuaranteeLettersCard({ caseId, onChanged }: { caseId: string; on
                 <dd className="text-slate-800">{formatPlainDate(l.validUntil.slice(0, 10), { day: "numeric", month: "short", year: "numeric" })}</dd>
               </div>
             </dl>
+            {l.benchmark ? <BenchmarkLine b={l.benchmark} /> : null}
             {l.flags.length ? (
               <ul className="mt-2 space-y-1">
                 {l.flags.map((f) => (

@@ -21,6 +21,11 @@ people make the decisions.*
    `ON_CALL_DOCTOR_NUMBER`) and one to play "the hospital" (allowlisted in
    `OUTBOUND_ALLOWED_NUMBERS`).
 5. `curl https://<your-domain>/api/health` → `"status":"ok"`.
+6. The demo data stays current on its own: `demo-refresh.cjs` runs every
+   morning on the server, moving the fictional history forward so "last 7
+   days", the activity chart and the night shift show a live operation. By
+   hand: `docker compose exec app node demo-refresh.cjs` (a dry run), then
+   `--apply`.
 
 ## Visitors' own phones: the QR page
 
@@ -190,6 +195,16 @@ quotation the same evening. For large groups and hospitals, pick a
 - **Hospital asks whether the guarantee was issued** (Inbox sample) → an
   automatic reply with the status, the amount and the letter attached, but
   only to the hospital the letter was issued to.
+- **Price check** (`CASE-1015`, LOG-0904): before guaranteeing, the
+  estimate is checked against the usual range for that treatment in that
+  country. The knee arthroscopy is 52% above it, so the letter waits for a
+  person to agree the price with the hospital first. (Ranges are fictional
+  demo values; theirs come from their own tariff and claims history.)
+- **Updates to the family** (`CASE-1024`, right column): Oliver's daughter
+  gets WhatsApp updates at each step: case opened, the hospital's news,
+  the guarantee. They go out automatically when a guarantee is sent or a
+  case closes; demo numbers are simulated, and a number on the outbound
+  allowlist (your own phone) gets the real message.
 - Line: *“The stranded traveller isn't turned away while paperwork waits.”*
 
 ## If they mention… documents, case management, claims, providers, knowledge
@@ -212,6 +227,29 @@ The original modules, unchanged:
 - **Voice Agents** (`/voice`) — every agent in the browser, in any of 14
   languages: pick it, *Start*, talk (or type); what it records appears
   below the stage and on the case.
+
+## If they mention… SLAs, audits, KPIs for their insurer clients
+
+- **Service levels** on the overview: calls answered, hospital contacted,
+  guarantee sent, appointment booked, each against its target over the
+  period (example targets; each client contract sets its own).
+- On a case (`CASE-1024`), the same steps with their times: answered in
+  1 s, hospital contacted in 1 h 16 min, guarantee 23 s after the estimate.
+- Line: *“The report your insurer asks for, live, from the work itself.”*
+
+## The business case and the quotation
+
+- Pick the preset that matches who you're meeting: the page leads with
+  **their** number: cost per case for an assistance company or a
+  correspondent, medical spend for an insurer, desk hours for a hospital.
+- Under it: a **range** (75% of the assumptions to the assumptions as
+  entered) and the **busiest month**: the peak covered without temporary
+  staff. Talk capacity, not headcount.
+- In the quotation, **Bill review, paid from its savings**: a share of the
+  verified savings instead of a price per bill. No saving, no fee. Type the
+  share you agree; nothing is pre-filled.
+- The pilot plan now records a baseline in week one and says the roll-out
+  follows on the quotation's terms if the measures are met.
 
 ## Closing position
 

@@ -5,7 +5,9 @@ import {
   costBasis,
   formatCount,
   longDate,
+  combinedSavingLine,
   paybackLine,
+  readingLines,
   quoteBasis,
   quoteTerms,
   returnFacts,
@@ -248,8 +250,15 @@ export function QuotationPreview({ report, meta }: { report: BusinessCaseReport;
         </div>
         {result.annualSaving > 0 ? (
           <p className="mt-3 text-sm font-semibold" style={ACCENT}>
-            With the operating savings, after running costs: {eur(cost.annualSaving + running.netAnnualSaving)} a year.
+            {combinedSavingLine(report)}
           </p>
+        ) : null}
+        {readingLines(report).length ? (
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-[13px] leading-snug">
+            {readingLines(report).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
         ) : null}
       </Section>
 

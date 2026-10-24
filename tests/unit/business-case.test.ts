@@ -35,6 +35,10 @@ import {
   type BusinessCaseResult,
   type CostItem,
   type OperationInputs,
+  combinedSavingLine,
+  peakLine,
+  perCaseLine,
+  rangeLine,
 } from "@/lib/business-case";
 
 const ZERO_INPUTS: OperationInputs = {
@@ -50,6 +54,7 @@ const ZERO_INPUTS: OperationInputs = {
   inboundMinutes: 0,
   costPerHour: 0,
   productiveHoursPerMonth: 0,
+  peakMonthPct: 0,
 };
 
 const FULL_AUTOMATION: Assumptions = {
@@ -431,7 +436,11 @@ describe("quotation", () => {
       DEFAULT_COST_CONTAINMENT,
       calculateCostContainment(DEFAULT_COST_CONTAINMENT)
     );
-    expect(plain.summary).toBe(expected);
+    // Then how to read it: the range, the busiest month, cost per case.
+    const body = expected.split("\n");
+    const closing = body.pop();
+    const extras = [rangeLine(plain.range), peakLine(plain.capacity!), perCaseLine(plain.perCase!)].map((e) => `- ${e}`);
+    expect(plain.summary).toBe([...body, "How to read it", ...extras, "", closing].join("\n"));
     expect(withQuote(expected, plain.quote)).toBe(expected);
     expect(plain.headline).toBe(netHeadline(plain.result, plain.running));
   });
@@ -558,5 +567,52 @@ describe("what a quotation leaves out", () => {
     expect(r.summary).not.toContain("Assumptions");
     expect(r.summary).not.toContain("By area");
     expect(r.summary).not.toMatch(/NaN|undefined/);
+  });
+});
+
+describe("how a buyer reads the business case", () => {
+  const input = { operation: DEFAULT_INPUTS, assumptions: DEFAULT_ASSUMPTIONS, prices: DEFAULT_RUNNING_COST_PRICES, costContainment: DEFAULT_COST_CONTAINMENT, quote: EMPTY_QUOTE };
+
+  it("gives a range from the conservative case to the assumptions as entered", () => {
+    const r = businessCaseReport(input);
+    expect(r.range.high).toBe(r.running.netAnnualSaving);
+    expect(r.range.low).toBeGreaterThan(0);
+    expect(r.range.low).toBeLessThan(r.range.high);
+  });
+
+  it("speaks in capacity: the busiest month without temporary staff", () => {
+    const r = businessCaseReport(input);
+    expect(r.capacity?.peakPct).toBe(140);
+    expect(r.capacity!.freedHours).toBeGreaterThan(r.capacity!.extraHours);
+    expect(peakLine(r.capacity!)).toMatch(/^In your busiest month \(40% more work\) .* so the peak needs no temporary staff\.$/);
+    expect(businessCaseReport({ ...input, operation: { ...DEFAULT_INPUTS, peakMonthPct: 100 } }).capacity).toBeNull();
+  });
+
+  it("works out cost per case with the AI's running cost in it", () => {
+    const r = businessCaseReport(input);
+    const rate = DEFAULT_INPUTS.costPerHour;
+    expect(r.perCase!.today).toBeCloseTo((r.result.hoursToday * rate) / DEFAULT_INPUTS.monthlyCases);
+    expect(r.perCase!.withAi).toBeCloseTo(((r.result.hoursToday - r.result.hoursFreed) * rate + r.running.monthlyCost) / DEFAULT_INPUTS.monthlyCases);
+  });
+
+  it("offers bill review paid from its savings only when a share is quoted", () => {
+    expect(businessCaseReport(input).gainshare).toBeNull();
+    const r = businessCaseReport({ ...input, quote: { ...EMPTY_QUOTE, gainsharePct: 20 } });
+    expect(r.gainshare).toEqual({ pct: 20, fee: r.cost.annualSaving * 0.2, kept: r.cost.annualSaving * 0.8 });
+    expect(r.summary).toContain("No saving, no fee.");
+  });
+});
+
+describe("the combined saving", () => {
+  const input = { operation: DEFAULT_INPUTS, assumptions: DEFAULT_ASSUMPTIONS, prices: DEFAULT_RUNNING_COST_PRICES, costContainment: DEFAULT_COST_CONTAINMENT, quote: EMPTY_QUOTE };
+
+  it("takes the bill review share off the medical saving when one is quoted", () => {
+    const plain = businessCaseReport(input);
+    const shared = businessCaseReport({ ...input, quote: { ...EMPTY_QUOTE, gainsharePct: 20 } });
+    const eur = (n: number) => `€${Math.round(n).toLocaleString("en-GB")}`;
+    expect(combinedSavingLine(plain)).toBe(`With the operating savings, after running costs: ${eur(plain.cost.annualSaving + plain.running.netAnnualSaving)} a year.`);
+    expect(combinedSavingLine(shared)).toBe(
+      `With the operating savings, after running costs and the bill review share: ${eur(shared.cost.annualSaving * 0.8 + shared.running.netAnnualSaving)} a year.`
+    );
   });
 });

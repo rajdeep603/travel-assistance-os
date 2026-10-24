@@ -17,10 +17,13 @@ import {
   PRESETS,
   PRESET_MEDICAL_SPEND,
   businessCaseReport,
+  buyerLead,
   costBasis,
   formatCount,
   formatDuration,
   formatRate,
+  peakLine,
+  rangeLine,
   type Assumptions,
   type BusinessCaseInput,
   type CostContainmentInputs,
@@ -83,6 +86,7 @@ const OPERATION_GROUPS: { title: string; fields: FieldSpec<keyof OperationInputs
       { key: "monthlyCases", label: "Assistance cases per month", min: 0, max: 1_000_000, step: 100 },
       { key: "costPerHour", label: "Loaded cost per agent hour", unit: "€", unitWords: "euros", min: 0, max: 500, step: 1 },
       { key: "productiveHoursPerMonth", label: "Productive hours per agent a month", unit: "h", unitWords: "hours", min: 40, max: 200, step: 5 },
+      { key: "peakMonthPct", label: "Busiest month against an average one", unit: "%", unitWords: "percent", min: 0, max: 400, step: 10, hint: "140 means 40% more work in the peak season" },
     ],
   },
 ];
@@ -339,6 +343,7 @@ export default function BusinessCasePage() {
   const activePreset = PRESETS.find((p) =>
     (Object.keys(p.inputs) as (keyof OperationInputs)[]).every((k) => inputs[k] === p.inputs[k])
   )?.id;
+  const lead = result.hoursFreed >= 1 ? buyerLead(activePreset, report) : null;
   const assumptionsAreDefault = (Object.keys(DEFAULT_ASSUMPTIONS) as (keyof Assumptions)[]).every(
     (k) => assumptions[k] === DEFAULT_ASSUMPTIONS[k]
   );
@@ -460,9 +465,20 @@ export default function BusinessCasePage() {
       <div className="hero-sky animate-fade-up relative overflow-hidden rounded-2xl border border-brand/10 p-6 md:p-7">
         <div aria-hidden className="hero-map pointer-events-none absolute inset-y-0 end-0 w-full opacity-50 lg:w-[70%]" />
         <p className="relative text-sm font-semibold text-brand">Your business case</p>
-        <p aria-live="polite" className="relative mt-1.5 max-w-4xl text-xl font-bold leading-snug text-ink md:text-2xl">
+        {/* The buyer's own number first, then the hours, then how to read them. */}
+        {lead ? <p className="relative mt-1.5 max-w-4xl text-xl font-bold leading-snug text-ink md:text-2xl">{lead}</p> : null}
+        <p
+          aria-live="polite"
+          className={`relative max-w-4xl leading-snug ${lead ? "mt-2 text-base font-semibold text-slate-700" : "mt-1.5 text-xl font-bold text-ink md:text-2xl"}`}
+        >
           {report.headline}
         </p>
+        {result.hoursFreed >= 1 ? (
+          <ul className="relative mt-3 max-w-4xl space-y-1 text-sm leading-snug text-slate-600">
+            <li>{rangeLine(report.range)}</li>
+            {report.capacity ? <li>{peakLine(report.capacity)}</li> : null}
+          </ul>
+        ) : null}
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -26,8 +26,9 @@ import { sendEmail } from "./outbox";
 // in the body. The server recomputes every figure from the presenter's numbers.
 // ---------------------------------------------------------------------------
 
-// A blank field reaches the server as null and counts as zero, as on the page.
-const num = z.number().finite().nullable().transform((v) => v ?? 0);
+// A blank field reaches the server as null and counts as zero, as on the page;
+// so does a field a saved lead predates (the busiest month, added later).
+const num = z.number().finite().nullable().optional().transform((v) => v ?? 0);
 
 function numbers<T extends object>(defaults: T) {
   return z.object(Object.fromEntries(Object.keys(defaults).map((k) => [k, num])) as { [K in keyof T]: typeof num });
@@ -47,6 +48,7 @@ export const BusinessCaseInputSchema = z.object({
       services: z.array(z.object({ description: z.string().trim().max(160), amount: num })).max(20).default([]),
       pilot: z.string().trim().max(40).optional(),
       excluded: z.array(z.enum(COST_ITEMS)).max(COST_ITEMS.length).optional(),
+      gainsharePct: z.number().finite().min(0).max(100).optional(),
     })
     .default(EMPTY_QUOTE),
 });

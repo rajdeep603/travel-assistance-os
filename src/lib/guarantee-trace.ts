@@ -1,3 +1,4 @@
+import { overRange, type Benchmark } from "@/lib/cost-benchmarks";
 import { formatDate, formatMoney } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
@@ -9,6 +10,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 interface Trace {
   estimate?: { amount?: number; currency?: string };
   autoApproveLimitEur?: number;
+  benchmark?: Benchmark;
   policy?: { number?: string; plan?: string; validFrom?: string; validTo?: string } | null;
   benefit?: { covered?: boolean; limit?: number | null; excess?: number } | null;
   computation?: {
@@ -56,6 +58,11 @@ export function describeGuaranteeDecision(raw: unknown, flags: string[] = []): s
       );
     } else {
       steps.push(`The hospital's estimate is ${eur(c.estimateEur)}${original}.`);
+    }
+    if (t.benchmark) {
+      const b = t.benchmark;
+      const verdict = b.position === "within" ? "within it" : b.position === "below" ? "below it" : overRange(b).replace(" the usual range", "");
+      steps.push(`Usual for ${b.label.charAt(0).toLowerCase() + b.label.slice(1)} in ${b.country}: ${eur(b.lowEur)}–${eur(b.highEur)} (fictional demo range); the estimate is ${verdict}.`);
     }
     const committed = c.committedGuaranteesEur ? ` (after ${eur(c.committedGuaranteesEur)} already committed in open guarantees)` : "";
     const limits = [`remaining medical limit ${eur(c.remainingMedicalLimitEur ?? 0)}${committed}`];

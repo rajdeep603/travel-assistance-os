@@ -93,9 +93,10 @@ export async function sendFax(
  * (TWILIO_WHATSAPP_FROM: the sandbox number, or an approved business sender);
  * otherwise recorded in the outbox like the mock fax.
  */
-export async function sendWhatsApp(input: Common & { to: string; text: string }): Promise<OutboundMessage> {
+export async function sendWhatsApp(input: Common & { to: string; text: string; simulate?: boolean }): Promise<OutboundMessage> {
   const telephony = getTelephony();
-  const live = telephony.configured && !!process.env.TWILIO_WHATSAPP_FROM;
+  // `simulate`: a fictional demo number, recorded like the mock but never sent.
+  const live = !input.simulate && telephony.configured && !!process.env.TWILIO_WHATSAPP_FROM;
   const row = await prisma.outboundMessage.create({
     data: {
       channel: "WHATSAPP",

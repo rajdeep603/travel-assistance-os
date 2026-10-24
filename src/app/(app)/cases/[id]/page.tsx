@@ -23,6 +23,9 @@ import { GuaranteeLettersCard } from "@/components/cases/guarantee-letters-card"
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
 import { HandoffCard } from "@/components/cases/handoff-card";
 import { MoneyCard } from "@/components/cases/money-card";
+import { FamilyUpdatesCard } from "@/components/cases/family-updates-card";
+import { SlaCard } from "@/components/cases/sla-card";
+import type { SlaMilestone } from "@/lib/sla";
 import { TransportCard, type TransportPlan } from "@/components/cases/transport-card";
 import type { CaseMoney } from "@/lib/services/exposure";
 import { PlaceCallCard } from "@/components/calls/place-call-card";
@@ -71,6 +74,7 @@ interface CaseDetail {
   }[];
   conversations: { id: string; channel: string; summary: string | null }[];
   money: CaseMoney | null;
+  sla?: SlaMilestone[];
   transportPlans: TransportPlan[];
   calls: {
     id: string;
@@ -369,6 +373,9 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               Everything created from here is linked back to {data.ref}.
             </p>
           </Card>
+
+          <SlaCard sla={data.sla ?? []} />
+          <FamilyUpdatesCard caseId={data.id} />
 
           <PlaceCallCard caseId={data.id} />
           <InterpreterCard caseId={data.id} />

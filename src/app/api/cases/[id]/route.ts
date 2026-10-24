@@ -3,6 +3,9 @@ import { json, serialize, withErrorHandling } from "@/lib/api";
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
 import { caseMoney } from "@/lib/services/exposure";
+import { notifyFamily } from "@/lib/services/family-updates";
+import { SLA_CASE_SELECT, slaInput } from "@/lib/services/service-levels";
+import { caseServiceLevels } from "@/lib/sla";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +29,11 @@ export const GET = withErrorHandling(
   async (_req: Request, { params }: { params: { id: string } }) => {
     const found = await findCase(params.id);
     if (!found) throw notFound("Case");
-    return json({ case: serialize({ ...found, money: await caseMoney(found.id) }) });
+    const [money, slaCase] = await Promise.all([
+      caseMoney(found.id),
+      prisma.case.findUniqueOrThrow({ where: { id: found.id }, select: SLA_CASE_SELECT }),
+    ]);
+    return json({ case: serialize({ ...found, money, sla: caseServiceLevels(await slaInput(slaCase)) }) });
   }
 );
 
@@ -55,6 +62,8 @@ export const PATCH = withErrorHandling(
       data: body,
       include: { patient: true },
     });
+    const closedNow = body.status && ["RESOLVED", "CLOSED"].includes(body.status) && !["RESOLVED", "CLOSED"].includes(found.status);
+    if (closedNow) await notifyFamily(found.id, "closed");
     return json({ case: serialize(updated) });
   }
 );

@@ -23,6 +23,10 @@ RUN npx prisma generate \
  && npx esbuild prisma/seed.ts --bundle --platform=node --format=cjs \
       --outfile=.next/standalone/seed.cjs \
       --external:@prisma/client --external:pdf-parse \
+ # Keeps the demo current on a long-running server: node demo-refresh.cjs --apply
+ && npx esbuild scripts/demo-refresh.ts --bundle --platform=node --format=cjs \
+      --outfile=.next/standalone/demo-refresh.cjs \
+      --external:@prisma/client --external:pdf-parse --external:pdfkit \
  # The voice gateway (WebSocket server) ships in the same image; compose runs
  # it as its own service with `node voice-gateway.cjs`.
  && npx esbuild voice-gateway/main.ts --bundle --platform=node --format=cjs --target=node22 \

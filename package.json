@@ -10,6 +10,7 @@
     "lint": "next lint",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "demo:refresh": "tsx scripts/demo-refresh.ts",
     "demo:pdfs": "tsx scripts/samples/generate.ts --pdfs",
     "demo:samples": "tsx scripts/samples/generate.ts",
     "voice:probe": "tsx scripts/voice-probe.ts",

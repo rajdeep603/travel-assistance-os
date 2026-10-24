@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Ban, Cable, FileClock, Globe2, LayoutGrid, Lock, PhoneCall, UserRoundCheck } from "lucide-react";
+import { Ban, Cable, FileClock, Globe2, LayoutGrid, Lock, PhoneCall, Scale, UserRoundCheck } from "lucide-react";
 import { T } from "@/components/i18n";
 import { PageHeader } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
@@ -17,9 +17,9 @@ type Line = { text: ReactNode; when?: "pilot" | "roadmap" };
 
 const WHEN_LABEL = { pilot: "In a pilot", roadmap: "On the roadmap" } as const;
 
-function Block({ icon, title, intro, lines }: { icon: ReactNode; title: string; intro: string; lines: Line[] }) {
+function Block({ icon, title, intro, lines, wide = false }: { icon: ReactNode; title: string; intro: string; lines: Line[]; wide?: boolean }) {
   return (
-    <section className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
+    <section className={`flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6 ${wide ? "lg:col-span-2" : ""}`}>
       <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
         {icon}
         <T>{title}</T>
@@ -66,6 +66,7 @@ export default function TrustPage() {
               text: `A guarantee of payment that is above the automatic limit (EUR ${autoLimit}), over the remaining policy limit, outside the policy dates or with a possible pre-existing condition. These wait for a person, who can approve a lower amount.`,
             },
             { text: "Cutting a guarantee on price before treatment. Price findings are advice and a reserve; only lines the policy never covers are deducted." },
+            { text: "Guaranteeing an estimate far above the usual price for that treatment there. A person agrees the price with the hospital first." },
             { text: "Settling a hospital bill. Each bill review is accepted or waived by a person; on the phone, the negotiation agent agrees only within the limit the rules set." },
             { text: "Answering complaints or legal threats. Those are flagged and a reply is drafted for a person to approve." },
           ]}
@@ -93,6 +94,8 @@ export default function TrustPage() {
             { text: "Each Letter of Guarantee keeps its decision trace: the estimate, the remaining limit, the excess and the rule applied." },
             { text: "Each call keeps its transcript, the tools the agent used and a summary of what it achieved." },
             { text: "Every e-mail and fax sent is recorded, with whether it went automatically or who approved it." },
+            { text: "Each case shows its service levels: every step against its target, the way an insurer audits its assistance company." },
+            { text: "Updates to the family go on the case timeline, whether they went automatically or a person wrote them." },
             { text: "Exports of the audit trail to your own systems.", when: "roadmap" },
           ]}
         />
@@ -107,6 +110,19 @@ export default function TrustPage() {
             { text: `After ${retention} days, phone transcripts are erased and caller numbers masked; the call's outcome and the case stay for reporting.` },
             { text: "Agents never ask for passport, ID or card numbers, and only discuss a policy after the caller is verified." },
             { text: "Retention periods and recording consent wording set to your policy and each country's rules.", when: "pilot" },
+          ]}
+        />
+
+        <Block
+          icon={icon(Scale)}
+          title="EU AI Act, in practice"
+          intro="How the product meets the Act's main duties. A guide, not legal advice."
+          lines={[
+            { text: "Transparency: callers are told they're talking to an AI, and what the AI wrote or read is marked as such on screen." },
+            { text: "Human oversight: cover, payment and medical decisions stay with people; the AI prepares them (see above)." },
+            { text: "Record-keeping: decision traces, transcripts and the case timeline log what the AI did and why." },
+            { text: "No risk assessment or pricing of people for life or health insurance, the insurance uses the Act lists as high-risk." },
+            { text: "The risk assessment and documentation a deployer keeps, prepared with you for the flows in scope.", when: "pilot" },
           ]}
         />
 
@@ -126,6 +142,7 @@ export default function TrustPage() {
         />
 
         <Block
+          wide
           icon={icon(Cable)}
           title="How it fits your systems"
           intro="Start beside what you run today; no platform change for a pilot."
