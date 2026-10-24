@@ -14,6 +14,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Next's type check needs about 1.1 GB of heap; Node's default cap is half the
+# RAM, which on the 2 GB demo host is below that (swap covers the difference).
+ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN npx prisma generate \
  && npm run build \
  # Bundle the seed script so the runtime image can seed without dev deps.
