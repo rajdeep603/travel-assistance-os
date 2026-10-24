@@ -13,7 +13,7 @@ export default function AppLoading() {
       </div>
       <div className="grid gap-5 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className={`rounded-2xl border border-line/60 bg-surface p-5 shadow-card ${i === 0 ? "lg:col-span-2" : ""}`}>
+          <div key={i} className={`rounded-2xl border border-line bg-surface p-5 shadow-card ${i === 0 ? "lg:col-span-2" : ""}`}>
             <Skeleton className="h-4 w-40" />
             <Skeleton className="mt-4 h-10 w-32" />
             <Skeleton className="mt-4 h-3 w-full" />
@@ -22,7 +22,7 @@ export default function AppLoading() {
           </div>
         ))}
       </div>
-      <div className="mt-5 rounded-2xl border border-line/60 bg-surface p-5 shadow-card">
+      <div className="mt-5 rounded-2xl border border-line bg-surface p-5 shadow-card">
         <Skeleton className="h-4 w-32" />
         <div className="mt-4 space-y-3">
           {[0, 1, 2, 3].map((i) => (

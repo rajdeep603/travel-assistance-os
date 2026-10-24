@@ -70,23 +70,15 @@ export async function getOverview({ days = DEFAULT_OVERVIEW_PERIOD, night = null
   const caseCounts = Object.fromEntries(casesByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
   const claimCounts = Object.fromEntries(claimsByStatus.map((g) => [g.status, g._count._all])) as Record<string, number>;
   const sum = (counts: Record<string, number>, keys: string[]) => keys.reduce((total, k) => total + (counts[k] ?? 0), 0);
-  // Each decision opens the record to decide on when there is one.
-  const reviewHref = proposedReview?.caseId ? `/cases/${proposedReview.caseId}` : proposedReview?.claim ? `/claims/${proposedReview.claim.ref}` : "/claims";
-  const decisions: OverviewDecision[] = [
-    { count: money.awaitingDecision, label: plural(money.awaitingDecision, "hospital bill review to accept", "hospital bill reviews to accept"), href: reviewHref },
-    {
-      count: draftLetters.length,
-      label: plural(draftLetters.length, "guarantee letter to approve", "guarantee letters to approve"),
-      href: draftLetters[0] ? `/cases/${draftLetters[0].caseId}` : "/cases",
-    },
-    { count: claimCounts.NEEDS_REVIEW ?? 0, label: plural(claimCounts.NEEDS_REVIEW ?? 0, "claim to review", "claims to review"), href: "/claims" },
-    { count: caseCounts.ESCALATED ?? 0, label: plural(caseCounts.ESCALATED ?? 0, "escalated case", "escalated cases"), href: escalatedCase ? `/cases/${escalatedCase.id}` : "/cases" },
-    {
-      count: caseCounts.PENDING_INFO ?? 0,
-      label: plural(caseCounts.PENDING_INFO ?? 0, "case waiting for information", "cases waiting for information"),
-      href: "/cases",
-    },
-  ];
+  const { decisions, reviewHref } = decisionsFrom({
+    awaitingDecision: money.awaitingDecision,
+    draftLetterCases: draftLetters.map((l) => l.caseId),
+    proposedReview,
+    escalatedCaseId: escalatedCase?.id ?? null,
+    claimsToReview: claimCounts.NEEDS_REVIEW ?? 0,
+    escalated: caseCounts.ESCALATED ?? 0,
+    pendingInfo: caseCounts.PENDING_INFO ?? 0,
+  });
   return {
     days,
     caseCounts,
@@ -101,4 +93,59 @@ export async function getOverview({ days = DEFAULT_OVERVIEW_PERIOD, night = null
     money,
     handover,
   };
+}
+
+interface DecisionInputs {
+  awaitingDecision: number;
+  draftLetterCases: string[];
+  proposedReview: { caseId: string | null; claim: { ref: string } | null } | null;
+  escalatedCaseId: string | null;
+  claimsToReview: number;
+  escalated: number;
+  pendingInfo: number;
+}
+
+/** The decisions waiting for a person; each opens the record to decide on when there is one. */
+function decisionsFrom(d: DecisionInputs): { decisions: OverviewDecision[]; reviewHref: string } {
+  const reviewHref = d.proposedReview?.caseId ? `/cases/${d.proposedReview.caseId}` : d.proposedReview?.claim ? `/claims/${d.proposedReview.claim.ref}` : "/claims";
+  const decisions: OverviewDecision[] = [
+    { count: d.awaitingDecision, label: plural(d.awaitingDecision, "hospital bill review to accept", "hospital bill reviews to accept"), href: reviewHref },
+    {
+      count: d.draftLetterCases.length,
+      label: plural(d.draftLetterCases.length, "guarantee letter to approve", "guarantee letters to approve"),
+      href: d.draftLetterCases[0] ? `/cases/${d.draftLetterCases[0]}` : "/cases",
+    },
+    { count: d.claimsToReview, label: plural(d.claimsToReview, "claim to review", "claims to review"), href: "/claims" },
+    { count: d.escalated, label: plural(d.escalated, "escalated case", "escalated cases"), href: d.escalatedCaseId ? `/cases/${d.escalatedCaseId}` : "/cases" },
+    { count: d.pendingInfo, label: plural(d.pendingInfo, "case waiting for information", "cases waiting for information"), href: "/cases" },
+  ];
+  return { decisions, reviewHref };
+}
+
+/** Only the decisions waiting for a person (the header's bell), without the rest of the overview. */
+export async function getDecisions({ days = DEFAULT_OVERVIEW_PERIOD, now = new Date() }: { days?: OverviewPeriod; now?: Date } = {}): Promise<OverviewDecision[]> {
+  const since = new Date(now.getTime() - days * 86_400_000);
+  const [cases, claimsToReview, draftLetters, proposedReview, escalatedCase, reviews] = await Promise.all([
+    prisma.case.groupBy({ by: ["status"], where: { status: { in: ["ESCALATED", "PENDING_INFO"] } }, _count: { _all: true } }),
+    prisma.claim.count({ where: { status: "NEEDS_REVIEW" } }),
+    prisma.guaranteeLetter.findMany({ where: { status: "DRAFT" }, orderBy: { createdAt: "desc" }, select: { caseId: true } }),
+    prisma.billReview.findFirst({
+      where: { status: "PROPOSED" },
+      orderBy: { createdAt: "desc" },
+      select: { caseId: true, claim: { select: { ref: true } } },
+    }),
+    prisma.case.findFirst({ where: { status: "ESCALATED" }, orderBy: { updatedAt: "desc" }, select: { id: true } }),
+    // As getMoneyOutcomes counts them: hospital invoices reviewed in the period, proposed with a saving.
+    prisma.billReview.findMany({ where: { kind: "HOSPITAL_INVOICE", createdAt: { gte: since }, status: "PROPOSED" }, select: { savings: true } }),
+  ]);
+  const byStatus = Object.fromEntries(cases.map((g) => [g.status, g._count._all])) as Record<string, number>;
+  return decisionsFrom({
+    awaitingDecision: reviews.filter((r) => Number(r.savings) > 0).length,
+    draftLetterCases: draftLetters.map((l) => l.caseId),
+    proposedReview,
+    escalatedCaseId: escalatedCase?.id ?? null,
+    claimsToReview,
+    escalated: byStatus.ESCALATED ?? 0,
+    pendingInfo: byStatus.PENDING_INFO ?? 0,
+  }).decisions;
 }

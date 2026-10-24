@@ -1,6 +1,7 @@
 import type { Claim, Document, DocumentExtraction, Patient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
+import { formatMoney } from "@/lib/format";
 import { runAI } from "./ai";
 import { reviewBills } from "./bill-review-service";
 import { convert } from "./exposure";
@@ -65,9 +66,11 @@ export function checkCompleteness(claim: ClaimWithRelations): ClaimIssue[] {
     const inpatient = kinds.has("DISCHARGE_SUMMARY") || extractions.some((e) => e.dischargeDate);
     const limit = inpatient ? INPATIENT_LIMIT_TRY : OUTPATIENT_LIMIT_TRY;
     if (convert(Number(priced.invoiceAmount), priced.currency, "TRY") > limit) {
+      // The limit is set in lira; a bill in another currency also sees it in its own.
+      const inBillCurrency = priced.currency === "TRY" ? "" : ` (about ${formatMoney(convert(limit, "TRY", priced.currency), priced.currency)})`;
       issues.push({
         severity: "warning",
-        message: `Above the ${inpatient ? "inpatient" : "outpatient"} limit of ${limit.toLocaleString("en-GB")} TRY: a senior reviewer decides`,
+        message: `Above the ${inpatient ? "inpatient" : "outpatient"} limit of ${limit.toLocaleString("en-GB")} TRY${inBillCurrency}: a senior reviewer decides`,
       });
     }
   }

@@ -52,10 +52,10 @@ export function NightShift({ handover: h, waiting, timeZone = OPERATION_TIME_ZON
   ];
 
   return (
-    <section id="night-shift" aria-labelledby="night-title" className="scroll-mt-20 rounded-2xl border border-line/80 bg-surface p-5 shadow-sm md:p-6">
+    <section id="night-shift" aria-labelledby="night-title" className="scroll-mt-20 rounded-2xl border border-line bg-surface p-5 shadow-card md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 id="night-title" className="flex items-center gap-2 text-base font-semibold text-ink">
+          <h2 id="night-title" className="flex items-center gap-2 text-lg font-semibold text-ink">
             <Moon size={17} className="text-brand" aria-hidden />
             <T>While your team slept</T>
           </h2>
@@ -65,10 +65,10 @@ export function NightShift({ handover: h, waiting, timeZone = OPERATION_TIME_ZON
         </div>
         <div className="flex items-center gap-1.5">
           <NightLink night={older} label="An earlier night">
-            <ChevronLeft size={16} aria-hidden />
+            <ChevronLeft size={16} className="rtl:rotate-180" aria-hidden />
           </NightLink>
           <NightLink night={newer} label="A later night">
-            <ChevronRight size={16} aria-hidden />
+            <ChevronRight size={16} className="rtl:rotate-180" aria-hidden />
           </NightLink>
         </div>
       </div>

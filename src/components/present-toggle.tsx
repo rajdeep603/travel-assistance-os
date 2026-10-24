@@ -31,13 +31,13 @@ export function PresentToggle() {
       onClick={toggle}
       aria-pressed={on}
       title="Presentation mode — larger text for projectors"
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+      className={`hidden h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold sm:inline-flex transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
         on
           ? "border-brand bg-brand bg-brand-gradient text-white shadow-glow"
           : "border-line bg-surface text-muted hover:border-brand/50 hover:text-brand"
       }`}
     >
-      <Presentation size={13} aria-hidden />
+      <Presentation size={15} aria-hidden />
       <span className="hidden sm:inline"><T>Present</T></span>
     </button>
   );

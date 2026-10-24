@@ -457,9 +457,10 @@ export default function BusinessCasePage() {
       ) : null}
 
       {/* The answer first, readable from across the stand. */}
-      <div className="animate-fade-up rounded-2xl bg-brand bg-brand-gradient p-6 text-white shadow-glow md:p-7">
-        <p className="text-sm font-medium text-white/80">Your business case</p>
-        <p aria-live="polite" className="mt-1.5 max-w-4xl text-xl font-semibold leading-snug md:text-2xl">
+      <div className="hero-sky animate-fade-up relative overflow-hidden rounded-2xl border border-brand/10 p-6 md:p-7">
+        <div aria-hidden className="hero-map pointer-events-none absolute inset-y-0 end-0 w-full opacity-50 lg:w-[70%]" />
+        <p className="relative text-sm font-semibold text-brand">Your business case</p>
+        <p aria-live="polite" className="relative mt-1.5 max-w-4xl text-xl font-bold leading-snug text-ink md:text-2xl">
           {report.headline}
         </p>
       </div>
@@ -470,7 +471,7 @@ export default function BusinessCasePage() {
             <div className={`mb-2.5 inline-flex rounded-lg p-2 ${accent}`}>
               <Icon size={18} aria-hidden />
             </div>
-            <p className="text-3xl font-semibold tracking-tight tabular-nums text-ink 2xl:text-4xl">
+            <p className="text-3xl font-bold tracking-tight tabular-nums text-ink 2xl:text-4xl">
               <CountUp value={value} format={format} durationMs={500} />
             </p>
             <p className="mt-1 text-sm font-semibold text-slate-700">{label}</p>
@@ -524,7 +525,7 @@ export default function BusinessCasePage() {
           <div className="flex flex-col justify-center gap-6 rounded-xl bg-canvas p-5 lg:col-span-2">
             <div>
               <Coins size={20} aria-hidden className="text-brand" />
-              <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-ink 2xl:text-4xl">
+              <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums text-ink 2xl:text-4xl">
                 <CountUp value={running.annualCost} format={eurShort} durationMs={500} />
               </p>
               <p className="mt-1 text-sm font-semibold text-ink">AI running cost a year</p>
@@ -641,7 +642,7 @@ export default function BusinessCasePage() {
           </div>
           <div className="flex flex-col justify-center rounded-xl bg-canvas p-5 lg:col-span-2">
             <ReceiptText size={20} aria-hidden className="text-brand" />
-            <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-ink 2xl:text-4xl">
+            <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums text-ink 2xl:text-4xl">
               <CountUp value={cost.annualSaving} format={eurShort} durationMs={500} />
             </p>
             <p className="mt-1 text-sm font-semibold text-ink">Medical spend saved a year</p>
@@ -751,7 +752,7 @@ export default function BusinessCasePage() {
                       <th scope="row" className="py-2.5 pr-3 text-left font-normal">
                         <span className="block font-medium text-slate-800">{a.label}</span>
                         <span className="block text-slate-500">
-                          {formatCount(a.volume)} a month · {formatCount(a.hoursToday)} h today
+                          {formatCount(a.volume)} a month · <span className="whitespace-nowrap">{formatCount(a.hoursToday)} h today</span>
                         </span>
                       </th>
                       <td className="py-2.5 pr-3 text-right tabular-nums text-slate-800">

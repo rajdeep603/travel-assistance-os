@@ -104,7 +104,7 @@ describe("claim authority limits", () => {
     const issues = checkCompleteness(claim(["MEDICAL_REPORT", "HOSPITAL_INVOICE"], { amount: 800, currency: "EUR" }));
     expect(issues.find((i) => i.message.startsWith("Above the outpatient limit"))).toEqual({
       severity: "warning",
-      message: "Above the outpatient limit of 20,000 TRY: a senior reviewer decides",
+      message: "Above the outpatient limit of 20,000 TRY (about €526): a senior reviewer decides",
     });
   });
 

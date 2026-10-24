@@ -449,7 +449,7 @@ export default function ProvidersPage() {
                                 {r.distanceKm != null ? ` · ${r.distanceKm} km` : ""}
                               </span>
                               <span className="inline-flex items-center gap-1">
-                                <Phone size={12} aria-hidden /> {r.provider.phone}
+                                <Phone size={12} aria-hidden /> <bdi dir="ltr">{r.provider.phone}</bdi>
                               </span>
                               <span>Languages: {r.provider.languages.join(", ")}</span>
                             </p>

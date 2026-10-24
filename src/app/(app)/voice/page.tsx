@@ -233,7 +233,7 @@ export default function VoicePage() {
       {state.booking || state.handoff ? (
         <div className="animate-fade-up mt-5 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
           <span className="text-sm font-semibold text-emerald-700">AI completed</span>
-          <ArrowRight size={16} className="text-emerald-500" aria-hidden />
+          <ArrowRight size={16} className="text-emerald-500 rtl:rotate-180" aria-hidden />
           <span className="text-sm font-semibold text-emerald-700">
             {state.handoff?.target === "doctor" ? "On-call doctor" : "Human case manager"}
           </span>

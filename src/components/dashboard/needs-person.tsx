@@ -18,9 +18,9 @@ export function NeedsPerson({ decisions }: { decisions: Decision[] }) {
   const waiting = decisions.filter((d) => d.count > 0);
   const total = waiting.reduce((sum, d) => sum + d.count, 0);
   return (
-    <section aria-labelledby="needs-title" className="flex h-full flex-col rounded-2xl border border-line/80 bg-surface p-5 shadow-sm md:p-6">
+    <section aria-labelledby="needs-title" className="flex h-full flex-col rounded-2xl border border-line bg-surface p-5 shadow-card md:p-6">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="needs-title" className="text-base font-semibold text-ink">
+        <h2 id="needs-title" className="text-lg font-semibold text-ink">
           <T>Needs a person</T>
         </h2>
         <span className="text-xs tabular-nums text-muted">{total ? <>{total} <T>waiting</T></> : <T>All clear</T>}</span>
@@ -39,7 +39,7 @@ export function NeedsPerson({ decisions }: { decisions: Decision[] }) {
                   {d.count}
                 </span>
                 <span className="min-w-0 flex-1 text-sm text-ink"><T>{d.label}</T></span>
-                <ChevronRight size={16} className="shrink-0 text-slate-400 transition-colors group-hover:text-amber-700" aria-hidden />
+                <ChevronRight size={16} className="shrink-0 text-slate-400 transition-colors group-hover:text-amber-700 rtl:rotate-180" aria-hidden />
               </Link>
             </li>
           ))}

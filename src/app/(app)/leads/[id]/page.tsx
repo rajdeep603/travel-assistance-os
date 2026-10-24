@@ -178,7 +178,7 @@ export default function LeadPage() {
   return (
     <div className="mx-auto max-w-7xl">
       <Link href="/leads" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-muted hover:text-brand">
-        <ArrowLeft size={14} aria-hidden /> All leads
+        <ArrowLeft size={14} className="rtl:rotate-180" aria-hidden /> All leads
       </Link>
 
       {error ? (
@@ -269,7 +269,7 @@ export default function LeadPage() {
                     value={
                       lead.phone ? (
                         <a href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`} className="text-brand hover:underline">
-                          {lead.phone}
+                          <bdi dir="ltr">{lead.phone}</bdi>
                         </a>
                       ) : null
                     }

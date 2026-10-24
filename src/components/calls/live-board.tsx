@@ -240,7 +240,7 @@ function LiveCallCard({ call: c }: { call: BoardCall }) {
         <span className="flex items-center gap-2 text-xs text-stage-muted">
           {c.caller ? (
             <span className="flex items-center gap-1">
-              <Phone size={11} aria-hidden /> {maskPhone(c.caller)}
+              <Phone size={11} aria-hidden /> <bdi dir="ltr">{maskPhone(c.caller)}</bdi>
             </span>
           ) : null}
           {c.ended ? null : <Elapsed since={c.startedAt} />}

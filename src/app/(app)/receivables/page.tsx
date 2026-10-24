@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Mail, PhoneCall, Send, ShieldCheck, Wallet, XCircle } from "lucide-react";
-import { Button, Card, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
+import { AlarmClock, AlertTriangle, CalendarCheck, CheckCircle2, ChevronDown, Mail, PhoneCall, Scale, Send, ShieldCheck, Wallet, XCircle } from "lucide-react";
+import { Button, Card, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatTile, StatusBadge, readApiError } from "@/components/ui";
 import { useQueryParam } from "@/lib/client/use-query-param";
 import { formatDateTime, formatMoney, formatMoneyExact } from "@/lib/format";
 import { useT } from "@/components/i18n";
@@ -105,11 +105,11 @@ export default function ReceivablesPage() {
       </PageHeader>
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi label={t("Outstanding")} value={data ? formatMoney(data.outstandingEur, "EUR") : "—"} note={t("At demo exchange rates")} />
-        <Kpi label={t("Past due")} value={data ? formatMoney(data.overdueEur, "EUR") : "—"} note={data ? `${data.overdueCount} ${t("invoices")}` : ""} warn={!!data?.overdueCount} />
-        <Kpi label={t("Average days to be paid")} value={data?.averageDaysToPay != null ? String(data.averageDaysToPay) : "—"} note={t("Invoices paid so far")} />
-        <Kpi label={t("Disputed")} value={data ? String(data.disputedCount) : "—"} note={t("Waiting for the billing manager")} warn={!!data?.disputedCount} />
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile icon={Wallet} tone="blue" label={t("Outstanding")} value={data ? formatMoney(data.outstandingEur, "EUR") : "—"} note={t("At demo exchange rates")} />
+        <StatTile icon={AlarmClock} tone="amber" label={t("Past due")} value={data ? formatMoney(data.overdueEur, "EUR") : "—"} note={data ? `${data.overdueCount} ${t("invoices")}` : ""} warn={!!data?.overdueCount} />
+        <StatTile icon={CalendarCheck} tone="emerald" label={t("Average days to be paid")} value={data?.averageDaysToPay != null ? String(data.averageDaysToPay) : "—"} note={t("Invoices paid so far")} />
+        <StatTile icon={Scale} tone="rose" label={t("Disputed")} value={data ? String(data.disputedCount) : "—"} note={t("Waiting for the billing manager")} warn={!!data?.disputedCount} />
       </div>
 
       <div className="mb-5 grid gap-5 lg:grid-cols-5">
@@ -166,11 +166,11 @@ export default function ReceivablesPage() {
       </div>
 
       <Card className="overflow-x-auto p-0">
-        <table className="w-full min-w-[860px] text-sm">
+        <table className="w-full min-w-[680px] text-sm xl:min-w-[860px]">
           <thead>
             <tr className="border-b border-line text-left text-xs font-medium text-muted">
               <th className="px-5 py-3">{t("Invoice")}</th>
-              <th className="px-3 py-3">{t("Patient")}</th>
+              <th className="hidden px-3 py-3 xl:table-cell">{t("Patient")}</th>
               <th className="px-3 py-3">{t("Payer")}</th>
               <th className="px-3 py-3 text-right">{t("Balance")}</th>
               <th className="px-3 py-3">{t("Status")}</th>
@@ -185,8 +185,10 @@ export default function ReceivablesPage() {
                   <td className="px-5 py-3">
                     <p className="font-medium text-ink">{r.invoiceNumber}</p>
                     <p className="text-xs tabular-nums text-muted">{r.ref} · {r.facility}</p>
+                    {/* The patient has its own column on a laptop; under the invoice on a tablet. */}
+                    <p className="text-xs text-muted xl:hidden">{r.patientName}</p>
                   </td>
-                  <td className="px-3 py-3 text-ink/90">{r.patientName}</td>
+                  <td className="hidden px-3 py-3 text-ink/90 xl:table-cell">{r.patientName}</td>
                   <td className="px-3 py-3 text-ink/90">
                     {r.payerName}
                     <span className="block text-xs text-muted">{r.gopRef ? `${t("Guarantee")} ${r.gopRef}` : t("No guarantee quoted")}</span>
@@ -212,16 +214,6 @@ export default function ReceivablesPage() {
         {!data ? <div className="p-5"><SkeletonRows rows={5} /></div> : null}
       </Card>
     </div>
-  );
-}
-
-function Kpi({ label, value, note, warn }: { label: string; value: string; note?: string; warn?: boolean }) {
-  return (
-    <Card className="p-4">
-      <p className="text-xs font-medium text-muted">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${warn ? "text-warn" : "text-ink"}`}>{value}</p>
-      {note ? <p className="mt-0.5 text-xs text-muted">{note}</p> : null}
-    </Card>
   );
 }
 

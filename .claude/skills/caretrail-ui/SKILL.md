@@ -9,18 +9,26 @@ CareTrail is demoed from a presenter laptop at a trade-show booth, so every scre
 
 ## Theme
 
-- **Light workspace, dark stage.**
-  - The operator workspace is light (`bg-canvas`, cards on `bg-surface`) because it stays readable under bright hall lighting.
-  - The **stage** (`bg-stage`, deep navy) is used only where the AI is live: the sidebar, the voice agent stage, live call cards, the sign-in panel, and the dashboard hero (the live journey route and its outcome figures).
+The look follows the reference dashboard the user supplied for ITIC 2026 (`CareTrack AI Dashboard Overview.png`): a light, airy workspace with a white sidebar, white cards on a near-white canvas, pastel icon tiles and bold headings. (2026-10-24.)
+
+- **Light everywhere, dark only where the voice is live.**
+  - The sidebar, header, cards, the dashboard hero, the sign-in panel and the visitor's page (`/meet`) are all light.
+  - The **stage** (`bg-stage`, deep navy) remains only where an AI voice is live: the voice agent stage on `/voice`, live call cards, the assistant's voice-mode bar, and code samples on `/developers`.
   - Don't add dark mode to other pages ad hoc.
+- **The sky.** `.hero-sky` (a morning-blue gradient that deepens toward the end side) plus `.hero-map` (the dotted world map, `public/brand/world-dots.svg`, faded toward the text) are the brand backdrop: dashboard hero, sign-in panel, `/meet`. `.hero-map-top` keeps the map to the top of a panel. Both mirror in Arabic. `public/brand/` is served without sign-in (middleware matcher), so the sign-in page can load it.
 - **Colour tokens.**
   - Every colour role is a CSS variable in `src/app/globals.css` (`--c-*`, space-separated RGB), mapped to Tailwind in `tailwind.config.ts`.
   - The roles are `ink`, `muted`, `canvas`, `surface`, `line`, `brand`, `brand-2`, `brand-deep`, `ai`, `live` and `warn`, plus `stage`, `stage-raised`, `stage-line`, `stage-ink` and `stage-muted`.
-  - **Depth and vibrancy (2026-10-22).** `bg-brand-gradient` (`--g-brand`, brand → brand-2) is for the primary action, the active nav item, selected chips and the business-case banner: always paired with `bg-brand` as the fallback and `shadow-glow`. Cards float on `shadow-card` (`hover:shadow-card-hover` only when the whole card is a link) with a `border-line/60` edge, never a hard border. The body carries a faint brand glow at the top, so don't add gradient washes to pages.
+  - `bg-brand-gradient` (`--g-brand`, brand → a lighter blue) is for primary actions, selected chips and the floating assistant button: always paired with `bg-brand` as the fallback and `shadow-glow`. The active nav item is a flat light-blue pill (`bg-brand/10 text-brand`), as in the reference.
+  - Cards: `rounded-2xl border border-line bg-surface shadow-card` (`Card` in `ui.tsx`); `hover:shadow-card-hover` only when the whole card is a link. No gradient washes on pages.
+  - **Pastel icon tiles** (`TILE_TONES` in `ui.tsx`: `bg-blue-50 text-blue-600` and so on) carry identity on cards, KPI tiles and list rows; use `StatTile` for a headline figure with an icon. Violet tiles mean AI (the Ask AI card, AI insights, the assistant).
   - Use the tokens in new and touched code. Many pages still use raw `slate-*` and `blue-*`; migrate them when you touch them.
-  - The company palette will replace the values in `globals.css` only.
-- **Brand.** The name and credits come from `src/lib/brand.ts`, and the mark from `src/components/brand.tsx`. Never hard-code "CareTrail".
-- **Type.** Geist only. Use `tabular-nums` for KPIs, timers and refs, sentence case for labels, and no all-caps eyebrows. Page titles come from `PageHeader` (28 px, 30 px from `md`); don't set a smaller `h1` by hand.
+- **Brand.** The name and credits come from `src/lib/brand.ts`, and the mark from `src/components/brand.tsx`. Never hard-code "CareTrail". The wordmark carries an "AI" pill (`translate="no"`, so Arabic keeps it).
+- **Type.** Geist only. Page titles and big figures are `font-bold`; card titles `text-lg font-semibold` on the dashboard, `SectionTitle` (16 px) elsewhere. Use `tabular-nums` for timers, refs and table columns, sentence case for labels, and no all-caps eyebrows. Page titles come from `PageHeader` (28 px, 30 px from `md`); don't set a smaller `h1` by hand.
+
+## Header
+
+Sidebar toggle, the wide search field (`SearchButton`, "Search cases, e-mails, claims, or ask AI…", an icon button below `lg`), then language, time zone, Present (hidden on phones), the bell (`AttentionBell`: the overview's "Needs a person" decisions from `/api/overview/attention`, a red dot when anything waits) and the operator's avatar menu (`OperatorMenu`, with sign-out). All controls are 36–40 px tall with `rounded-xl`.
 
 ## Voice-state colours
 
@@ -73,8 +81,13 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 | `QuotationWorkspace` | `src/components/quotation/quotation-workspace.tsx` | "Generate quotation": customer and service charges beside the live preview; print, download, e-mail, submit as a lead |
 | `printElement` | `src/lib/client/print.ts` | prints one element through a hidden frame with the page's styles; use `print:` variants on the element for paper |
 | `VisitorQr` | `src/components/leads/visitor-qr.tsx` | the booth's QR code (`/api/leads/qr`), shown big and printable as a table card; visitors land on `/meet` |
-| `JourneyRoute` | `src/components/dashboard/journey-route.tsx` | the dashboard's signature: the assistance journey as a route map on the stage, a live count at each stop; draws once on load (across on desktop, down on phones) |
-| `MoneyPanel`, `NeedsPerson`, `StatusMix` | `src/components/dashboard/` | medical spend (identified vs accepted bar, saving ring, committed guarantees); decisions waiting, each linked to its record; a status distribution as one segmented bar with a legend |
+| `DashboardHero`, `AskAiCard` | `src/components/dashboard/hero.tsx`, `ask-ai-card.tsx` | the sky hero with the dotted map and a flight drawing itself (the dashboard's one orchestrated moment); the card that opens the assistant |
+| `KpiCards`, `ActivityChart`, `StatusDonut` | `src/components/dashboard/` | headline figures with trend and sparkline; stacked daily columns with tooltip and a screen-reader table; cases or claims by status |
+| `RecentActivityCard`, `RecentCasesCard`, `InsightsCard` | `src/components/dashboard/recent.tsx` | the bottom row: latest AI work, latest cases, the period's outcome figures |
+| `JourneyRoute` | `src/components/dashboard/journey-route.tsx` | the assistance journey as a route on a light card, a live count at each stop; draws once on load (across on desktop, down on phones) |
+| `MoneyPanel`, `NeedsPerson` | `src/components/dashboard/` | medical spend (identified vs accepted bar, saving ring, committed guarantees); decisions waiting, each linked to its record |
+| `StatTile`, `TILE_TONES` | `src/components/ui.tsx` | a headline figure with a pastel icon tile (receivables, provider network) |
+| `AttentionBell`, `OperatorMenu` | `src/components/attention-bell.tsx`, `operator-menu.tsx` | the header's decisions bell and avatar menu |
 | `SettlementCard` | `src/components/claims/settlement-card.tsx` | a claim's settlement: billed → never covered → above reference → allowed → excess, plan pays / traveller pays, checks, what needs a person; approving issues the EOB |
 | `AirAmbulancePanel`, `TransportPlanForm` | `src/components/cases/` | operators' quotes side by side (accreditation, crew, bed to bed, wheels up; concerns in `warn`), booking, the mission's steps; the doctor's assessment typed in |
 | `HandoffCard` | `src/components/cases/handoff-card.tsx` | hand a case to a network partner; their updates and the partner's link |
@@ -99,15 +112,16 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 
 ## The visitor's page (`/meet`)
 
-The one page a visitor opens on their own phone, in the `(visitor)` route group with its own chrome: the dark stage end to end, the idle orb, three proof points, then a light form card. Fields are 16 px (`text-base`) so iOS doesn't zoom, chips use the brand gradient when selected, and the consent checkbox uses `accent-brand`. No operator chrome, no demo data, no "fictional" footer: it is a real prospect's first impression. Check it at 390 px wide first, then at iPad and desktop widths.
+The one page a visitor opens on their own phone, in the `(visitor)` route group with its own chrome: the sky and dotted map behind the idle orb and the opening lines, three proof points on white cards with pastel tiles, then the form card. Fields are 16 px (`text-base`) so iOS doesn't zoom, chips use the brand gradient when selected, and the consent checkbox uses `accent-brand`. No operator chrome, no demo data, no "fictional" footer: it is a real prospect's first impression. Check it at 390 px wide first, then at iPad and desktop widths.
 
 ## Dashboard layout
 
-- Order is the buyer's order: the hero (journey route and four outcomes) first, then money with "Needs a person" beside it, then caseload and claims, then the modules.
-- The hero carries the period (`?days=7|30|90`, `PeriodSwitch`) and "Summary PDF" (`/api/overview/pdf`, one A4 page from the same `getOverview` figures, in `src/lib/services/overview-pdf.ts`). The figures come from `src/lib/services/overview.ts`; the page never queries on its own.
-- No empty cells. Rows in a grid stretch to equal height, and grids get a column count that the items fill exactly: 8 modules in 4 columns, legends in 3 columns for six statuses and 4 for eight.
-- Module colours say where a module sits on the journey: teal (`live`) for talking (voice, calls, assistant), sky (`brand-2`) for reading (inbox, documents), cobalt (`brand`) for acting (cases, providers, claims). Never random pastels.
-- Whole cards are links; don't add "Open" buttons inside them.
+- Order follows the reference: the hero (title, "Automate. Assist. Accelerate.", the three demo actions, the live pill and the **Ask CareTrail AI** card that opens the assistant), three tinted feature cards (Voice Agents violet, Claims Automation blue, E-mail & Fax green), four KPI cards, the activity chart beside the status donut, then recent AI activity, recent cases and AI insights. Below that: money with "Needs a person", the night shift, the assistance journey and every module.
+- **Figures.** KPI cards, the chart and the recent lists come from `src/lib/services/dashboard.ts` (`getActivity`, `getRecentActivity`, `getRecentCases`); the rest from `getOverview`. Series names, colours and the trend arithmetic live in `src/lib/dashboard-series.ts` (no database), so client components can import them. The trend compares with the previous period and, when that was empty, shows what came in lately instead; never invent a percentage.
+- **Chart colours** are validated for colour-blind separation in their stack order (cases blue, messages amber, claims purple, calls green); the donut's status colours likewise. Run the dataviz validator before changing them.
+- The period (`?days=7|30|90`) is chosen in the chart's select; "Summary PDF" (`/api/overview/pdf`) prints the same figures.
+- **Grids** start at `grid-cols-1`, so long truncated text can't widen a phone column. Rows stretch to equal height; grids get a column count the items fill exactly (8 modules in 4 columns).
+- Whole cards are links; don't add "Open" buttons inside them. Relative times ("2 hours ago") use `formatTimeAgo` with `localeOf(lang)`, so they come out in the interface language.
 
 ## Tablets (iPad)
 

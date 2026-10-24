@@ -437,13 +437,13 @@ export function SearchButton() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
-      className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 text-sm text-muted transition-colors hover:border-brand/50 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:w-64"
+      className="inline-flex h-10 w-10 min-w-0 shrink-0 items-center justify-center gap-2.5 rounded-xl border border-line bg-surface text-sm text-muted transition-colors hover:border-brand/40 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand lg:w-full lg:max-w-xl lg:flex-1 lg:shrink lg:justify-start lg:px-3.5"
       aria-label="Search and commands"
       aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}
     >
-      <Search size={15} aria-hidden />
-      <span className="hidden flex-1 text-start md:inline"><T>Search or jump to…</T></span>
-      <kbd className="hidden rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[11px] text-muted sm:inline [@media(hover:none)]:hidden">{mac ? "⌘K" : "Ctrl K"}</kbd>
+      <Search size={17} aria-hidden />
+      <span className="hidden min-w-0 flex-1 truncate text-start lg:block"><T>Search cases, e-mails, claims, or ask AI…</T></span>
+      <kbd dir="ltr" className="hidden rounded-md border border-line bg-canvas px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted lg:inline [@media(hover:none)]:hidden">{mac ? "⌘ K" : "Ctrl K"}</kbd>
     </button>
   );
 }

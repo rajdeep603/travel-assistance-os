@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, type LucideIcon } from "lucide-react";
 import { formatEnum } from "@/lib/format";
 import { T } from "@/components/i18n";
 
@@ -21,10 +21,54 @@ export function Card({
   return (
     <div
       style={style}
-      className={`rounded-2xl border border-line/60 bg-surface p-5 shadow-card ${interactive ? "transition-[box-shadow,border-color] duration-200 hover:border-brand/30 hover:shadow-card-hover" : ""} ${className}`}
+      className={`rounded-2xl border border-line bg-surface p-5 shadow-card ${interactive ? "transition-[box-shadow,border-color] duration-200 hover:border-brand/30 hover:shadow-card-hover" : ""} ${className}`}
     >
       {children}
     </div>
+  );
+}
+
+/** Pastel icon tiles, as on the dashboard's cards. */
+export const TILE_TONES = {
+  blue: "bg-blue-50 text-blue-600",
+  violet: "bg-violet-50 text-violet-600",
+  purple: "bg-purple-50 text-purple-600",
+  emerald: "bg-emerald-50 text-emerald-600",
+  amber: "bg-amber-50 text-amber-600",
+  rose: "bg-rose-50 text-rose-600",
+  sky: "bg-sky-50 text-sky-600",
+  teal: "bg-teal-50 text-teal-600",
+} as const;
+
+/** A headline figure on a card: icon tile, label, value and a short note. `warn` marks a value that needs attention. */
+export function StatTile({
+  label,
+  value,
+  note,
+  icon: Icon,
+  tone = "blue",
+  warn = false,
+}: {
+  label: string;
+  value: ReactNode;
+  note?: ReactNode;
+  icon?: LucideIcon;
+  tone?: keyof typeof TILE_TONES;
+  warn?: boolean;
+}) {
+  return (
+    <Card className="flex min-w-0 flex-col p-4 md:p-5">
+      <div className="flex items-center gap-2.5">
+        {Icon ? (
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${TILE_TONES[tone]}`}>
+            <Icon size={18} aria-hidden />
+          </span>
+        ) : null}
+        <p className="min-w-0 text-sm font-medium leading-snug text-slate-600">{label}</p>
+      </div>
+      <p className={`mt-2.5 break-words text-2xl font-bold tracking-tight ${warn ? "text-amber-600" : "text-ink"}`}>{value}</p>
+      {note ? <p className="mt-0.5 text-xs leading-snug text-muted">{note}</p> : null}
+    </Card>
   );
 }
 
@@ -37,7 +81,7 @@ export function SectionTitle({
 }) {
   return (
     <h3
-      className={`text-sm font-semibold text-ink ${className}`}
+      className={`text-base font-semibold text-ink ${className}`}
     >
       {typeof children === "string" ? <T>{children}</T> : children}
     </h3>
@@ -56,7 +100,7 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-ink md:text-3xl"><T>{title}</T></h1>
+        <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-ink md:text-3xl"><T>{title}</T></h1>
         {subtitle ? <p className="mt-1.5 max-w-3xl text-[15px] leading-relaxed text-muted"><T>{subtitle}</T></p> : null}
       </div>
       {children}
@@ -158,7 +202,7 @@ const BUTTON_STYLES: Record<ButtonVariant, string> = {
   primary:
     "bg-brand bg-brand-gradient text-white shadow-glow hover:brightness-[1.07] hover:shadow-[0_12px_28px_-8px_rgb(var(--c-brand)/0.65)] disabled:bg-none disabled:bg-brand/40 disabled:shadow-none border-transparent",
   secondary:
-    "bg-surface text-ink hover:bg-canvas hover:border-slate-400 border-line shadow-sm disabled:text-slate-400 disabled:shadow-none disabled:hover:border-line",
+    "bg-surface text-ink hover:bg-canvas hover:border-brand/40 border-line shadow-sm disabled:text-slate-400 disabled:shadow-none disabled:hover:border-line",
   danger:
     "bg-white text-red-600 hover:bg-red-50 border-red-300 disabled:text-red-300",
   success:
@@ -191,7 +235,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled || busy}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand enabled:active:scale-[0.98] disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand enabled:active:scale-[0.98] disabled:cursor-not-allowed ${BUTTON_STYLES[variant]} ${className}`}
     >
       {busy ? <Loader2 size={15} className="animate-spin" /> : null}
       {children}

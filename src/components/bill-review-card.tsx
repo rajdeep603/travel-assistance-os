@@ -125,18 +125,19 @@ export function BillReviewCard({
         <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>{status.label}</span>
       </div>
 
-      <dl className="mt-3 grid grid-cols-3 gap-3">
-        <div>
+      {/* Three across from a small tablet; stacked on a phone, where three amounts in US$ don't fit side by side. */}
+      <dl className="mt-3 grid grid-cols-1 gap-x-3 gap-y-2 min-[480px]:grid-cols-3">
+        <div className="min-w-0">
           <dt className="text-xs text-muted">{estimate ? "Estimated" : "Billed"}</dt>
-          <dd className="text-lg font-semibold tabular-nums text-ink">{money(review.billed)}</dd>
+          <dd className="break-words text-lg font-semibold tabular-nums text-ink">{money(review.billed)}</dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-muted">Reference tariff</dt>
-          <dd className="text-lg font-semibold tabular-nums text-ink">{money(review.recommended)}</dd>
+          <dd className="break-words text-lg font-semibold tabular-nums text-ink">{money(review.recommended)}</dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-muted">{estimate ? "Above reference" : "Saving"}</dt>
-          <dd className="text-lg font-semibold tabular-nums text-brand">
+          <dd className="break-words text-lg font-semibold tabular-nums text-brand">
             {review.savings > 0 ? <CountUp value={review.savings} durationMs={700} format={(n) => money(n)} /> : money(0)}
             {review.savings > 0 ? <span className="ml-1 text-sm font-medium text-muted">({pct}%)</span> : null}
           </dd>

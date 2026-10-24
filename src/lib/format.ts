@@ -29,6 +29,18 @@ export function formatDateTime(iso: string | Date, timeZone: string = getDisplay
   }).format(new Date(iso));
 }
 
+/** "10 minutes ago", "2 hours ago", "yesterday" in the given Intl locale. */
+export function formatTimeAgo(iso: string | Date, locale = "en-GB", now: Date = new Date()): string {
+  const seconds = Math.round((new Date(iso).getTime() - now.getTime()) / 1000);
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const abs = Math.abs(seconds);
+  if (abs < 60) return rtf.format(0, "second");
+  if (abs < 3600) return rtf.format(Math.round(seconds / 60), "minute");
+  if (abs < 86_400) return rtf.format(Math.round(seconds / 3600), "hour");
+  if (abs < 30 * 86_400) return rtf.format(Math.round(seconds / 86_400), "day");
+  return rtf.format(Math.round(seconds / (30 * 86_400)), "month");
+}
+
 /** "21 Oct 2026" in the display zone (or the one given). */
 export function formatDate(iso: string | Date, timeZone: string = getDisplayTimeZone()): string {
   return new Intl.DateTimeFormat("en-GB", {

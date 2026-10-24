@@ -22,18 +22,40 @@ import { ConfirmDelete } from "@/components/confirm-delete";
 import { formatEnum } from "@/lib/format";
 import { useQueryParam } from "@/lib/client/use-query-param";
 
-/** "medical-report-aylin-yilmaz.pdf" → "Medical report — Aylin Yilmaz" */
-function sampleLabel(filename: string): string {
-  const base = filename.replace(/\.pdf$/i, "");
-  const m = base.match(
-    /^(medical-report|hospital-invoice|final-invoice|discharge-summary|emergency-report|prescription|cost-estimate)-(.+)$/
-  );
-  if (!m) return base.replace(/-/g, " ");
-  const name = m[2]
+/** The kind of document a sample's file name starts with, as it reads on screen. */
+const SAMPLE_KINDS: [prefix: string, label: string][] = [
+  ["medical-report", "Medical report"],
+  ["hospital-invoice", "Hospital invoice"],
+  ["final-invoice", "Final invoice"],
+  ["discharge-summary", "Discharge summary"],
+  ["emergency-report", "Emergency report"],
+  ["prescription", "Prescription"],
+  ["cost-estimate", "Cost estimate"],
+  ["itemized-bill", "Itemized bill"],
+  ["invoice", "Invoice"],
+  ["compte-rendu", "Discharge report (French)"],
+  ["facture", "Invoice (French)"],
+  ["informe-medico", "Medical report (Spanish)"],
+];
+
+/** Places some sample file names end with, so the name reads "Pierre Lambert, Sousse". */
+const SAMPLE_PLACES = ["punta-cana", "sousse", "hurghada", "bangkok", "florida", "geneva", "saranda", "dubai"];
+
+const titleCase = (s: string) =>
+  s
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
-  return `${formatEnum(m[1].replace(/-/g, "_"))} — ${name}`;
+
+/** "medical-report-aylin-yilmaz.pdf" → "Medical report — Aylin Yilmaz"; "facture-pierre-lambert-sousse.pdf" → "Invoice (French) — Pierre Lambert, Sousse" */
+function sampleLabel(filename: string): string {
+  const base = filename.replace(/\.pdf$/i, "");
+  const kind = SAMPLE_KINDS.find(([prefix]) => base.startsWith(`${prefix}-`));
+  if (!kind) return titleCase(base);
+  const rest = base.slice(kind[0].length + 1);
+  const place = SAMPLE_PLACES.find((p) => rest.endsWith(`-${p}`));
+  const who = place ? `${titleCase(rest.slice(0, -place.length - 1))}, ${titleCase(place)}` : titleCase(rest);
+  return `${kind[1]} — ${who}`;
 }
 
 const PIPELINE_STAGES = [
@@ -267,11 +289,12 @@ export default function DocumentsPage() {
           </div>
           <div>
             <SectionTitle>Or use a fictional sample document</SectionTitle>
-            <div className="mt-2 flex flex-wrap gap-2">
+            {/* Capped so a long list scrolls instead of stretching the upload box beside it. */}
+            <div className="mt-2 flex max-h-[19rem] flex-wrap gap-2 overflow-y-auto pr-1">
               {samples.length === 0 ? (
                 <p className="text-xs text-slate-400">No sample documents found.</p>
               ) : (
-                samples.map((s) => (
+                [...samples].sort((a, b) => sampleLabel(a).localeCompare(sampleLabel(b))).map((s) => (
                   <button
                     key={s}
                     type="button"

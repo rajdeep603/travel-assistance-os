@@ -25,6 +25,9 @@ export const isUiLanguage = (v: unknown): v is UiLanguage => typeof v === "strin
 
 export const directionOf = (lang: UiLanguage) => UI_LANGUAGES.find((l) => l.code === lang)?.dir ?? "ltr";
 
+/** The Intl locale for dates and relative times shown in an interface language (Latin digits, like every other figure). */
+export const localeOf = (lang: UiLanguage) => ({ en: "en-GB", es: "es", fr: "fr", pt: "pt-BR", ar: "ar-u-nu-latn" })[lang];
+
 /** The cookie's value from a Cookie header or document.cookie string. */
 export function uiLanguageFromCookie(cookie: string | null | undefined): UiLanguage {
   const m = cookie?.match(new RegExp(`(?:^|;\\s*)${UI_LANGUAGE_COOKIE}=([^;]*)`));
@@ -290,6 +293,8 @@ const D: Dictionary = {
   "Last 30 days": ["Últimos 30 días", "30 derniers jours", "Últimos 30 dias", "آخر 30 يوماً"],
   "Last 90 days": ["Últimos 90 días", "90 derniers jours", "Últimos 90 dias", "آخر 90 يوماً"],
   Live: ["En vivo", "En direct", "Ao vivo", "مباشر"],
+  Clinic: ["Clínica", "Clinique", "Clínica", "عيادة"],
+  Telemedicine: ["Telemedicina", "Télémédecine", "Telemedicina", "طب عن بُعد"],
   updated: ["actualizado", "mis à jour", "atualizado", "حُدّث"],
   waiting: ["pendientes", "en attente", "pendentes", "بالانتظار"],
   "All clear": ["Todo al día", "Rien en attente", "Tudo em dia", "لا شيء معلق"],
@@ -321,7 +326,7 @@ const D: Dictionary = {
   Patient: ["Paciente", "Patient", "Paciente", "المريض"],
   Payer: ["Pagador", "Payeur", "Pagador", "جهة الدفع"],
   Balance: ["Saldo", "Solde", "Saldo", "الرصيد"],
-  Status: ["Estado", "Statut", "Status", "الحالة"],
+  Status: ["Estado", "Statut", "Status", "الوضع"],
   Days: ["Días", "Jours", "Dias", "الأيام"],
   Guarantee: ["Garantía", "Garantie", "Garantia", "الضمان"],
   "No guarantee quoted": ["Sin garantía indicada", "Aucune garantie citée", "Sem garantia informada", "لا ضمان مذكور"],

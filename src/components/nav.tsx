@@ -87,7 +87,7 @@ export function SideNav({ highlightId = "nav-active" }: { highlightId?: string }
     <nav className="flex flex-col gap-4 px-3" aria-label="Main navigation">
       {NAV_SECTIONS.map((section) => (
         <div key={section.label} className="flex flex-col gap-0.5">
-          <p className="px-3 pb-1 text-[11px] font-medium text-stage-muted/70"><T>{section.label}</T></p>
+          <p className="px-3 pb-1 text-[11px] font-medium text-muted/80"><T>{section.label}</T></p>
           {section.items.map((item) => (
             <NavLink key={item.href} {...item} active={isActive(pathname, item.href)} highlightId={highlightId} />
           ))}
@@ -98,36 +98,32 @@ export function SideNav({ highlightId = "nav-active" }: { highlightId?: string }
 }
 
 function NavLink({ href, label, icon: Icon, active, highlightId }: (typeof NAV_ITEMS)[number] & { active: boolean; highlightId: string }) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  // On a short screen (an iPad in landscape) the current page's item may sit below the fold.
+  useEffect(() => {
+    if (active) ref.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
   return (
     <Link
+      ref={ref}
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-2 ${
-        active ? "text-white" : "text-stage-muted hover:bg-stage-raised hover:text-white"
+      className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+        active ? "text-brand" : "text-slate-600 hover:bg-canvas hover:text-ink"
       }`}
     >
       {/* The highlight slides from the previous page's item to this one. */}
       {active ? (
         <motion.span
           layoutId={highlightId}
-          className="absolute inset-0 rounded-lg bg-brand bg-brand-gradient shadow-glow"
+          className="absolute inset-0 rounded-xl bg-brand/10"
           transition={{ type: "spring", stiffness: 520, damping: 40 }}
           aria-hidden
         />
       ) : null}
-      <Icon size={17} strokeWidth={2} className="relative" aria-hidden />
+      <Icon size={18} strokeWidth={1.9} className={`relative ${active ? "text-brand" : "text-slate-500 group-hover:text-ink"}`} aria-hidden />
       <span className="relative"><T>{label}</T></span>
     </Link>
-  );
-}
-
-/** A soft brand glow behind the mark, so the stage reads as lit rather than flat. */
-function SidebarGlow() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(70%_70%_at_20%_0%,rgb(var(--c-brand)/0.38),transparent)]"
-    />
   );
 }
 
@@ -135,15 +131,22 @@ function SidebarGlow() {
 function SidebarBody({ drawer = false }: { drawer?: boolean }) {
   return (
     <>
-      <div className="flex items-center gap-2.5 px-5 py-6 text-white">
-        <BrandMark size={36} idSuffix={drawer ? "-drawer" : ""} />
-        <div className="min-w-0">
-          <p className="text-lg font-semibold leading-tight tracking-tight">{BRAND.name}</p>
-          <p className="text-xs leading-snug text-stage-muted"><T>{BRAND.tagline}</T></p>
-        </div>
+      <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
+        <BrandMark size={32} idSuffix={drawer ? "-drawer" : ""} />
+        <p className="flex min-w-0 items-center gap-1.5 text-xl font-bold tracking-tight text-ink">
+          {BRAND.name}
+          <span translate="no" className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">AI</span>
+        </p>
       </div>
-      <SideNav highlightId={drawer ? "nav-active-drawer" : "nav-active"} />
-      <p className="mt-auto px-6 pt-6 text-xs text-stage-muted/80">{POWERED_BY}</p>
+      <div className="pt-3">
+        <SideNav highlightId={drawer ? "nav-active-drawer" : "nav-active"} />
+      </div>
+      <div className="mx-3 mt-auto pt-6">
+        <p className="rounded-xl bg-canvas px-3 py-2.5 text-xs leading-snug text-muted">
+          <span className="block font-semibold text-ink"><T>{BRAND.tagline}</T></span>
+          {POWERED_BY}
+        </p>
+      </div>
     </>
   );
 }
@@ -156,10 +159,9 @@ export function DockedSidebar() {
   return (
     <aside
       id="sidebar"
-      className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-hidden bg-stage transition-[width,visibility] duration-[250ms] ease-smooth lg:block lg:sidebar-hidden:invisible lg:sidebar-hidden:w-0"
+      className="sticky top-0 hidden h-dvh w-64 shrink-0 overflow-hidden border-r border-line bg-surface transition-[width,visibility] duration-[250ms] ease-smooth lg:block lg:sidebar-hidden:invisible lg:sidebar-hidden:w-0"
     >
-      <div className="relative flex h-full w-64 flex-col overflow-y-auto border-r border-white/[0.06] pb-6">
-        <SidebarGlow />
+      <div className="relative flex h-full w-64 flex-col overflow-y-auto pb-5">
         <SidebarBody />
       </div>
     </aside>
@@ -189,7 +191,7 @@ function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () => void }
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <motion.div
-            className="absolute inset-0 bg-stage/50 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]"
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -198,7 +200,7 @@ function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () => void }
             aria-hidden
           />
           <motion.div
-            className="relative flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-stage pb-6 shadow-2xl"
+            className="relative flex h-full w-72 max-w-[85vw] flex-col overflow-y-auto bg-surface pb-5 shadow-2xl"
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
@@ -209,7 +211,7 @@ function SidebarDrawer({ open, onClose }: { open: boolean; onClose: () => void }
               type="button"
               onClick={onClose}
               aria-label="Close navigation"
-              className="absolute right-3 top-3 rounded-lg p-2 text-stage-muted transition-colors hover:bg-stage-raised hover:text-white"
+              className="absolute right-3 top-3 rounded-lg p-2 text-muted transition-colors hover:bg-canvas hover:text-ink"
             >
               <X size={20} aria-hidden />
             </button>
@@ -298,8 +300,8 @@ export function SidebarToggle() {
         className="-ml-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-canvas hover:text-ink"
       >
         {/* Chosen by CSS, like the sidebar itself, so the icon is right on first paint. */}
-        <PanelLeftClose size={20} strokeWidth={1.9} className="hidden lg:block lg:sidebar-hidden:hidden" aria-hidden />
-        <PanelLeftOpen size={20} strokeWidth={1.9} className="lg:hidden lg:sidebar-hidden:block" aria-hidden />
+        <PanelLeftClose size={20} strokeWidth={1.9} className="hidden lg:block lg:sidebar-hidden:hidden rtl:-scale-x-100" aria-hidden />
+        <PanelLeftOpen size={20} strokeWidth={1.9} className="lg:hidden lg:sidebar-hidden:block rtl:-scale-x-100" aria-hidden />
       </button>
       {mounted ? createPortal(<SidebarDrawer open={drawer} onClose={closeDrawer} />, document.body) : null}
     </>

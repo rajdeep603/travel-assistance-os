@@ -13,9 +13,9 @@ import { LEAD_PAINS, LEAD_SEGMENTS } from "@/lib/meeting-notes";
 // presenter to follow up the same evening.
 
 const PROOF = [
-  { icon: Headset, tone: "bg-live/20 text-live", title: "Every call answered in seconds", text: "Day and night, in the caller's language. Emergencies go straight to your doctor." },
-  { icon: FileSearch, tone: "bg-brand-2/20 text-brand-2", title: "Paperwork that reads itself", text: "E-mails, faxes and medical reports matched to the case; guarantees of payment drafted in minutes." },
-  { icon: ReceiptText, tone: "bg-brand/25 text-sky-300", title: "Hospital bills checked line by line", text: "Overcharges found before anything is paid. Your people make every decision." },
+  { icon: Headset, tone: "bg-emerald-50 text-emerald-600", title: "Every call answered in seconds", text: "Day and night, in the caller's language. Emergencies go straight to your doctor." },
+  { icon: FileSearch, tone: "bg-blue-50 text-blue-600", title: "Paperwork that reads itself", text: "E-mails, faxes and medical reports matched to the case; guarantees of payment drafted in minutes." },
+  { icon: ReceiptText, tone: "bg-violet-50 text-violet-600", title: "Hospital bills checked line by line", text: "Overcharges found before anything is paid. Your people make every decision." },
 ] as const;
 
 const FIELD =
@@ -77,34 +77,37 @@ export default function MeetPage() {
       <header className="flex items-center gap-2.5">
         <BrandMark size={34} />
         <div>
-          <p className="text-lg font-semibold leading-tight tracking-tight text-white">{BRAND.name}</p>
-          <p className="text-xs text-stage-muted">{BRAND.tagline}</p>
+          <p className="flex items-center gap-1.5 text-lg font-bold leading-tight tracking-tight text-ink">
+            {BRAND.name}
+            <span translate="no" className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">AI</span>
+          </p>
+          <p className="text-xs text-slate-600">{BRAND.tagline}</p>
         </div>
       </header>
 
       <section className="mt-6 text-center">
         <VoiceOrb state="idle" size={132} className="mx-auto" />
-        <h1 className="mt-4 text-[1.75rem] font-semibold leading-tight tracking-tight text-white">
+        <h1 className="mt-4 text-[1.75rem] font-bold leading-tight tracking-tight text-ink">
           AI that answers the calls, reads the paperwork and checks the bills.
         </h1>
-        <p className="mt-2 text-base text-stage-muted">Your team keeps every decision.</p>
+        <p className="mt-2 text-base font-medium text-slate-600">Your team keeps every decision.</p>
       </section>
 
       <ul className="mt-7 space-y-3">
         {PROOF.map(({ icon: Icon, tone, title, text }) => (
-          <li key={title} className="flex gap-3 rounded-2xl bg-stage-raised/80 p-4 ring-1 ring-stage-line">
+          <li key={title} className="flex gap-3 rounded-2xl border border-line bg-surface/95 p-4 shadow-card backdrop-blur">
             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
               <Icon size={19} aria-hidden />
             </span>
             <div>
-              <p className="font-semibold text-white">{title}</p>
-              <p className="mt-0.5 text-sm leading-snug text-stage-muted">{text}</p>
+              <p className="font-semibold text-ink">{title}</p>
+              <p className="mt-0.5 text-sm leading-snug text-muted">{text}</p>
             </div>
           </li>
         ))}
       </ul>
 
-      <section className="mt-7 rounded-3xl bg-surface p-5 text-ink shadow-2xl shadow-black/30 sm:p-6" aria-live="polite">
+      <section className="mt-7 rounded-3xl border border-line bg-surface p-5 text-ink shadow-card-hover sm:p-6" aria-live="polite">
         {done ? (
           <div className="animate-fade-up text-center">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-brand bg-brand-gradient text-white shadow-glow">

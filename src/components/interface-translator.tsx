@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useUiLanguage } from "@/components/i18n";
-import { dictionaryEntries, type UiLanguage } from "@/lib/i18n";
+import { dictionaryEntries, directionOf, type UiLanguage } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // The rest of the interface in the chosen language. `<T>` covers the shell;
@@ -31,6 +31,8 @@ const LOADERS: Record<Lang, () => Promise<{ default: Record<string, string> }>> 
 const COLUMN: Record<Lang, number> = { es: 0, fr: 1, pt: 2, ar: 3 };
 const ATTRIBUTES = ["placeholder", "title", "aria-label", "alt"];
 const SKIP = "script,style,noscript,textarea,code,pre,[translate='no'],[data-no-translate],[contenteditable='true']";
+/** Elements whose text is skipped but whose placeholder and title are still interface text. */
+const TEXT_ONLY_SKIP = "textarea,code,pre";
 /** "Policy number found (POL-…)", "Discharge summary — Lena Koch": the label is translated, the value kept. */
 const LABEL_SEPARATORS = [": ", " (", " — "];
 /** How long to wait for React to hydrate streamed content before translating it anyway. */
@@ -52,8 +54,12 @@ function hydrated(node: Node): boolean {
   return owned(node) || owned(node.parentNode);
 }
 
+/** Left-to-right isolates: a value kept as written (a reference, a phone number, an amount) keeps its own order inside Arabic. */
+const ltr = (s: string) => (/[A-Za-z0-9]/.test(s) ? `\u2066${s}\u2069` : s);
+
 /** Starts translating the page; the returned function stops and restores English. */
-function startTranslating(lookup: Map<string, string>): () => void {
+function startTranslating(lookup: Map<string, string>, rtl: boolean): () => void {
+  const keep = rtl ? ltr : (s: string) => s;
   const texts = new Map<Text, { source: string; shown: string }>();
   const attrs = new Map<Element, Map<string, { source: string; shown: string }>>();
   const pending = new Map<Node, number>();
@@ -65,18 +71,26 @@ function startTranslating(lookup: Map<string, string>): () => void {
     if (out) return out === key ? null : out;
     if (key.includes(" · ")) {
       const parts = key.split(" · ");
-      const outs = parts.map((p) => translateKey(p) ?? p);
-      return outs.some((o, i) => o !== parts[i]) ? outs.join(" · ") : null;
+      const outs = parts.map((p) => translateKey(p) ?? keep(p));
+      return outs.some((o, i) => o !== parts[i] && o !== keep(parts[i])) ? outs.join(" · ") : null;
     }
     for (const sep of LABEL_SEPARATORS) {
       const at = key.indexOf(sep);
       const label = at > 0 ? lookup.get(key.slice(0, at)) : undefined;
-      if (label) return label + sep + key.slice(at + sep.length);
+      if (!label) continue;
+      // "(POL-…)": the closing bracket stays outside the isolate, so it closes on the right side in Arabic.
+      const rest = key.slice(at + sep.length);
+      const close = sep === " (" && rest.endsWith(")") ? ")" : "";
+      return label + sep + keep(close ? rest.slice(0, -1) : rest) + close;
     }
     // "Claim CLM-10230", "policy POL-CA-400101": the label before a reference.
     const ref = key.match(/^(.+?) ([A-Z]{2,}-[A-Z0-9-]*\d)$/);
     const label = ref ? lookup.get(ref[1]) : undefined;
-    return label ? `${label} ${ref![2]}` : null;
+    if (label) return `${label} ${keep(ref![2])}`;
+    // "16 open", "€1,904 a case", "21 read by AI": a count or an amount before its label.
+    const counted = key.match(/^((?:[A-Z]{0,3}[€$£])?\d[\d.,]*%?) (.+)$/);
+    const after = counted ? lookup.get(counted[2]) : undefined;
+    return after ? `${keep(counted![1])} ${after}` : null;
   };
 
   const translated = (value: string): string | null => {
@@ -127,13 +141,23 @@ function startTranslating(lookup: Map<string, string>): () => void {
     for (const name of ATTRIBUTES) if (el.hasAttribute(name)) visitAttribute(el, name);
   };
 
+  /** A skipped element whose own attributes are still translated (a textarea's placeholder). */
+  const attributesOnly = (el: Element) => el.matches(TEXT_ONLY_SKIP) && !el.parentElement?.closest(SKIP) && !el.matches("[translate='no'],[data-no-translate]");
+
   const scan = (root: Node) => {
     if (root.nodeType === Node.TEXT_NODE) return visitText(root as Text);
     if (root.nodeType !== Node.ELEMENT_NODE) return;
-    if ((root as Element).closest(SKIP)) return;
+    if ((root as Element).closest(SKIP)) {
+      if (attributesOnly(root as Element)) visitElement(root as Element);
+      return;
+    }
     visitElement(root as Element);
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (n.nodeType === Node.ELEMENT_NODE && (n as Element).matches(SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      acceptNode: (n) => {
+        if (n.nodeType !== Node.ELEMENT_NODE || !(n as Element).matches(SKIP)) return NodeFilter.FILTER_ACCEPT;
+        if (attributesOnly(n as Element)) visitElement(n as Element);
+        return NodeFilter.FILTER_REJECT;
+      },
     });
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (n.nodeType === Node.TEXT_NODE) visitText(n as Text);
@@ -185,7 +209,7 @@ export function InterfaceTranslator() {
     let cancelled = false;
     loadLookup(lang)
       .then((lookup) => {
-        if (!cancelled) stop = startTranslating(lookup);
+        if (!cancelled) stop = startTranslating(lookup, directionOf(lang) === "rtl");
       })
       .catch(() => undefined); // the interface stays in English
     return () => {

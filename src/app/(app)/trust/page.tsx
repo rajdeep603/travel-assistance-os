@@ -19,7 +19,7 @@ const WHEN_LABEL = { pilot: "In a pilot", roadmap: "On the roadmap" } as const;
 
 function Block({ icon, title, intro, lines }: { icon: ReactNode; title: string; intro: string; lines: Line[] }) {
   return (
-    <section className="flex flex-col rounded-2xl border border-line/80 bg-surface p-5 shadow-sm md:p-6">
+    <section className="flex flex-col rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
       <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
         {icon}
         <T>{title}</T>
@@ -144,7 +144,7 @@ export default function TrustPage() {
         />
       </div>
 
-      <section className="mt-6 rounded-2xl border border-line/80 bg-surface p-5 shadow-sm md:p-6">
+      <section className="mt-6 rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
         <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
           {icon(Globe2)} <T>Where your data can live</T>
         </h2>
@@ -175,7 +175,7 @@ export default function TrustPage() {
         </div>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-line/80 bg-surface p-5 shadow-sm md:p-6">
+      <section className="mt-6 rounded-2xl border border-line bg-surface p-5 shadow-sm md:p-6">
         <h2 className="flex items-center gap-2 text-base font-semibold text-ink">
           {icon(LayoutGrid)} <T>Products: time to go live, pricing and security</T>
         </h2>
@@ -183,7 +183,7 @@ export default function TrustPage() {
           Each one can be piloted on its own, beside your systems. Prices come from the quotation (Business Case → Generate quotation), sized to your volumes.
         </p>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[700px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs font-medium text-muted">
                 <th className="py-2 pr-4">Product</th>

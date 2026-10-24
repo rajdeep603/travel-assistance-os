@@ -35,7 +35,7 @@ export function MoneyCard({ money: m }: { money: CaseMoney }) {
               <p className={`text-base font-semibold tabular-nums ${s.value > 0 ? "text-ink" : "text-muted"}`}>{s.value > 0 ? eur(s.value) : "—"}</p>
               {s.note ? <p className="text-[11px] text-muted">{s.note}</p> : null}
             </div>
-            {i < steps.length - 1 ? <ArrowRight size={14} aria-hidden className="mx-1 shrink-0 text-line" /> : null}
+            {i < steps.length - 1 ? <ArrowRight size={14} aria-hidden className="mx-1 shrink-0 text-line rtl:rotate-180" /> : null}
           </li>
         ))}
       </ol>

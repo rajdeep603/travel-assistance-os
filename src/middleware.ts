@@ -64,6 +64,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Everything except Next's static assets and the app icons.
-  matcher: ["/((?!_next/static|_next/image|icon.svg|icon1.png|apple-icon.png|favicon.ico).*)"],
+  // Everything except Next's static assets, the app icons and the brand artwork (the sign-in page shows it).
+  matcher: ["/((?!_next/static|_next/image|icon.svg|icon1.png|apple-icon.png|favicon.ico|brand/).*)"],
 };

@@ -121,7 +121,7 @@ export default function LeadsPage() {
               <Icon size={18} aria-hidden />
             </span>
             <div className="min-w-0">
-              <p className="text-2xl font-semibold tracking-tight tabular-nums text-ink">{leads ? value : "—"}</p>
+              <p className="text-2xl font-bold tracking-tight tabular-nums text-ink">{leads ? value : "—"}</p>
               <p className="text-sm font-semibold text-ink">{label}</p>
               <p className="text-xs text-muted">{note}</p>
             </div>
@@ -210,7 +210,7 @@ export default function LeadsPage() {
                   </span>
                   <span className="col-span-2 flex items-center justify-between gap-3 md:col-span-1 md:justify-end">
                     <StatusBadge value={l.status} />
-                    <ChevronRight size={16} className="text-slate-400 transition-colors group-hover:text-brand" aria-hidden />
+                    <ChevronRight size={16} className="text-slate-400 transition-colors group-hover:text-brand rtl:rotate-180" aria-hidden />
                   </span>
                 </Link>
               </li>

@@ -67,7 +67,7 @@ export function AssistantLauncher() {
             className="fixed inset-0 z-40 flex flex-col bg-surface p-3 sm:inset-auto sm:bottom-24 sm:end-6 sm:h-[min(640px,calc(100dvh-11rem))] sm:w-[420px] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl"
           >
             <div className="flex items-center gap-2 border-b border-line pb-2">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stage text-brand-2" aria-hidden>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600" aria-hidden>
                 <Sparkles size={16} />
               </span>
               <div className="min-w-0 flex-1">
@@ -113,13 +113,12 @@ export function AssistantLauncher() {
         aria-expanded={open}
         aria-label={open ? "Close the AI assistant" : voiceOn ? "AI assistant (voice mode on)" : "Open the AI assistant"}
         title={voiceOn ? "AI assistant · voice on" : "AI assistant"}
-        className={`fixed bottom-4 end-4 z-40 h-14 w-14 items-center justify-center rounded-full bg-stage text-white shadow-lg ring-1 ring-stage-line transition-transform duration-150 hover:scale-105 active:scale-95 sm:bottom-6 sm:end-6 ${
+        className={`fixed bottom-4 end-4 z-40 h-12 w-12 items-center justify-center rounded-full bg-brand bg-brand-gradient text-white shadow-glow ring-4 ring-white/90 transition-transform duration-150 hover:scale-105 active:scale-95 sm:bottom-6 sm:end-6 ${
           open ? "hidden sm:flex" : "flex"
         }`}
       >
         {voiceOn ? <span className="animate-live-ping absolute inset-0 rounded-full bg-live/50" aria-hidden /> : null}
-        <span className="absolute inset-[3px] rounded-full bg-gradient-to-br from-brand to-brand-2 opacity-90" aria-hidden />
-        <span className="relative">{open ? <X size={22} /> : voiceOn ? <Sparkles size={22} /> : <MessageSquareText size={22} />}</span>
+        <span className="relative">{open ? <X size={20} /> : voiceOn ? <Sparkles size={20} /> : <MessageSquareText size={20} />}</span>
         {voiceOn && !open ? <span className="absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full bg-live ring-2 ring-surface" aria-hidden /> : null}
       </button>
     </>

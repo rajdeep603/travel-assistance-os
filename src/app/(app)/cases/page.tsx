@@ -422,7 +422,7 @@ export default function CasesPage() {
                       >
                         {c.ref}
                       </Link>
-                      <p className="max-w-[260px] truncate text-xs text-slate-400">
+                      <p translate="no" className="max-w-[260px] truncate text-xs text-slate-400">
                         {c.title}
                       </p>
                     </td>

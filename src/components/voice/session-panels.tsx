@@ -123,7 +123,7 @@ export function ResultsPanel({ results, caseRef }: { results: AgentResult[]; cas
           {results.map((r) => {
             const Icon = RESULT_ICONS[r.kind] ?? BadgeCheck;
             return (
-              <li key={r.id} className="animate-fade-up flex min-w-0 items-start gap-2.5 rounded-lg border border-line/80 px-3 py-2">
+              <li key={r.id} className="animate-fade-up flex min-w-0 items-start gap-2.5 rounded-lg border border-line px-3 py-2">
                 <Icon size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-ink">{r.title}</span>

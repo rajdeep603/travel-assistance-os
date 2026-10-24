@@ -42,8 +42,11 @@ sends the recap (with the quotation once there is one).
   "Show times in India". The operation itself still runs on Istanbul time
   (the night shift is 20:00 to 08:00 there), which the overview says when
   another zone is chosen.
-- **Period.** The overview's *7 days · 30 days · 90 days* switch sets the
-  period every outcome and money figure covers.
+- **Period.** The *Last 7 / 30 / 90 days* select on the overview's activity
+  chart sets the period every card, outcome and money figure covers.
+- **Ask CareTrail AI.** The card in the overview's hero opens the assistant
+  over the page; the bell in the header lists every decision waiting for a
+  person, each opening its record.
 - **Summary PDF.** The overview's *Summary PDF* button downloads the same
   figures on one A4 page, for the CFO who asks "can I have that?".
 - **Leads → Export CSV** gives every lead as a spreadsheet for the CRM.

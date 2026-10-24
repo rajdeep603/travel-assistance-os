@@ -35,9 +35,9 @@ export function MoneyPanel({ money: m, href }: { money: MoneyOutcomes; href: str
   const share = m.averageSavingShare == null ? null : Math.round(m.averageSavingShare * 100);
   const accepted = m.savingsIdentifiedEur > 0 ? Math.min(1, m.savingsAcceptedEur / m.savingsIdentifiedEur) : 0;
   return (
-    <section aria-labelledby="money-title" className="flex h-full flex-col rounded-2xl border border-line/80 bg-surface p-5 shadow-sm md:p-6">
+    <section aria-labelledby="money-title" className="flex h-full flex-col rounded-2xl border border-line bg-surface p-5 shadow-card md:p-6">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="money-title" className="text-base font-semibold text-ink">
+        <h2 id="money-title" className="text-lg font-semibold text-ink">
           <T>Medical spend under control</T>
         </h2>
         <span className="text-xs text-muted"><T>{`Last ${m.days} days`}</T></span>

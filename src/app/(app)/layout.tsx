@@ -3,6 +3,7 @@ import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { AssistantProvider } from "@/components/assistant/assistant-provider";
 import { CommandPalette, SearchButton } from "@/components/command-palette";
 import { DockedSidebar, SidebarToggle } from "@/components/nav";
+import { AttentionBell } from "@/components/attention-bell";
 import { OperatorMenu } from "@/components/operator-menu";
 import { PresentToggle } from "@/components/present-toggle";
 import { BrandMark } from "@/components/brand";
@@ -31,24 +32,25 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
         <AssistantLauncher />
         <DockedSidebar />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur md:px-6 md:py-3">
-            <div className="flex min-w-0 items-center gap-2">
+          <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-line bg-surface/90 px-4 backdrop-blur md:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <SidebarToggle />
               {/* The brand stays on screen while the sidebar is out of view. */}
-              <p className="flex shrink-0 items-center gap-2 pr-1 text-sm font-semibold text-ink lg:hidden lg:sidebar-hidden:flex">
-                <BrandMark size={24} />
-                <span className="hidden min-[380px]:inline">{BRAND.name}</span>
+              <p className="flex shrink-0 items-center gap-2 pr-1 text-base font-bold tracking-tight text-ink lg:hidden lg:sidebar-hidden:flex">
+                <BrandMark size={26} />
+                <span className="hidden min-[420px]:inline">{BRAND.name}</span>
               </p>
               <SearchButton />
             </div>
-            <div className="flex items-center gap-2">
-              <OperatorMenu />
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               {/* Tablets and up; on a phone, ⌘K's "Interface in …" commands change it. */}
               <div className="hidden md:block">
                 <UiLanguageSwitch />
               </div>
               <TimeZoneSwitch />
               <PresentToggle />
+              <AttentionBell />
+              <OperatorMenu />
             </div>
           </header>
           {/* Room at the bottom so the floating assistant button never covers the last row;

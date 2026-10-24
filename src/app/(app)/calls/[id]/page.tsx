@@ -79,7 +79,7 @@ export default function CallDetailPage({ params }: { params: { id: string } }) {
   return (
     <div className="mx-auto max-w-7xl">
       <Link href="/calls" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-blue-600">
-        <ArrowLeft size={14} aria-hidden /> Call Center
+        <ArrowLeft size={14} className="rtl:rotate-180" aria-hidden /> Call Center
       </Link>
       <PageHeader title={`${call.ref} — ${call.agentLabel}`} subtitle={`${formatEnum(call.direction)} ${call.channel === "PHONE" ? "phone call" : "web voice session"}`}>
         <StatusBadge value={call.status} />

@@ -4,7 +4,11 @@ import { expect, test } from "@playwright/test";
 
 test("dashboard shows the outcomes and every module", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /CareTrail/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AI-powered assistance for travel & health" })).toBeVisible();
+  for (const kpi of ["Cases opened", "Claims checked", "AI calls handled", "E-mails & faxes read"]) {
+    await expect(page.getByText(kpi, { exact: true }).first()).toBeVisible();
+  }
+  await expect(page.getByRole("heading", { name: "Activity overview" })).toBeVisible();
   for (const name of ["Medical Document AI", "AI Case Manager", "AI Call Center", "E-mail & Fax Automation"]) {
     await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
   }
@@ -91,14 +95,14 @@ test("⌘K finds a guarantee by its reference and opens the case", async ({ page
   await expect(dialog).toBeHidden();
 
   await page.keyboard.press("ControlOrMeta+k");
-  await page.getByRole("combobox").fill("LOG-0902");
+  await dialog.getByRole("combobox").fill("LOG-0902");
   await expect(dialog.getByRole("option", { name: /LOG-0902 · 11,850 EUR/ })).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: /CASE-1022/ })).toBeVisible();
 
   // Commands too: jump to a voice agent.
   await page.keyboard.press("ControlOrMeta+k");
-  await page.getByRole("combobox").fill("hospital line");
+  await dialog.getByRole("combobox").fill("hospital line");
   await dialog.getByRole("option", { name: /Hospital & provider line/ }).click();
   await expect(page).toHaveURL(/\/voice\?agent=inbound-provider-line/);
   await expect(page.getByRole("combobox", { name: "Voice agent" })).toHaveValue("inbound-provider-line");
@@ -109,7 +113,8 @@ test("the presenter picks any voice agent and language, on a ready demo case", a
   await page.getByRole("combobox", { name: "Voice agent" }).selectOption("outbound-medical-transport");
   await expect(page.getByText(/You play:\s*The treating doctor/)).toBeVisible();
   await expect(page.getByRole("link", { name: "CASE-1022" }).first()).toBeVisible();
-  await page.getByRole("combobox", { name: "Language" }).selectOption("Turkish");
+  // The page's own picker, not the header's interface language.
+  await page.locator("main").getByRole("combobox", { name: "Language" }).selectOption("Turkish");
   await expect(page).toHaveURL(/agent=outbound-medical-transport/);
   await expect(page).toHaveURL(/lang=Turkish/);
   await expect(page.getByText("What the agent recorded")).toBeVisible();

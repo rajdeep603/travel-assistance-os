@@ -184,7 +184,7 @@ export default function ClaimDetailPage({ params }: { params: { id: string } }) 
         href="/claims"
         className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-blue-600"
       >
-        <ArrowLeft size={14} /> All claims
+        <ArrowLeft size={14} className="rtl:rotate-180" aria-hidden /> All claims
       </Link>
       <PageHeader
         title={`Claim ${claim.ref}`}

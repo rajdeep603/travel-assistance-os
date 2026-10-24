@@ -118,9 +118,9 @@ export function TimeZoneSwitch() {
         aria-haspopup="listbox"
         aria-expanded={open}
         title="Times on screen are shown in this time zone"
-        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-2.5 pr-3 text-[11px] font-semibold text-muted transition-colors hover:border-brand/50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface pl-2.5 pr-3 text-xs font-semibold text-muted transition-colors hover:border-brand/50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        <Clock3 size={13} aria-hidden />
+        <Clock3 size={15} aria-hidden />
         <span className="hidden sm:inline">{timeZoneLabel(zone)}</span>
         <span className="tabular-nums text-ink" suppressHydrationWarning>
           {clock}

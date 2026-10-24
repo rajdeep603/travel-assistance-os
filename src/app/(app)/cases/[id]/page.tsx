@@ -155,6 +155,13 @@ function buildJourney(data: CaseDetail): TimelineItem[] {
   return items;
 }
 
+/** What an operator can start from a case; each opens its module linked back to the case. */
+const caseActions = (id: string) => [
+  { href: `/providers?caseId=${id}`, label: "Book a provider", Icon: CalendarPlus },
+  { href: `/documents?caseId=${id}`, label: "Add a medical document", Icon: FilePlus2 },
+  { href: `/claims?caseId=${id}`, label: "Start a claim", Icon: ReceiptText },
+];
+
 export default function CaseDetailPage({ params }: { params: { id: string } }) {
   const [data, setData] = useState<CaseDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -237,7 +244,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
         href="/cases"
         className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-blue-600"
       >
-        <ArrowLeft size={14} /> All cases
+        <ArrowLeft size={14} className="rtl:rotate-180" aria-hidden /> All cases
       </Link>
       <PageHeader title={`${data.ref} — ${data.title}`} subtitle={data.location}>
         <div className="flex items-center gap-2">
@@ -245,6 +252,19 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <StatusBadge value={data.status} />
         </div>
       </PageHeader>
+      {/* Below the side column's reach on a tablet or phone, so the actions also sit under the title there. */}
+      <div className="-mt-3 mb-5 flex flex-wrap gap-2 lg:hidden">
+        {caseActions(data.id).map(({ href, label, Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink shadow-sm transition-colors hover:border-brand/40 hover:text-brand"
+          >
+            <Icon size={16} className="text-brand" aria-hidden />
+            {label}
+          </Link>
+        ))}
+      </div>
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
       <div className="grid gap-5 lg:grid-cols-3">
@@ -334,11 +354,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
           <Card>
             <SectionTitle>Act on this case</SectionTitle>
             <div className="mt-3 grid gap-2">
-              {[
-                { href: `/providers?caseId=${data.id}`, label: "Book a provider", Icon: CalendarPlus },
-                { href: `/documents?caseId=${data.id}`, label: "Add a medical document", Icon: FilePlus2 },
-                { href: `/claims?caseId=${data.id}`, label: "Start a claim", Icon: ReceiptText },
-              ].map(({ href, label, Icon }) => (
+              {caseActions(data.id).map(({ href, label, Icon }) => (
                 <Link
                   key={href}
                   href={href}

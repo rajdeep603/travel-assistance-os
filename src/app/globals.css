@@ -11,27 +11,27 @@
   color-scheme: light;
   --c-ink: 15 23 42;
   --c-muted: 100 116 139;
-  --c-canvas: 241 245 249;
+  --c-canvas: 246 248 252;
   --c-surface: 255 255 255;
-  --c-line: 226 232 240;
+  --c-line: 228 233 241;
   --c-brand: 37 99 235;
   --c-brand-2: 14 165 233;
   --c-brand-deep: 29 78 216;
   --c-ai: 124 58 237;
   --c-live: 20 184 166;
   --c-warn: 245 158 11;
-  /* The dark voice stage (sidebar, voice agent, live calls, sign-in). */
+  /* The dark voice stage (the voice agent, live calls). */
   --c-stage: 9 21 43;
   --c-stage-raised: 17 34 64;
   --c-stage-line: 38 58 92;
   --c-stage-ink: 241 245 249;
   --c-stage-muted: 148 163 184;
-  /* The brand gradient: primary actions, the active navigation item, the orb's accent. */
-  --g-brand: linear-gradient(135deg, rgb(var(--c-brand)) 0%, rgb(var(--c-brand-2)) 100%);
-  /* Cards float on the canvas with one soft shadow instead of a hard border. */
-  --shadow-card: 0 1px 2px rgb(var(--c-ink) / 0.04), 0 10px 30px -18px rgb(var(--c-ink) / 0.18);
-  --shadow-card-hover: 0 2px 4px rgb(var(--c-ink) / 0.04), 0 18px 40px -18px rgb(var(--c-ink) / 0.24);
-  --shadow-glow: 0 8px 22px -8px rgb(var(--c-brand) / 0.6);
+  /* The brand gradient: primary actions and selected chips; a light step of the same blue, so it shines without changing hue. */
+  --g-brand: linear-gradient(135deg, rgb(var(--c-brand)) 0%, rgb(59 130 246) 100%);
+  /* Cards sit on the canvas with a hairline edge and a soft shadow. */
+  --shadow-card: 0 1px 2px rgb(var(--c-ink) / 0.04), 0 4px 14px -6px rgb(var(--c-ink) / 0.06);
+  --shadow-card-hover: 0 2px 4px rgb(var(--c-ink) / 0.04), 0 14px 32px -12px rgb(var(--c-ink) / 0.16);
+  --shadow-glow: 0 6px 16px -6px rgb(var(--c-brand) / 0.55);
 }
 
 /* Presentation mode: scale the whole rem-based UI up for projectors. */
@@ -48,10 +48,57 @@ html[data-present="on"] {
 
 body {
   @apply bg-canvas text-ink antialiased;
-  /* A faint brand glow at the top of every page, so the workspace isn't flat grey. */
-  background-image: radial-gradient(900px 420px at 18% -12%, rgb(var(--c-brand) / 0.09), transparent 70%),
-    radial-gradient(700px 360px at 92% -8%, rgb(var(--c-live) / 0.07), transparent 70%);
-  background-repeat: no-repeat;
+}
+
+/*
+ * The sky: the dashboard hero and the sign-in panel. A light morning blue
+ * that deepens to the right, where the dotted world map and the flight path
+ * sit, so the text on the left stays on the calmest part.
+ */
+.hero-sky {
+  background-color: #eef4ff;
+  background-image: radial-gradient(50% 120% at 100% 0%, rgb(var(--c-brand) / 0.45), transparent 72%),
+    radial-gradient(40% 90% at 78% 115%, rgb(var(--c-brand-2) / 0.3), transparent 70%),
+    linear-gradient(100deg, #f7faff 0%, #ebf2ff 38%, #cfe0ff 72%, #a8c6ff 100%);
+}
+
+.hero-map {
+  background: url("/brand/world-dots.svg") right center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 40%);
+  mask-image: linear-gradient(to right, transparent 0%, black 40%);
+}
+
+/* Arabic: the sky and the map, like the page, start on the other side. */
+[dir="rtl"] .hero-sky {
+  background-image: radial-gradient(50% 120% at 0% 0%, rgb(var(--c-brand) / 0.45), transparent 72%),
+    radial-gradient(40% 90% at 22% 115%, rgb(var(--c-brand-2) / 0.3), transparent 70%),
+    linear-gradient(260deg, #f7faff 0%, #ebf2ff 38%, #cfe0ff 72%, #a8c6ff 100%);
+}
+
+[dir="rtl"] .hero-map {
+  background-position: left center;
+  -webkit-mask-image: linear-gradient(to left, transparent 0%, black 40%);
+  mask-image: linear-gradient(to left, transparent 0%, black 40%);
+}
+
+/* A map that keeps to the top of its panel, clear of the text below (sign-in). */
+.hero-map.hero-map-top {
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 52%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 52%);
+}
+
+/* Phones: the text spans the hero, so the map keeps to the top corner behind it. */
+@media (max-width: 767px) {
+  .hero-map {
+    opacity: 0.45;
+    -webkit-mask-image: radial-gradient(90% 55% at 100% 0%, black, transparent 85%);
+    mask-image: radial-gradient(90% 55% at 100% 0%, black, transparent 85%);
+  }
+
+  [dir="rtl"] .hero-map {
+    -webkit-mask-image: radial-gradient(90% 55% at 0% 0%, black, transparent 85%);
+    mask-image: radial-gradient(90% 55% at 0% 0%, black, transparent 85%);
+  }
 }
 
 ::selection {
@@ -350,15 +397,36 @@ input::-webkit-date-and-time-value {
   animation: route-y 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* The hero's flight path draws itself once, left to right. */
+@keyframes reveal-x {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animate-reveal-x {
+  animation: reveal-x 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Arabic: the layout mirrors, and text left in English (figures with units,
    names, records) keeps its own word order inside the right-to-left page. */
 [dir="rtl"] :where(p, span, li, dd, dt, td, th, h1, h2, h3, a, button, label, option, input, textarea) {
   unicode-bidi: plaintext;
 }
 
+/* Arabic tables: every cell aligns to the right edge, so headers sit over their values even when the value stays in English. */
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-route-x,
   .animate-route-y,
+  .animate-reveal-x,
   .animate-fade-up,
   .animate-typing-dot,
   .animate-bar-grow,

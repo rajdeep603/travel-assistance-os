@@ -430,7 +430,7 @@ export function QuotationWorkspace({
             <p className="mt-0.5 text-xs text-muted">
               Pay-as-you-go at the volumes in the business case. Untick a service to leave it out: its cost goes, and so do the hours it would have freed. Prices can be changed here.
             </p>
-            <ul className="mt-2 divide-y divide-line/70 rounded-lg border border-line/60 bg-white px-3">
+            <ul className="mt-2 divide-y divide-line/70 rounded-lg border border-line bg-white px-3">
               {allLines.map((l) => {
                 const included = !excluded.has(l.item);
                 // The phone line carries the voice AI's minutes and the notes come from its transcripts: without it, neither applies.

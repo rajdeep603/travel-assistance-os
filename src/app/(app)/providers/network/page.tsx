@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, GitMerge, Handshake, Mail, MapPin, Phone, Undo2 } from "lucide-react";
+import { BadgeCheck, Building2, CheckCircle2, CopyCheck, GitMerge, HandCoins, Handshake, Mail, MapPin, Phone, Undo2 } from "lucide-react";
 import { AccreditationBadge } from "@/components/providers/accreditation-badge";
-import { Button, Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, readApiError } from "@/components/ui";
+import { Button, Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatTile, readApiError } from "@/components/ui";
 import { formatDateTime, formatEnum } from "@/lib/format";
 import { useT } from "@/components/i18n";
 
@@ -123,11 +123,11 @@ export default function ProviderNetworkPage() {
         </div>
       ) : null}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label={t("Providers in the network")} value={data ? String(data.active) : "—"} note={data ? `${data.countries} ${t("countries")}` : ""} />
-        <Stat label={t("Likely duplicates")} value={data ? String(data.duplicates.length) : "—"} note={data ? `${data.merged} ${t("merged so far")}` : ""} tone={data && data.duplicates.length ? "warn" : undefined} />
-        <Stat label={t("Accredited")} value={data ? String(data.accredited) : "—"} note={data && data.active ? `${pct(data.accredited / data.active)} ${t("of the network")}` : ""} />
-        <Stat label={t("With negotiated rates")} value={data ? String(data.withRates) : "—"} note={t("Used by bill review")} />
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile icon={Building2} tone="blue" label={t("Providers in the network")} value={data ? String(data.active) : "—"} note={data ? `${data.countries} ${t("countries")}` : ""} />
+        <StatTile icon={CopyCheck} tone="amber" label={t("Likely duplicates")} value={data ? String(data.duplicates.length) : "—"} note={data ? `${data.merged} ${t("merged so far")}` : ""} warn={!!data?.duplicates.length} />
+        <StatTile icon={BadgeCheck} tone="emerald" label={t("Accredited")} value={data ? String(data.accredited) : "—"} note={data && data.active ? `${pct(data.accredited / data.active)} ${t("of the network")}` : ""} />
+        <StatTile icon={HandCoins} tone="violet" label={t("With negotiated rates")} value={data ? String(data.withRates) : "—"} note={t("Used by bill review")} />
       </div>
 
       <section className="mb-6">
@@ -174,7 +174,7 @@ export default function ProviderNetworkPage() {
                         </div>
                         <dl className="mt-3 space-y-1 text-xs text-muted">
                           <div className="flex items-center gap-1.5"><MapPin size={12} aria-hidden /> {p.address}, {p.district}, {p.city}</div>
-                          <div className="flex items-center gap-1.5"><Phone size={12} aria-hidden /> {p.phone}</div>
+                          <div className="flex items-center gap-1.5"><Phone size={12} aria-hidden /> <bdi dir="ltr">{p.phone}</bdi></div>
                           <div className="flex items-center gap-1.5"><Mail size={12} aria-hidden /> {p.email}</div>
                           <div>Languages: {p.languages?.join(", ")}</div>
                           <div className="tabular-nums">History: {p._count?.appointments ?? 0} appointments, {p._count?.guaranteeLetters ?? 0} guarantees</div>
@@ -260,7 +260,7 @@ export default function ProviderNetworkPage() {
                   <td className="px-5 py-2.5 text-xs text-muted">
                     {p.rateCard ? (
                       <span className="inline-flex items-center gap-1 text-ink/80">
-                        <Handshake size={13} className="text-brand" aria-hidden /> {p.rateCard.name}
+                        <Handshake size={13} className="shrink-0 text-brand" aria-hidden /> {p.rateCard.name}
                         {p.rateCard.multiplier ? ` (${Math.round(p.rateCard.multiplier * 100)}% of reference)` : ""}
                       </span>
                     ) : (
@@ -279,12 +279,3 @@ export default function ProviderNetworkPage() {
 
 const pairKey = (p: Pair) => `${p.a.id}:${p.b.id}`;
 
-function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: "warn" }) {
-  return (
-    <Card className="p-4">
-      <p className="text-xs font-medium text-muted">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === "warn" ? "text-warn" : "text-ink"}`}>{value}</p>
-      {note ? <p className="mt-0.5 text-xs text-muted">{note}</p> : null}
-    </Card>
-  );
-}

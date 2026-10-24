@@ -81,7 +81,7 @@ export function UiLanguageSwitch() {
         aria-label={t("Interface language")}
         value={lang}
         onChange={(e) => setLang(e.target.value as UiLanguage)}
-        className="h-9 rounded-lg border border-line bg-surface py-1 pl-8 pr-7 text-sm font-medium text-ink shadow-sm"
+        className="h-9 rounded-xl border border-line bg-surface py-1 pl-8 pr-7 text-xs font-semibold text-ink"
       >
         {UI_LANGUAGES.map((l) => (
           <option key={l.code} value={l.code}>

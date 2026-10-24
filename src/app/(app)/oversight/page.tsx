@@ -91,7 +91,7 @@ export default function OversightPage() {
         <Card><SkeletonRows rows={6} /></Card>
       ) : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[700px] text-sm">
             <thead>
               <tr className="border-b border-line text-left">
                 <th className="px-5 py-3 text-xs font-medium text-muted">{t("Measure")}</th>

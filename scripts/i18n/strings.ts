@@ -43,6 +43,8 @@ const SCREEN_LIB_FILES = [
   "src/lib/services/tariff.ts",
   "src/lib/time-zone.ts",
   "src/lib/format.ts",
+  "src/lib/services/dashboard.ts",
+  "src/lib/dashboard-series.ts",
 ];
 
 /** Screen modules whose lower-case strings are keywords to match, not text to show. */
@@ -134,6 +136,7 @@ function isProse(s: string): boolean {
   if (/^[A-Z0-9_]+$/.test(s)) return false; // enum values, currencies
   if (!s.includes(" ") && /[a-z][A-Z]|[_./=]|^[A-Z][a-z]+-[A-Z]/.test(s)) return false; // identifiers, headers, files
   if (/[{}]|=>|\n/.test(s)) return false;
+  if (/^[Mm]-?\d/.test(s)) return false; // SVG paths
   return true;
 }
 
@@ -206,6 +209,12 @@ function collectFile(rel: string, isComponent: boolean, add: (s: string) => void
       const labelOnly = node.templateSpans.length === 1 && node.templateSpans[0].literal.text === "";
       const head = keyOf(node.head.text).match(/^(.+?)(?::| \(| —)$/)?.[1] ?? (labelOnly && /^\S+ $/.test(node.head.text) ? keyOf(node.head.text) : null);
       if (head && isProse(head)) add(head);
+      // `${n} open`, `${n} read by AI`: a count before its label; the translator matches the label after the number.
+      const tail = node.templateSpans.length === 1 && node.head.text === "" ? node.templateSpans[0].literal.text : "";
+      // Units ("12 min ago", "3 h") read as they are; command keywords aren't shown.
+      const unit = /^ (h|min|m|s|km|days?)\b/.test(tail);
+      const keywords = propertyName(node.parent) === "keywords";
+      if (!unit && !keywords && /^ [a-z][a-z' ]*[a-z]$/i.test(tail) && hasWord(tail)) add(keyOf(tail));
     } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || (ts.isTemplateExpression(node) && brandTemplate(node) !== null)) {
       const s = keyOf(ts.isTemplateExpression(node) ? brandTemplate(node)! : node.text);
       const parent = node.parent;
