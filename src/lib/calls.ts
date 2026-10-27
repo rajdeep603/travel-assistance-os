@@ -44,22 +44,52 @@ export function defaultCallSlot(timeZone: string, now: Date = new Date()): { dat
   return { date, time: "10:00" };
 }
 
-/** The invite as first drafted; the presenter edits it before it goes. */
-export function callDraft(p: { customerName: string; quoteNumber?: string | null }): { subject: string; message: string } {
-  const quoted = Boolean(p.quoteNumber);
+/** What goes to the customer in one e-mail: the quotation, the Teams invite, or both. */
+export interface SendParts {
+  quotation: boolean;
+  invite: boolean;
+}
+
+/**
+ * The e-mail as first drafted for what is ticked; the presenter edits it
+ * before it goes. With the quotation, its summary follows the text (added on
+ * the server, from the figures).
+ */
+export function sendDraft(p: { customerName: string; quoteNumber?: string | null } & SendParts): { subject: string; message: string } {
+  const q = p.quoteNumber ?? "";
+  const quotation = p.quotation && Boolean(q);
+  const greeting = `Dear ${p.customerName.trim() || "all"},`;
+  const attached = `Please find attached our quotation ${q}: the one-time services, the monthly running cost, and what ${BRAND.name} would return with your numbers. The summary is below.`;
+  const signature = ["With kind regards,", `${BRAND.poweredBy} · ${BRAND.name}`];
+  if (quotation && !p.invite) {
+    return { subject: `${BRAND.name} quotation ${q}`, message: [greeting, "", attached, "", ...signature].join("\n") };
+  }
+  if (quotation) {
+    return {
+      subject: `${BRAND.name} quotation ${q} and a call to go through it`,
+      message: [
+        greeting,
+        "",
+        attached,
+        "",
+        "We would like to go through it with your team on a Teams call, at the time in this invitation. If it doesn't suit you, propose a new one and we will move it.",
+        "",
+        ...signature,
+      ].join("\n"),
+    };
+  }
   return {
-    subject: quoted ? `${BRAND.name}: a call about quotation ${p.quoteNumber}` : `${BRAND.name}: a follow-up call`,
+    subject: q ? `${BRAND.name}: a call about quotation ${q}` : `${BRAND.name}: a follow-up call`,
     message: [
-      `Dear ${p.customerName.trim() || "all"},`,
+      greeting,
       "",
-      quoted
-        ? `As discussed, a Teams call to go through our quotation ${p.quoteNumber} together and answer your team's questions.`
+      q
+        ? `As discussed, a Teams call to go through our quotation ${q} together and answer your team's questions.`
         : `As discussed, a Teams call to look at where ${BRAND.name} would help you first.`,
       "",
       "If the time doesn't suit you, propose a new one from the invite and we will move it.",
       "",
-      "With kind regards,",
-      `${BRAND.poweredBy} · ${BRAND.name}`,
+      ...signature,
     ].join("\n"),
   };
 }

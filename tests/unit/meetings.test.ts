@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callDraft, callNextStep, defaultCallSlot, describeCallSlot } from "@/lib/calls";
+import { callNextStep, defaultCallSlot, describeCallSlot, sendDraft } from "@/lib/calls";
 import { GraphMeetings, MeetingProviderError, inviteHtml } from "@/lib/services/meetings";
 import { utcToWallClock, wallClockToUtc } from "@/lib/time-zone";
 
@@ -69,12 +69,15 @@ describe("clocks for a call", () => {
     expect(callNextStep(slot.startsAt, "Asia/Kolkata")).toBe("Teams call at 14:30 India time");
   });
 
-  it("drafts the invite about the quotation, or a plain follow-up", () => {
-    expect(callDraft({ customerName: "Aylin Kaya", quoteNumber: "Q-20261103-ABC123" })).toMatchObject({
-      subject: "CareTrail: a call about quotation Q-20261103-ABC123",
-      message: expect.stringContaining("Dear Aylin Kaya,"),
-    });
-    expect(callDraft({ customerName: "", quoteNumber: null }).subject).toBe("CareTrail: a follow-up call");
+  it("drafts the e-mail for what is ticked: the quotation, the invite, or both", () => {
+    const who = { customerName: "Aylin Kaya", quoteNumber: "Q-20261103-ABC123" };
+    const both = sendDraft({ ...who, quotation: true, invite: true });
+    expect(both.subject).toBe("CareTrail quotation Q-20261103-ABC123 and a call to go through it");
+    expect(both.message).toMatch(/^Dear Aylin Kaya,\n\nPlease find attached our quotation Q-20261103-ABC123.*Teams call, at the time in this invitation/s);
+    expect(sendDraft({ ...who, quotation: true, invite: false })).toMatchObject({ subject: "CareTrail quotation Q-20261103-ABC123", message: expect.not.stringContaining("Teams") });
+    expect(sendDraft({ ...who, quotation: false, invite: true }).subject).toBe("CareTrail: a call about quotation Q-20261103-ABC123");
+    // No quotation yet (a visitor lead): the invite alone.
+    expect(sendDraft({ customerName: "", quoteNumber: null, quotation: true, invite: true }).subject).toBe("CareTrail: a follow-up call");
   });
 });
 
@@ -116,6 +119,51 @@ describe("Microsoft Graph", () => {
       reminderMinutesBeforeStart: 15,
       transactionId: "tx-1",
     });
+  });
+
+  it("with the quotation: creates the call, attaches the PDF, and only then invites, so the file goes in the same e-mail", async () => {
+    const { sent, graph } = fakeGraph((req) => {
+      if (req.method === "POST" && req.url.endsWith("/events")) return { status: 201, body: { id: "event-9", webLink: "https://outlook/9", onlineMeeting: { joinUrl: "https://teams/9" } } };
+      if (req.url.endsWith("/attachments")) return { status: 201, body: { id: "att-1" } };
+      return { body: { id: "event-9", onlineMeeting: { joinUrl: "https://teams/9" } } };
+    });
+    const pdf = Buffer.from("%PDF-1.7 quotation");
+    const made = await graph.create({
+      ...slot,
+      subject: "Quotation and a call",
+      text: "Dear Aylin,",
+      attendees: [{ email: "aylin@company.com", name: "Aylin Kaya" }],
+      attachments: [{ filename: "quotation.pdf", content: pdf, type: "application/pdf" }],
+      transactionId: "tx-9",
+    });
+    expect(made).toMatchObject({ id: "event-9", joinUrl: "https://teams/9" });
+    const calls = sent.filter((r) => !r.url.includes("login.microsoftonline.com"));
+    expect(calls.map((r) => `${r.method} ${r.url.split("/users/")[1]}`)).toEqual([
+      "POST rajdeep.shah%40sthiramservices.com/events",
+      "POST rajdeep.shah%40sthiramservices.com/events/event-9/attachments",
+      "PATCH rajdeep.shah%40sthiramservices.com/events/event-9",
+    ]);
+    expect(JSON.parse(calls[0].body).attendees).toBeUndefined();
+    expect(JSON.parse(calls[1].body)).toEqual({
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: "quotation.pdf",
+      contentType: "application/pdf",
+      contentBytes: pdf.toString("base64"),
+    });
+    expect(JSON.parse(calls[2].body)).toEqual({ attendees: [{ emailAddress: { address: "aylin@company.com", name: "Aylin Kaya" }, type: "required" }] });
+  });
+
+  it("takes the half-made call out of the calendar when the file can't be attached", async () => {
+    const { sent, graph } = fakeGraph((req) => {
+      if (req.method === "POST" && req.url.endsWith("/events")) return { status: 201, body: { id: "event-10" } };
+      if (req.url.endsWith("/attachments")) return { status: 413, body: { error: { message: "Too large" } } };
+      return { status: 204 };
+    });
+    await expect(
+      graph.create({ ...slot, subject: "s", text: "", attendees: [{ email: "a@company.com" }], attachments: [{ filename: "q.pdf", content: Buffer.from("x"), type: "application/pdf" }], transactionId: "tx-10" })
+    ).rejects.toMatchObject({ status: 413 });
+    expect(sent.at(-1)).toMatchObject({ method: "DELETE", url: expect.stringMatching(/\/events\/event-10$/) });
+    expect(sent.some((r) => r.method === "PATCH")).toBe(false);
   });
 
   it("keeps the sign-in for the next call, and fetches a Teams link that came late", async () => {

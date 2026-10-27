@@ -101,6 +101,7 @@ export function LeadCalls({
                     {formatDayTime(m.startsAt)}–{formatTime(m.endsAt)}
                     {cancelled ? <span className="ms-2 rounded-full bg-canvas px-2 py-0.5 text-xs font-medium text-muted ring-1 ring-line">Cancelled</span> : null}
                     {!cancelled && over ? <span className="ms-2 rounded-full bg-canvas px-2 py-0.5 text-xs font-medium text-muted ring-1 ring-line">Held</span> : null}
+                    {m.withQuotation ? <span className="ms-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Quotation attached</span> : null}
                   </p>
                   {m.timeZone !== viewerZone ? <p className="text-xs text-muted">For them: {describeCallSlot(m.startsAt, m.endsAt, m.timeZone)}</p> : null}
                   <p className="mt-0.5 text-xs text-muted [overflow-wrap:anywhere]">{m.attendees.join(", ")}</p>
@@ -163,6 +164,7 @@ export function LeadCalls({
 
       {panel && calls.organizer ? (
         <ProposeCall
+          title={panel.meeting ? "Move the call" : "Propose a call"}
           organizer={calls.organizer}
           customerName={lead.customerName}
           email={lead.email ?? ""}

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CalendarClock, CalendarPlus, CheckCircle2, Copy, ExternalLink, Send, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarPlus, CheckCircle2, Copy, ExternalLink, FileText, Mail, Send, Video, X } from "lucide-react";
 import { Button, ErrorBanner, readApiError } from "@/components/ui";
-import { CALL_MINUTES, DEFAULT_CALL_MINUTES, MAX_CALL_ATTENDEES, callDraft, describeCallSlot, defaultCallSlot } from "@/lib/calls";
+import { CALL_MINUTES, DEFAULT_CALL_MINUTES, MAX_CALL_ATTENDEES, describeCallSlot, defaultCallSlot, sendDraft, type SendParts } from "@/lib/calls";
 import { formatPlainDate } from "@/lib/time";
 import {
   TIME_ZONES,
@@ -17,9 +17,10 @@ import {
   wallClockToUtc,
 } from "@/lib/time-zone";
 
-// Propose a Teams call: a day and time on the customer's clock, who is
-// invited and what the invite says. Microsoft 365 creates the call in the
-// organiser's Outlook calendar and sends the invite from there. The same
+// Send to the customer, in one e-mail: the quotation, a Teams call invite, or
+// both (one at least). With the invite, Microsoft 365 creates the call in the
+// organiser's Outlook calendar and the invitation goes from there, the
+// quotation's PDF attached to it; the quotation alone goes by e-mail. The same
 // panel moves a booked call to another time.
 
 /** A Teams call as the API returns it. */
@@ -33,6 +34,7 @@ export interface CallRecord {
   organizer: string;
   joinUrl: string | null;
   webLink: string | null;
+  withQuotation: boolean;
   status: "SCHEDULED" | "CANCELLED";
   createdBy: string | null;
 }
@@ -45,6 +47,7 @@ export interface LeadAfterCall {
 }
 
 type Availability = "free" | "busy" | "unknown";
+type Done = { kind: "invite"; meeting: CallRecord } | { kind: "quotation"; to: string[] };
 
 const FIELD =
   "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 sm:text-sm";
@@ -58,47 +61,67 @@ const splitAddresses = (text: string) =>
 const looksLikeEmail = (a: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a);
 
 export function ProposeCall({
+  title,
   organizer,
   customerName,
   email,
   quoteNumber,
+  initial = { quotation: false, invite: true },
+  emailQuotation,
   fileLead,
   filesQuotation = false,
   meeting,
   onBooked,
+  onEmailed,
   onClose,
 }: {
-  /** The mailbox the invite comes from. */
-  organizer: string;
+  title: string;
+  /** The mailbox Teams invites come from; null when this server can't send them. */
+  organizer: string | null;
   customerName: string;
   email: string;
+  /** The quotation that can go too; null when there is none yet. */
   quoteNumber: string | null;
+  /** What is ticked when the panel opens. */
+  initial?: SendParts;
+  /** The quotation alone, by e-mail; absent where that isn't offered (the invite is then needed). Returns who it reached. */
+  emailQuotation?: (p: { to: string[]; subject: string; message: string }) => Promise<string[]>;
   /** The lead the call goes on; from the quotation, this files the quotation first. */
   fileLead: () => Promise<{ id: string; ref: string }>;
   /** Opened from the quotation, which is filed as a lead on the way if it isn't yet. */
   filesQuotation?: boolean;
-  /** A booked call to move, instead of proposing a new one. */
+  /** A booked call to move, instead of sending anything new. */
   meeting?: CallRecord;
   /** `filed` is the lead the call went on, when it was filed on the way (from the quotation). */
   onBooked: (result: { meeting: CallRecord; lead: LeadAfterCall; filed: { id: string; ref: string } | null }) => void;
+  onEmailed?: (to: string[]) => void;
   onClose: () => void;
 }) {
   const moving = Boolean(meeting);
+  const canInvite = Boolean(organizer);
+  const canQuote = Boolean(quoteNumber);
+  const canQuoteAlone = canQuote && Boolean(emailQuotation);
+  const [parts, setParts] = useState<SendParts>(() => {
+    const p = { quotation: initial.quotation && canQuote, invite: initial.invite && canInvite };
+    return p.quotation || p.invite ? p : { quotation: canQuoteAlone, invite: !canQuoteAlone };
+  });
+
   const viewerZone = getDisplayTimeZone();
   const [timeZone, setTimeZone] = useState(() => meeting?.timeZone ?? viewerZone);
   const [slot, setSlot] = useState(() => (meeting ? utcToWallClock(new Date(meeting.startsAt), meeting.timeZone) : defaultCallSlot(viewerZone)));
   const [minutes, setMinutes] = useState<number>(() =>
     meeting ? Math.round((Date.parse(meeting.endsAt) - Date.parse(meeting.startsAt)) / 60_000) : DEFAULT_CALL_MINUTES
   );
-  const draft = useMemo(() => callDraft({ customerName, quoteNumber }), [customerName, quoteNumber]);
+  const draft = useMemo(() => sendDraft({ customerName, quoteNumber, ...parts }), [customerName, quoteNumber, parts]);
   const [to, setTo] = useState(email);
   const [others, setOthers] = useState("");
-  const [subject, setSubject] = useState(draft.subject);
-  const [message, setMessage] = useState(draft.message);
+  // The text follows what is ticked until the presenter writes their own.
+  const [subject, setSubject] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [availability, setAvailability] = useState<Availability | "checking" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<CallRecord | null>(null);
+  const [done, setDone] = useState<Done | null>(null);
   const [copied, setCopied] = useState(false);
 
   const titleId = useId();
@@ -132,6 +155,7 @@ export function ProposeCall({
     if (done) doneRef.current?.focus();
   }, [done]);
 
+  const withCall = moving || parts.invite;
   const startsAt = useMemo(() => wallClockToUtc(slot.date, slot.time, timeZone), [slot, timeZone]);
   const valid = !Number.isNaN(startsAt.getTime());
   const inPast = valid && startsAt.getTime() < Date.now() + 60_000;
@@ -140,7 +164,7 @@ export function ProposeCall({
 
   // A quiet look at the organiser's calendar once the time settles.
   useEffect(() => {
-    if (!valid || inPast) {
+    if (!withCall || !valid || inPast) {
       setAvailability(null);
       return;
     }
@@ -159,58 +183,98 @@ export function ProposeCall({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [slot.date, slot.time, timeZone, minutes, valid, inPast]);
+  }, [slot.date, slot.time, timeZone, minutes, valid, inPast, withCall]);
 
-  const zones = useMemo(() => (TIME_ZONES.some((z) => z.id === timeZone) || !isTimeZone(timeZone) ? TIME_ZONES : [...TIME_ZONES, { id: timeZone, label: timeZoneLabel(timeZone), region: "UTC" as const }]), [timeZone]);
+  const zones = useMemo(
+    () => (TIME_ZONES.some((z) => z.id === timeZone) || !isTimeZone(timeZone) ? TIME_ZONES : [...TIME_ZONES, { id: timeZone, label: timeZoneLabel(timeZone), region: "UTC" as const }]),
+    [timeZone]
+  );
+
+  // One of the two always stays ticked; the quotation stands alone only where it can go by e-mail.
+  const locked = { quotation: parts.quotation && !parts.invite, invite: parts.invite && !(parts.quotation && canQuoteAlone) };
+  const toggle = (part: keyof SendParts) => {
+    if (locked[part] && parts[part]) return;
+    setParts((p) => ({ ...p, [part]: !p[part] }));
+    setError(null);
+  };
 
   async function send() {
     setError(null);
-    if (!valid) return setError("Pick a day and a start time.");
-    if (inPast) return setError("That time has already passed. Pick a later one.");
-    const attendees = [...new Set([...splitAddresses(to), ...splitAddresses(others)])];
+    if (withCall && !valid) return setError("Pick a day and a start time.");
+    if (withCall && inPast) return setError("That time has already passed. Pick a later one.");
+    const body = { date: slot.date, time: slot.time, timeZone, minutes };
+    const recipients = [...new Set([...splitAddresses(to), ...splitAddresses(others)])];
+    const text = { subject: (subject ?? draft.subject).trim(), message: (message ?? draft.message).trim() };
     if (!moving) {
       if (!splitAddresses(to).length) return setError("Enter the customer's e-mail address.");
-      const wrong = attendees.find((a) => !looksLikeEmail(a));
+      const wrong = recipients.find((a) => !looksLikeEmail(a));
       if (wrong) return setError(`${wrong} isn't an e-mail address.`);
-      if (attendees.length > MAX_CALL_ATTENDEES) return setError(`Invite at most ${MAX_CALL_ATTENDEES} people.`);
-      if (!subject.trim()) return setError("Enter a subject for the invite.");
+      if (recipients.length > MAX_CALL_ATTENDEES) return setError(`Send to at most ${MAX_CALL_ATTENDEES} people.`);
+      if (!text.subject) return setError("Enter a subject.");
     }
     setBusy(true);
     try {
-      const body = { date: slot.date, time: slot.time, timeZone, minutes };
-      let res: Response;
-      let filed: { id: string; ref: string } | null = null;
       if (meeting) {
-        res = await fetch(`/api/meetings/${meeting.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      } else {
-        filed = await fileLead();
-        res = await fetch(`/api/leads/${filed.id}/meetings`, {
+        const res = await fetch(`/api/meetings/${meeting.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error(await readApiError(res, "The call couldn't be moved. Please try again."));
+        const result = (await res.json()) as { meeting: CallRecord; lead: LeadAfterCall };
+        setDone({ kind: "invite", meeting: result.meeting });
+        onBooked({ ...result, filed: null });
+      } else if (parts.invite) {
+        const filed = await fileLead();
+        const res = await fetch(`/api/leads/${filed.id}/meetings`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ...body, attendees, subject: subject.trim(), message: message.trim() }),
+          body: JSON.stringify({ ...body, attendees: recipients, ...text, attachQuotation: parts.quotation }),
         });
+        if (!res.ok) throw new Error(await readApiError(res, "The invite couldn't be sent. Please try again."));
+        const result = (await res.json()) as { meeting: CallRecord; lead: LeadAfterCall };
+        setDone({ kind: "invite", meeting: result.meeting });
+        onBooked({ ...result, filed: filesQuotation ? filed : null });
+      } else if (emailQuotation) {
+        const reached = await emailQuotation({ to: recipients, ...text });
+        setDone({ kind: "quotation", to: reached });
+        onEmailed?.(reached);
       }
-      if (!res.ok) throw new Error(await readApiError(res, moving ? "The call couldn't be moved. Please try again." : "The invite couldn't be sent. Please try again."));
-      const result = (await res.json()) as { meeting: CallRecord; lead: LeadAfterCall };
-      setDone(result.meeting);
-      onBooked({ ...result, filed });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "The invite couldn't be sent. Please try again.");
+      setError(err instanceof Error ? err.message : "Nothing was sent. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function copyLink() {
-    if (!done?.joinUrl) return;
+  async function copyLink(joinUrl: string) {
     try {
-      await navigator.clipboard.writeText(done.joinUrl);
+      await navigator.clipboard.writeText(joinUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2_000);
     } catch {
       // Clipboard refused (an old browser, no permission): the link is in the invite anyway.
     }
   }
+
+  const tile = (part: keyof SendParts, icon: ReactNode, label: string, detail: ReactNode) => (
+    <label
+      className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition-colors duration-150 ${
+        parts[part] ? "border-brand/50 bg-brand/[0.05]" : "border-line bg-surface hover:bg-canvas"
+      } ${locked[part] && parts[part] ? "cursor-default" : ""}`}
+    >
+      <input
+        type="checkbox"
+        checked={parts[part]}
+        onChange={() => toggle(part)}
+        aria-disabled={locked[part] && parts[part] ? true : undefined}
+        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-brand"
+      />
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+          {icon}
+          {label}
+        </span>
+        <span className="mt-0.5 block text-xs text-muted [overflow-wrap:anywhere]">{detail}</span>
+      </span>
+    </label>
+  );
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex animate-fade-in items-end justify-center bg-ink/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -222,14 +286,20 @@ export function ProposeCall({
       >
         <header className="flex items-start gap-3 border-b border-line px-5 py-4">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-            {moving ? <CalendarClock size={18} aria-hidden /> : <CalendarPlus size={18} aria-hidden />}
+            {moving ? <CalendarClock size={18} aria-hidden /> : parts.invite ? <CalendarPlus size={18} aria-hidden /> : <Mail size={18} aria-hidden />}
           </span>
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-base font-semibold text-ink">
-              {moving ? "Move the call" : "Propose a call"}
+              {title}
             </h2>
             <p className="text-xs text-muted [overflow-wrap:anywhere]">
-              Microsoft Teams, from <bdi>{organizer}</bdi>
+              {organizer ? (
+                <>
+                  Teams invites from <bdi>{organizer}</bdi>
+                </>
+              ) : (
+                "By e-mail, with the PDF attached"
+              )}
             </p>
           </div>
           <button
@@ -247,24 +317,34 @@ export function ProposeCall({
             <p className="flex items-start gap-2 text-sm text-emerald-800">
               <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden />
               <span>
-                {moving ? "Moved. Everyone invited gets the new time from Outlook." : "Invite sent. The call is in your Outlook calendar, with a Teams link."}
+                {done.kind === "quotation"
+                  ? `Quotation ${quoteNumber} sent, with the PDF attached.`
+                  : moving
+                    ? "Moved. Everyone invited gets the new time from Outlook."
+                    : done.meeting.withQuotation
+                      ? "Sent: one e-mail with the Teams invitation and the quotation attached. The call is in your Outlook calendar."
+                      : "Invite sent. The call is in your Outlook calendar, with a Teams link."}
               </span>
             </p>
-            <div className="rounded-xl bg-canvas p-4 ring-1 ring-line">
-              <p className="text-sm font-semibold text-ink">{describeCallSlot(done.startsAt, done.endsAt, done.timeZone)}</p>
-              {done.timeZone !== viewerZone ? <p className="mt-0.5 text-xs text-muted">{describeCallSlot(done.startsAt, done.endsAt, viewerZone)}</p> : null}
-              <p className="mt-2 text-xs text-muted [overflow-wrap:anywhere]">{done.attendees.join(", ")}</p>
-            </div>
+            {done.kind === "invite" ? (
+              <div className="rounded-xl bg-canvas p-4 ring-1 ring-line">
+                <p className="text-sm font-semibold text-ink">{describeCallSlot(done.meeting.startsAt, done.meeting.endsAt, done.meeting.timeZone)}</p>
+                {done.meeting.timeZone !== viewerZone ? <p className="mt-0.5 text-xs text-muted">{describeCallSlot(done.meeting.startsAt, done.meeting.endsAt, viewerZone)}</p> : null}
+                <p className="mt-2 text-xs text-muted [overflow-wrap:anywhere]">{done.meeting.attendees.join(", ")}</p>
+              </div>
+            ) : (
+              <p className="rounded-xl bg-canvas p-4 text-xs text-muted ring-1 ring-line [overflow-wrap:anywhere]">{done.to.join(", ")}</p>
+            )}
             <div className="flex flex-wrap items-center gap-2">
-              {done.joinUrl ? (
-                <Button variant="secondary" onClick={() => void copyLink()}>
+              {done.kind === "invite" && done.meeting.joinUrl ? (
+                <Button variant="secondary" onClick={() => void copyLink(done.meeting.joinUrl!)}>
                   {copied ? <CheckCircle2 size={15} aria-hidden /> : <Copy size={15} aria-hidden />}
                   {copied ? "Copied" : "Copy Teams link"}
                 </Button>
               ) : null}
-              {done.webLink ? (
+              {done.kind === "invite" && done.meeting.webLink ? (
                 <a
-                  href={done.webLink}
+                  href={done.meeting.webLink}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand transition-colors duration-150 hover:text-brand-deep"
@@ -290,99 +370,126 @@ export function ProposeCall({
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
               {error ? <ErrorBanner message={error} /> : null}
 
-              <fieldset className="min-w-0">
-                <legend className="sr-only">When</legend>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
-                  <div className="col-span-2 sm:col-span-1">
-                    <label htmlFor={ids.date} className={LABEL}>
-                      Day
-                    </label>
-                    <input
-                      ref={firstRef}
-                      id={ids.date}
-                      type="date"
-                      min={today}
-                      value={slot.date}
-                      onChange={(e) => setSlot((s) => ({ ...s, date: e.target.value }))}
-                      className={FIELD}
-                    />
+              {!moving && canQuote && canInvite ? (
+                <fieldset className="min-w-0">
+                  <legend className="mb-1.5 text-sm font-medium text-slate-700">Send</legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {tile("quotation", <FileText size={15} className="text-brand" aria-hidden />, "Quotation", <>{quoteNumber}, PDF attached</>)}
+                    {tile("invite", <Video size={15} className="text-brand" aria-hidden />, "Teams call invite", "From your Outlook calendar")}
                   </div>
-                  <div>
-                    <label htmlFor={ids.time} className={LABEL}>
-                      Starts at
-                    </label>
-                    <input
-                      id={ids.time}
-                      type="time"
-                      step={300}
-                      value={slot.time}
-                      onChange={(e) => setSlot((s) => ({ ...s, time: e.target.value }))}
-                      className={`${FIELD} tabular-nums`}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor={ids.minutes} className={LABEL}>
-                      Length
-                    </label>
-                    <select id={ids.minutes} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className={FIELD}>
-                      {CALL_MINUTES.map((m) => (
-                        <option key={m} value={m}>
-                          {m} min
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <label htmlFor={ids.zone} className={LABEL}>
-                    Time zone
-                  </label>
-                  <select id={ids.zone} value={timeZone} onChange={(e) => setTimeZone(e.target.value)} className={FIELD}>
-                    {TIME_ZONE_REGIONS.map((region) => {
-                      const inRegion = zones.filter((z) => z.region === region);
-                      return inRegion.length ? (
-                        <optgroup key={region} label={region === "Operation" ? "Where the operation runs" : region}>
-                          {inRegion.map((z) => (
-                            <option key={z.id} value={z.id}>
-                              {z.label} · {timeZoneOffset(z.id)}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ) : null;
-                    })}
-                  </select>
-                  <p className="mt-1 text-xs text-muted">
-                    The customer&apos;s clock; the invite shows in each person&apos;s own.
-                    {viewerTime ? (
+                  <p className="mt-1.5 text-xs text-muted">
+                    {parts.quotation && parts.invite ? (
                       <>
-                        {" "}
-                        For you that&apos;s <span className="font-medium tabular-nums text-ink">{viewerTime.time}</span>
-                        {viewerTime.date !== slot.date ? <> on {formatPlainDate(viewerTime.date)}</> : null} {timeZoneLabel(viewerZone)} time.
+                        One e-mail: the Teams invitation with the quotation attached, from <bdi className="[overflow-wrap:anywhere]">{organizer}</bdi>.
                       </>
+                    ) : parts.invite ? (
+                      canQuoteAlone ? (
+                        "The Teams invitation alone."
+                      ) : (
+                        "The Teams invitation, with the quotation attached if you tick it."
+                      )
+                    ) : (
+                      "The quotation alone, by e-mail with the PDF attached."
+                    )}
+                  </p>
+                </fieldset>
+              ) : null}
+
+              {withCall ? (
+                <fieldset className="min-w-0">
+                  <legend className="sr-only">When</legend>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                    <div className="col-span-2 sm:col-span-1">
+                      <label htmlFor={ids.date} className={LABEL}>
+                        Day
+                      </label>
+                      <input
+                        ref={firstRef}
+                        id={ids.date}
+                        type="date"
+                        min={today}
+                        value={slot.date}
+                        onChange={(e) => setSlot((s) => ({ ...s, date: e.target.value }))}
+                        className={FIELD}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={ids.time} className={LABEL}>
+                        Starts at
+                      </label>
+                      <input
+                        id={ids.time}
+                        type="time"
+                        step={300}
+                        value={slot.time}
+                        onChange={(e) => setSlot((s) => ({ ...s, time: e.target.value }))}
+                        className={`${FIELD} tabular-nums`}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={ids.minutes} className={LABEL}>
+                        Length
+                      </label>
+                      <select id={ids.minutes} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className={FIELD}>
+                        {CALL_MINUTES.map((m) => (
+                          <option key={m} value={m}>
+                            {m} min
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <label htmlFor={ids.zone} className={LABEL}>
+                      Time zone
+                    </label>
+                    <select id={ids.zone} value={timeZone} onChange={(e) => setTimeZone(e.target.value)} className={FIELD}>
+                      {TIME_ZONE_REGIONS.map((region) => {
+                        const inRegion = zones.filter((z) => z.region === region);
+                        return inRegion.length ? (
+                          <optgroup key={region} label={region === "Operation" ? "Where the operation runs" : region}>
+                            {inRegion.map((z) => (
+                              <option key={z.id} value={z.id}>
+                                {z.label} · {timeZoneOffset(z.id)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null;
+                      })}
+                    </select>
+                    <p className="mt-1 text-xs text-muted">
+                      The customer&apos;s clock; the invite shows in each person&apos;s own.
+                      {viewerTime ? (
+                        <>
+                          {" "}
+                          For you that&apos;s <span className="font-medium tabular-nums text-ink">{viewerTime.time}</span>
+                          {viewerTime.date !== slot.date ? <> on {formatPlainDate(viewerTime.date)}</> : null} {timeZoneLabel(viewerZone)} time.
+                        </>
+                      ) : null}
+                    </p>
+                  </div>
+                  <p className="mt-2 min-h-5 text-xs" aria-live="polite">
+                    {inPast ? (
+                      <span className="inline-flex items-center gap-1.5 text-warn">
+                        <AlertTriangle size={14} aria-hidden />
+                        That time has already passed.
+                      </span>
+                    ) : availability === "checking" ? (
+                      <span className="text-muted">Checking your calendar…</span>
+                    ) : availability === "free" ? (
+                      <span className="inline-flex items-center gap-1.5 text-emerald-700">
+                        <CheckCircle2 size={14} aria-hidden />
+                        Free in your Outlook calendar.
+                      </span>
+                    ) : availability === "busy" ? (
+                      <span className="inline-flex items-center gap-1.5 text-warn">
+                        <AlertTriangle size={14} aria-hidden />
+                        Something else is in your calendar then.
+                      </span>
                     ) : null}
                   </p>
-                </div>
-                <p className="mt-2 min-h-5 text-xs" aria-live="polite">
-                  {inPast ? (
-                    <span className="inline-flex items-center gap-1.5 text-warn">
-                      <AlertTriangle size={14} aria-hidden />
-                      That time has already passed.
-                    </span>
-                  ) : availability === "checking" ? (
-                    <span className="text-muted">Checking your calendar…</span>
-                  ) : availability === "free" ? (
-                    <span className="inline-flex items-center gap-1.5 text-emerald-700">
-                      <CheckCircle2 size={14} aria-hidden />
-                      Free in your Outlook calendar.
-                    </span>
-                  ) : availability === "busy" ? (
-                    <span className="inline-flex items-center gap-1.5 text-warn">
-                      <AlertTriangle size={14} aria-hidden />
-                      Something else is in your calendar then.
-                    </span>
-                  ) : null}
-                </p>
-              </fieldset>
+                </fieldset>
+              ) : null}
 
               {moving ? (
                 <p className="text-sm text-muted [overflow-wrap:anywhere]">
@@ -396,11 +503,21 @@ export function ProposeCall({
                       <label htmlFor={ids.to} className={LABEL}>
                         Customer&apos;s e-mail
                       </label>
-                      <input id={ids.to} type="email" autoComplete="off" maxLength={200} value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@company.com" className={FIELD} />
+                      <input
+                        ref={withCall ? undefined : firstRef}
+                        id={ids.to}
+                        type="email"
+                        autoComplete="off"
+                        maxLength={200}
+                        value={to}
+                        onChange={(e) => setTo(e.target.value)}
+                        placeholder="name@company.com"
+                        className={FIELD}
+                      />
                     </div>
                     <div>
                       <label htmlFor={ids.others} className={LABEL}>
-                        Also invite <span className="text-muted">(optional)</span>
+                        Also send to <span className="text-muted">(optional)</span>
                       </label>
                       <input
                         id={ids.others}
@@ -416,19 +533,44 @@ export function ProposeCall({
                     </div>
                   </fieldset>
                   <fieldset className="min-w-0 space-y-3">
-                    <legend className="sr-only">The invite</legend>
+                    <legend className="sr-only">The e-mail</legend>
                     <div>
                       <label htmlFor={ids.subject} className={LABEL}>
                         Subject
                       </label>
-                      <input id={ids.subject} type="text" maxLength={200} value={subject} onChange={(e) => setSubject(e.target.value)} className={FIELD} />
+                      <input id={ids.subject} type="text" maxLength={200} value={subject ?? draft.subject} onChange={(e) => setSubject(e.target.value)} className={FIELD} />
                     </div>
                     <div>
                       <label htmlFor={ids.message} className={LABEL}>
                         Message
                       </label>
-                      <textarea id={ids.message} rows={7} maxLength={4000} value={message} onChange={(e) => setMessage(e.target.value)} className={`${FIELD} leading-relaxed`} />
-                      <p className="mt-1 text-xs text-muted">Teams adds the link to join below it.</p>
+                      <textarea
+                        id={ids.message}
+                        rows={7}
+                        maxLength={4000}
+                        value={message ?? draft.message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        className={`${FIELD} leading-relaxed`}
+                      />
+                      <p className="mt-1 text-xs text-muted">
+                        {parts.quotation && parts.invite
+                          ? "The quotation's summary follows your text, then the Teams link to join."
+                          : parts.invite
+                            ? "Teams adds the link to join below it."
+                            : "The quotation's summary follows your text."}
+                      </p>
+                      {subject !== null || message !== null ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSubject(null);
+                            setMessage(null);
+                          }}
+                          className="mt-1 text-xs font-medium text-brand transition-colors duration-150 hover:text-brand-deep"
+                        >
+                          Use the suggested text
+                        </button>
+                      ) : null}
                     </div>
                   </fieldset>
                 </>
@@ -439,16 +581,18 @@ export function ProposeCall({
               <p className="min-w-0 flex-1 text-xs text-muted">
                 {moving
                   ? "Everyone invited gets the update from Outlook."
-                  : filesQuotation
-                    ? "The call goes on the lead; the quotation is submitted as one first if it isn't yet."
-                    : "The call goes on the lead, and sets its next step."}
+                  : !parts.invite
+                    ? "Sent from our e-mail address, one e-mail to each person."
+                    : filesQuotation
+                      ? "The call goes on the lead; the quotation is submitted as one first if it isn't yet."
+                      : "The call goes on the lead, and sets its next step."}
               </p>
               <Button variant="secondary" onClick={onClose}>
                 Cancel
               </Button>
               <Button type="submit" busy={busy}>
                 {busy ? null : moving ? <CalendarClock size={15} aria-hidden /> : <Send size={15} aria-hidden />}
-                {moving ? "Move the call" : "Send invite"}
+                {moving ? "Move the call" : parts.invite && parts.quotation ? "Send" : parts.invite ? "Send invite" : "Send quotation"}
               </Button>
             </footer>
           </form>

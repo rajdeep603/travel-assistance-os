@@ -32,7 +32,7 @@ const input = {
 afterEach(() => setEmailService(null));
 
 afterAll(async () => {
-  await prisma.outboundMessage.deleteMany({ where: { createdAt: { gte: testStart }, toAddress: TO } });
+  await prisma.outboundMessage.deleteMany({ where: { createdAt: { gte: testStart }, toAddress: { in: [TO, "cfo@assistance-company.com"] } } });
   await prisma.$disconnect();
 });
 
@@ -40,7 +40,7 @@ describe("e-mailing the quotation", () => {
   it("sends the PDF with the summary, and records it in the outbox", async () => {
     const provider = new RealProvider();
     setEmailService(provider);
-    const sent = await emailBusinessCase({ to: TO, input, operator: "presenter" });
+    const [sent] = await emailBusinessCase({ to: TO, input, operator: "presenter" });
     expect(sent).toMatchObject({ status: "SENT", channel: "EMAIL", toAddress: TO, provider: "real-test", automatic: false, approvedBy: "presenter" });
 
     const [message] = provider.sent;
@@ -53,9 +53,24 @@ describe("e-mailing the quotation", () => {
     expect(message.attachments![0].content.subarray(0, 5).toString()).toBe("%PDF-");
   });
 
+  it("sends the presenter's own text to each recipient, the summary below it", async () => {
+    const provider = new RealProvider();
+    setEmailService(provider);
+    const sent = await emailBusinessCase({ to: [TO, "CFO@Assistance-Company.com", TO], input, operator: "presenter", subject: "Our quotation", message: "Dear Aylin,\n\nAs promised." });
+    expect(sent.map((m) => m.toAddress)).toEqual([TO, "cfo@assistance-company.com"]);
+    expect(provider.sent.map((m) => m.subject)).toEqual(["Our quotation", "Our quotation"]);
+    expect(provider.sent[0].text).toMatch(/^Dear Aylin,\n\nAs promised\.\n\n.*Prepared for Aylin Kaya, Assistance Company/s);
+    expect(provider.sent[1].attachments).toHaveLength(1);
+  });
+
   it("refuses a placeholder address, which no mail would reach", async () => {
     setEmailService(new RealProvider());
     await expect(emailBusinessCase({ to: "visitor@example.com", input, operator: null })).rejects.toMatchObject({ status: 400 });
+    // Not even the real address goes when one beside it is a placeholder.
+    const provider = new RealProvider();
+    setEmailService(provider);
+    await expect(emailBusinessCase({ to: [TO, "colleague@example.com"], input, operator: null })).rejects.toMatchObject({ status: 400 });
+    expect(provider.sent).toHaveLength(0);
   });
 
   it("says plainly when the server has no e-mail provider", async () => {

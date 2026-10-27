@@ -73,27 +73,51 @@ export function canEmailBusinessCase(): boolean {
   return getEmailService().configured;
 }
 
-export async function emailBusinessCase(params: { to: string; input: BusinessCaseInput; operator: string | null }): Promise<OutboundMessage> {
+/** The quotation e-mail's text as first drafted: the presenter can write their own; the summary always follows. */
+export const quotationEmailText = (number: string) =>
+  `Hello,\n\nPlease find attached our quotation ${number}: the one-time services, the monthly running cost, and what ${BRAND.name} would return with your numbers. The summary is below.`;
+
+/**
+ * E-mails the quotation PDF, the summary below the text, one message per
+ * recipient (the customer, their colleagues). Every address is checked before
+ * any is sent.
+ */
+export async function emailBusinessCase(params: {
+  to: string | string[];
+  input: BusinessCaseInput;
+  operator: string | null;
+  subject?: string;
+  message?: string;
+}): Promise<OutboundMessage[]> {
   if (!canEmailBusinessCase()) {
     throw serviceUnavailable("E-mail isn't set up on this server, so nothing was sent. Download the PDF and attach it to your own e-mail.");
   }
+  const recipients = [...new Set((Array.isArray(params.to) ? params.to : [params.to]).map((a) => a.trim().toLowerCase()))].filter(Boolean);
+  if (!recipients.length) throw badRequest("Enter the customer's e-mail address to send the quotation.");
   // A placeholder would be "sent" to nobody: the demo's example domains never leave the server.
-  if (isReservedAddress(params.to)) throw badRequest("That's a placeholder address, and no mail reaches it. Enter the visitor's real e-mail address.");
+  const placeholder = recipients.find((a) => isReservedAddress(a));
+  if (placeholder) throw badRequest(`${placeholder} is a placeholder address, and no mail reaches it. Enter the visitor's real e-mail address.`);
   const { pdf, filename, number, report } = await businessCasePdf(params.input);
-  const sent = await sendEmail({
-    to: params.to,
-    subject: `${BRAND.name} quotation ${number}`,
-    text: [
-      "Hello,",
-      "",
-      `Please find attached our quotation ${number}: the one-time services, the monthly running cost, and what ${BRAND.name} would return with your numbers. The summary is below.`,
-      "",
-      report.summary,
-    ].join("\n"),
-    attachments: [{ filename, content: pdf, type: "application/pdf" }],
-    automatic: false,
-    approvedBy: params.operator,
-  });
-  if (sent.status === "FAILED") throw new ApiError("The e-mail couldn't be sent. Check the address, or download the PDF instead.", 502, "SEND_FAILED");
+  const sent: OutboundMessage[] = [];
+  for (const to of recipients) {
+    const message = await sendEmail({
+      to,
+      subject: params.subject?.trim() || `${BRAND.name} quotation ${number}`,
+      text: [params.message?.trim() || quotationEmailText(number), "", report.summary].join("\n"),
+      attachments: [{ filename, content: pdf, type: "application/pdf" }],
+      automatic: false,
+      approvedBy: params.operator,
+    });
+    if (message.status === "FAILED") {
+      throw new ApiError(
+        sent.length
+          ? `The quotation reached ${sent.map((m) => m.toAddress).join(", ")}, but not ${to}. Check that address.`
+          : "The e-mail couldn't be sent. Check the address, or download the PDF instead.",
+        502,
+        "SEND_FAILED"
+      );
+    }
+    sent.push(message);
+  }
   return sent;
 }

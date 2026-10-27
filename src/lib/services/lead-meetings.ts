@@ -4,15 +4,19 @@ import type { LeadMeeting } from "@prisma/client";
 import { CALL_MINUTES, CALL_NEXT_STEP, MAX_CALL_ATTENDEES, callNextStep } from "@/lib/calls";
 import { prisma } from "@/lib/db";
 import { ApiError, badRequest, conflict, notFound, serviceUnavailable } from "@/lib/errors";
+import { utcToZoned } from "@/lib/time";
 import { isTimeZone, utcToWallClock, wallClockToUtc } from "@/lib/time-zone";
+import { BusinessCaseInputSchema, businessCasePdf } from "./business-case-report";
 import { isReservedAddress } from "./email";
-import { MeetingProviderError, getMeetingService, type Availability } from "./meetings";
+import { MeetingProviderError, getMeetingService, type Availability, type MeetingAttachment } from "./meetings";
 
 // ---------------------------------------------------------------------------
 // Teams calls proposed to a lead, from the quotation or the lead's page. The
 // invite goes from the organiser's Microsoft 365 calendar (meetings.ts); the
 // call is kept on the lead, sets its next step, and moves a new lead to
-// contacted. Placeholder addresses never get an invite, as with e-mail.
+// contacted. The lead's quotation can go with it: the PDF attached to the
+// invitation and its summary below the text, so the customer gets one e-mail.
+// Placeholder addresses never get an invite, as with e-mail.
 // ---------------------------------------------------------------------------
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,8 +43,10 @@ export const ProposeCallSchema = z.object({
     .max(MAX_CALL_ATTENDEES, `Invite at most ${MAX_CALL_ATTENDEES} people.`),
   subject: z.string().trim().min(1, "Enter a subject for the invite.").max(200),
   message: z.string().trim().max(4000).default(""),
+  /** The lead's quotation goes in the same e-mail: its PDF attached to the invite. */
+  attachQuotation: z.boolean().default(false),
 });
-export type ProposeCall = z.infer<typeof ProposeCallSchema>;
+export type ProposeCall = z.input<typeof ProposeCallSchema>;
 
 /** What a booked call changes on its lead, for the page to show at once. */
 export interface LeadAfterCall {
@@ -112,9 +118,15 @@ export async function proposeCall(
   operator: string | null,
   now: Date = new Date()
 ): Promise<{ meeting: LeadMeeting; existing: boolean; lead: LeadAfterCall }> {
-  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true, customerName: true, email: true, status: true } });
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { id: true, customerName: true, email: true, status: true, quoteNumber: true, input: true, createdAt: true },
+  });
   if (!lead) throw notFound("Lead");
   const service = requireService();
+  const attachQuotation = input.attachQuotation ?? false;
+  const message = input.message ?? "";
+  if (attachQuotation && !lead.quoteNumber) throw badRequest("This lead has no quotation yet. Generate one, or send the invite alone.");
 
   const attendees = [...new Set(input.attendees)].filter((a) => a !== service.organizer);
   if (!attendees.length) throw badRequest("Enter the customer's e-mail address.");
@@ -131,13 +143,25 @@ export async function proposeCall(
     .update(`${leadId}|${startsAt.toISOString()}|${[...attendees].sort().join(",")}|${cancelledBefore}`)
     .digest("hex")
     .slice(0, 40);
+  // The quotation exactly as filed on the lead: its own number and date.
+  let text = message;
+  let attachments: MeetingAttachment[] | undefined;
+  if (attachQuotation) {
+    const { pdf, filename, report } = await businessCasePdf(BusinessCaseInputSchema.parse(lead.input), {
+      number: lead.quoteNumber,
+      date: utcToZoned(lead.createdAt).date,
+    });
+    text = [message, report.summary].filter(Boolean).join("\n\n");
+    attachments = [{ filename, content: pdf, type: "application/pdf" }];
+  }
   const scheduled = await service
     .create({
       subject: input.subject,
-      text: input.message,
+      text,
       startsAt,
       endsAt,
       attendees: attendees.map((email) => ({ email, ...(email === lead.email?.toLowerCase() ? { name: lead.customerName } : {}) })),
+      attachments,
       transactionId,
     })
     .catch((err: unknown) => {
@@ -148,7 +172,7 @@ export async function proposeCall(
     data: {
       leadId,
       subject: input.subject,
-      message: input.message,
+      message,
       startsAt,
       endsAt,
       timeZone: input.timeZone,
@@ -158,6 +182,7 @@ export async function proposeCall(
       providerEventId: scheduled.id,
       joinUrl: scheduled.joinUrl,
       webLink: scheduled.webLink,
+      withQuotation: attachQuotation,
       createdBy: operator,
     },
   });

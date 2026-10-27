@@ -143,6 +143,28 @@ describe("Teams calls on a lead", () => {
     await expect(rescheduleCall(booked.id, { date: "2026-11-06", time: "10:00", timeZone: "Europe/London", minutes: 30 }, now)).rejects.toMatchObject({ status: 409 });
   });
 
+  it("sends the lead's quotation in the same e-mail: the PDF attached to the invite, its summary under the text", async () => {
+    setMeetingService(microsoft);
+    const { meeting } = await proposeCall(leadId, call({ date: "2026-11-10", attachQuotation: true }), "presenter", now);
+    expect(meeting.withQuotation).toBe(true);
+    const request = microsoft.created.at(-1)!;
+    expect(request.attachments).toHaveLength(1);
+    expect(request.attachments![0]).toMatchObject({ type: "application/pdf", filename: expect.stringMatching(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{6}\.pdf$/) });
+    expect(request.attachments![0].content.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(request.text).toMatch(/^Dear Aylin,\n\nAs discussed\.\n\n.*Prepared for Aylin Kaya, Calls Test Assistance/s);
+    // Without it, no file and the text as typed.
+    expect(microsoft.created[0].attachments).toBeUndefined();
+    expect(microsoft.created[0].text).toBe("Dear Aylin,\n\nAs discussed.");
+  });
+
+  it("can't attach a quotation the lead doesn't have", async () => {
+    setMeetingService(microsoft);
+    const visitor = await prisma.lead.create({
+      data: { ref: `LEAD-T${Date.now()}`, quoteNumber: "", customerName: "Visitor", companyName: "Calls Test Assistance", email: "v@calls-test.com", input: input as never, oneTimeTotal: 0, monthlyCost: 0, firstYearCost: 0, netAnnualSaving: 0, source: "VISITOR" },
+    });
+    await expect(proposeCall(visitor.id, call({ attendees: ["v@calls-test.com"], attachQuotation: true }), null, now)).rejects.toMatchObject({ status: 400, message: expect.stringContaining("no quotation") });
+  });
+
   it("leaves a next step the presenter wrote alone", async () => {
     setMeetingService(microsoft);
     await updateLead(leadId, { nextStep: "Send the DPA to legal", nextStepOn: null });

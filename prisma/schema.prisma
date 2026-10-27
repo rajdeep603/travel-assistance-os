@@ -806,6 +806,8 @@ model LeadMeeting {
   providerEventId String
   joinUrl         String?
   webLink         String?
+  /// The quotation's PDF went with the invite, in the same e-mail.
+  withQuotation   Boolean           @default(false)
   status          LeadMeetingStatus @default(SCHEDULED)
   cancelledAt     DateTime?
   createdBy       String?

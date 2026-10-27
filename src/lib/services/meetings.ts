@@ -14,6 +14,12 @@ export interface MeetingAttendee {
   name?: string;
 }
 
+export interface MeetingAttachment {
+  filename: string;
+  content: Buffer;
+  type: string;
+}
+
 export interface MeetingRequest {
   subject: string;
   /** The invite's text, as typed; Teams adds its join block below it. */
@@ -21,6 +27,8 @@ export interface MeetingRequest {
   startsAt: Date;
   endsAt: Date;
   attendees: MeetingAttendee[];
+  /** Files that go with the invite (the quotation's PDF), each under 3 MB. */
+  attachments?: MeetingAttachment[];
   /** The same id twice means a retry of the same invite, never a second one. */
   transactionId: string;
 }
@@ -150,12 +158,16 @@ export class GraphMeetings implements MeetingService {
   }
 
   async create(request: MeetingRequest): Promise<ScheduledMeeting> {
+    const attendees = request.attendees.map((a) => ({ emailAddress: { address: a.email, ...(a.name ? { name: a.name } : {}) }, type: "required" }));
+    const files = request.attachments ?? [];
     const event = await this.graph<GraphEvent>("POST", "/events", {
       subject: request.subject,
       body: { contentType: "HTML", content: inviteHtml(request.text) },
       start: utc(request.startsAt),
       end: utc(request.endsAt),
-      attendees: request.attendees.map((a) => ({ emailAddress: { address: a.email, ...(a.name ? { name: a.name } : {}) }, type: "required" })),
+      // Exchange sends the invite the moment there are attendees, and a file
+      // added after that never reaches them: with files, the attendees come last.
+      ...(files.length ? {} : { attendees }),
       isOnlineMeeting: true,
       onlineMeetingProvider: "teamsForBusiness",
       allowNewTimeProposals: true,
@@ -163,7 +175,25 @@ export class GraphMeetings implements MeetingService {
       reminderMinutesBeforeStart: 15,
       transactionId: request.transactionId,
     });
-    return this.scheduled(event!);
+    if (!files.length) return this.scheduled(event!);
+
+    const path = `/events/${encodeURIComponent(event!.id)}`;
+    try {
+      for (const file of files) {
+        await this.graph("POST", `${path}/attachments`, {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: file.filename,
+          contentType: file.type,
+          contentBytes: file.content.toString("base64"),
+        });
+      }
+      const sent = await this.graph<GraphEvent>("PATCH", path, { attendees });
+      return this.scheduled({ ...event!, ...sent });
+    } catch (err) {
+      // Nobody was invited yet: take the half-made event out of the calendar.
+      await this.graph("DELETE", path).catch(() => undefined);
+      throw err;
+    }
   }
 
   async reschedule(id: string, slot: { startsAt: Date; endsAt: Date }): Promise<ScheduledMeeting> {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { CalendarPlus, Check, CheckCircle2, Download, Mail, Plus, Printer, Send, X } from "lucide-react";
+import { Check, CheckCircle2, Download, Mail, Plus, Printer, Send, X } from "lucide-react";
 import { Button, ErrorBanner, readApiError } from "@/components/ui";
 import { ProposeCall } from "@/components/leads/propose-call";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
@@ -34,8 +34,8 @@ import { zonedToday } from "@/lib/time";
 // Generate quotation: the customer's details, the monthly services (each one
 // can be left out or re-priced) and Sthiram's service charges on the left,
 // the quotation exactly as it will print on the right. From here it prints,
-// downloads, goes by e-mail, is submitted as a lead, or a Teams call about it
-// is proposed (which submits it first).
+// downloads, is submitted as a lead, or goes to the customer in one e-mail:
+// the quotation, a Teams call invite, or both (an invite submits it first).
 // ---------------------------------------------------------------------------
 
 /** A service charge as typed: the amount stays text until it is sent. */
@@ -137,10 +137,10 @@ export function QuotationWorkspace({
   const excluded = useMemo(() => new Set(excludedServices(draft.excluded)), [draft.excluded]);
 
   const [rates, setRates] = useState<RateText>(() => rateText(base.prices));
-  const [busy, setBusy] = useState<"pdf" | "print" | "email" | "submit" | null>(null);
+  const [busy, setBusy] = useState<"pdf" | "print" | "submit" | null>(null);
   /** The mailbox Teams invites come from, when this server can send them. */
   const [callOrganizer, setCallOrganizer] = useState<string | null>(null);
-  const [proposing, setProposing] = useState(false);
+  const [sending, setSending] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [submitted, setSubmitted] = useState<{ number: string; id: string; ref: string } | null>(null);
@@ -258,27 +258,15 @@ export function QuotationWorkspace({
     }
   }
 
-  async function email() {
-    setNote(null);
-    if (!draft.email.trim()) {
-      setNote({ tone: "error", text: "Enter the customer's e-mail address to send the quotation." });
-      emailRef.current?.focus();
-      return;
-    }
-    setBusy("email");
-    try {
-      const res = await fetch("/api/business-case/email", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to: draft.email.trim(), input }),
-      });
-      if (!res.ok) throw new Error(await readApiError(res, "The e-mail couldn't be sent. Please try again."));
-      setNote({ tone: "ok", text: `Quotation ${meta.number} sent to ${draft.email.trim()}, with the PDF attached.` });
-    } catch (err) {
-      setNote({ tone: "error", text: err instanceof Error ? err.message : "The e-mail couldn't be sent. Please try again." });
-    } finally {
-      setBusy(null);
-    }
+  /** The quotation alone, by e-mail (the send panel's "quotation only"): one e-mail to each address. */
+  async function emailQuotation(p: { to: string[]; subject: string; message: string }): Promise<string[]> {
+    const res = await fetch("/api/business-case/email", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...p, input }),
+    });
+    if (!res.ok) throw new Error(await readApiError(res, "The e-mail couldn't be sent. Please try again."));
+    return ((await res.json()) as { to: string[] }).to;
   }
 
   /** Files the quotation as a lead (or finds it filed already): submitting does, and so does proposing a call. */
@@ -294,15 +282,15 @@ export function QuotationWorkspace({
     return filed;
   }
 
-  function proposeCall() {
+  function openSend() {
     setNote(null);
     if (missing.customer || missing.company) {
       setShowErrors(true);
-      setNote({ tone: "error", text: "Enter the customer's name and company to propose a call." });
+      setNote({ tone: "error", text: "Enter the customer's name and company to send the quotation." });
       customerRef.current?.focus();
       return;
     }
-    setProposing(true);
+    setSending(true);
   }
 
   async function submit() {
@@ -387,16 +375,10 @@ export function QuotationWorkspace({
             {busy === "pdf" ? null : <Download size={15} aria-hidden />}
             Download PDF
           </Button>
-          {emailConfigured ? (
-            <Button variant="secondary" busy={busy === "email"} onClick={() => void email()}>
-              {busy === "email" ? null : <Mail size={15} aria-hidden />}
-              E-mail
-            </Button>
-          ) : null}
-          {callOrganizer ? (
-            <Button variant="secondary" onClick={proposeCall}>
-              <CalendarPlus size={15} aria-hidden />
-              Propose a call
+          {emailConfigured || callOrganizer ? (
+            <Button variant="secondary" onClick={openSend}>
+              <Mail size={15} aria-hidden />
+              Send to customer
             </Button>
           ) : null}
           <Button variant={submittedNow ? "success" : "primary"} busy={busy === "submit"} disabled={submittedNow} onClick={() => void submit()}>
@@ -651,22 +633,26 @@ export function QuotationWorkspace({
         </div>
       </div>
 
-      {proposing && callOrganizer ? (
+      {sending ? (
         <ProposeCall
+          title="Send to the customer"
           organizer={callOrganizer}
           customerName={draft.customerName.trim()}
           email={draft.email.trim()}
           quoteNumber={meta.number}
+          initial={{ quotation: true, invite: Boolean(callOrganizer) }}
+          emailQuotation={emailConfigured ? emailQuotation : undefined}
           filesQuotation
           fileLead={async () => (await fileLead()).lead}
           onBooked={({ meeting, filed }) =>
             setNote({
               tone: "ok",
-              text: `Teams call booked for ${describeCallSlot(meeting.startsAt, meeting.endsAt, meeting.timeZone)}. The invite went to ${meeting.attendees.join(", ")}${filed ? `, and the call is on ${filed.ref}` : ""}.`,
+              text: `${meeting.withQuotation ? `Quotation ${meta.number} and a Teams call` : "Teams call"} for ${describeCallSlot(meeting.startsAt, meeting.endsAt, meeting.timeZone)}, sent in one e-mail to ${meeting.attendees.join(", ")}${filed ? `. The call is on ${filed.ref}` : ""}.`,
               lead: filed ?? undefined,
             })
           }
-          onClose={() => setProposing(false)}
+          onEmailed={(to) => setNote({ tone: "ok", text: `Quotation ${meta.number} sent to ${to.join(", ")}, with the PDF attached.` })}
+          onClose={() => setSending(false)}
         />
       ) : null}
     </div>,
