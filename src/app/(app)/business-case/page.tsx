@@ -4,8 +4,11 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Check, ChevronDown, Clock, Coins, Copy, Euro, FileCheck2, FileText, Moon, ReceiptText, RotateCcw } from "lucide-react";
 import { Button, Card, PageHeader, SectionTitle } from "@/components/ui";
 import { QuotationWorkspace, draftToQuote, emptyQuoteDraft, type QuoteDraft } from "@/components/quotation/quotation-workspace";
+import type { ContactConsent } from "@/components/leads/propose-call";
 import { CountUp } from "@/components/count-up";
 import { BRAND, POWERED_BY } from "@/lib/brand";
+import type { Mentioned } from "@/lib/calls";
+import { painLabel } from "@/lib/meeting-notes";
 import { formatMoney, formatMoneyExact } from "@/lib/format";
 import {
   CURRENCY,
@@ -281,6 +284,18 @@ function NumberField<K extends string>({
   );
 }
 
+/** What the quotation takes from a visitor lead: contact details, their own words, their consent. */
+interface VisitorLead {
+  customerName: string;
+  companyName: string;
+  email: string | null;
+  phone: string | null;
+  pains: string[];
+  message: string | null;
+  contactConsentAt: string | null;
+  contactConsentBy: string | null;
+}
+
 export default function BusinessCasePage() {
   const [operation, setOperation] = useState(() => toDraft(DEFAULT_INPUTS));
   const [assumptionDraft, setAssumptionDraft] = useState(() => toDraft(DEFAULT_ASSUMPTIONS));
@@ -296,6 +311,7 @@ export default function BusinessCasePage() {
   const [quoteOpen, setQuoteOpen] = useState(false);
   // Set when the quotation is for a lead that exists already (a visitor from the QR page).
   const [quoteLeadId, setQuoteLeadId] = useState<string | null>(null);
+  const [quoteLeadContext, setQuoteLeadContext] = useState<{ mentioned: Mentioned; consent: ContactConsent | null } | null>(null);
   const closeQuote = useCallback(() => setQuoteOpen(false), []);
 
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
@@ -316,10 +332,14 @@ export default function BusinessCasePage() {
     let live = true;
     fetch(`/api/leads/${encodeURIComponent(quoteLeadId)}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((body: { lead?: { customerName: string; companyName: string; email: string | null; phone: string | null } } | null) => {
+      .then((body: { lead?: VisitorLead } | null) => {
         if (!live || !body?.lead) return;
         const { lead } = body;
         setQuoteDraft((d) => ({ ...d, customerName: lead.customerName, companyName: lead.companyName, email: lead.email ?? "", phone: lead.phone ?? "" }));
+        setQuoteLeadContext({
+          mentioned: { words: lead.message, pains: lead.pains.map(painLabel).filter((p): p is string => Boolean(p)) },
+          consent: lead.contactConsentAt ? { at: lead.contactConsentAt, by: lead.contactConsentBy } : null,
+        });
       })
       .catch(() => {});
     return () => {
@@ -437,6 +457,7 @@ export default function BusinessCasePage() {
           onPricesChange={(p) => setPriceDraft(toDraft(p))}
           onClose={closeQuote}
           leadId={quoteLeadId}
+          leadContext={quoteLeadContext}
         />
       ) : null}
 

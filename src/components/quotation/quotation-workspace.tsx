@@ -5,7 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "rea
 import { createPortal } from "react-dom";
 import { Check, CheckCircle2, Download, Mail, Plus, Printer, Send, X } from "lucide-react";
 import { Button, ErrorBanner, readApiError } from "@/components/ui";
-import { ProposeCall } from "@/components/leads/propose-call";
+import { ProposeCall, type ContactConsent } from "@/components/leads/propose-call";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import {
   COST_ITEMS,
@@ -26,7 +26,7 @@ import {
 } from "@/lib/business-case";
 import { formatMoney } from "@/lib/format";
 import { PILOT_DAYS, PILOTS, pilotPlan } from "@/lib/pilots";
-import { describeCallSlot } from "@/lib/calls";
+import { describeCallSlot, type Mentioned } from "@/lib/calls";
 import { printElement } from "@/lib/client/print";
 import { zonedToday } from "@/lib/time";
 
@@ -118,6 +118,7 @@ export function QuotationWorkspace({
   onPricesChange,
   onClose,
   leadId = null,
+  leadContext = null,
 }: {
   base: Omit<BusinessCaseInput, "quote">;
   draft: QuoteDraft;
@@ -127,6 +128,8 @@ export function QuotationWorkspace({
   onClose: () => void;
   /** An existing lead (a visitor from the QR page) the quotation is filed on, instead of opening a new one. */
   leadId?: string | null;
+  /** That lead's own words and consent, for a personal e-mail sent without asking twice. */
+  leadContext?: { mentioned: Mentioned; consent: ContactConsent | null } | null;
 }) {
   const [today] = useState(() => zonedToday());
   const input: BusinessCaseInput = useMemo(() => ({ ...base, quote: draftToQuote(draft) }), [base, draft]);
@@ -638,9 +641,13 @@ export function QuotationWorkspace({
           title="Send to the customer"
           organizer={callOrganizer}
           customerName={draft.customerName.trim()}
+          companyName={draft.companyName.trim()}
           email={draft.email.trim()}
           quoteNumber={meta.number}
-          initial={{ quotation: true, invite: Boolean(callOrganizer) }}
+          mentioned={leadContext?.mentioned}
+          consent={leadContext?.consent ?? null}
+          // After a first meeting, the call comes first; the quotation follows the scoping call.
+          initial={{ quotation: !callOrganizer, invite: Boolean(callOrganizer) }}
           emailQuotation={emailConfigured ? emailQuotation : undefined}
           filesQuotation
           fileLead={async () => (await fileLead()).lead}

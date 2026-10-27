@@ -11,7 +11,7 @@ import { MeetingNotes } from "@/components/leads/meeting-notes";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import { businessCaseReport, longDate, quoteMeta, type BusinessCaseInput } from "@/lib/business-case";
 import { printElement } from "@/lib/client/print";
-import { formatDateTime, formatMoney } from "@/lib/format";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { painLabel, segmentLabel } from "@/lib/meeting-notes";
 
 // One lead: who it is, where it stands, and the quotation exactly as it was
@@ -40,6 +40,8 @@ interface LeadDetail {
   nextStep: string | null;
   nextStepOn: string | null;
   followUpSentAt: string | null;
+  contactConsentAt: string | null;
+  contactConsentBy: string | null;
   createdBy: string | null;
   createdAt: string;
   input: BusinessCaseInput;
@@ -273,6 +275,21 @@ export default function LeadPage() {
                           <bdi dir="ltr">{lead.phone}</bdi>
                         </a>
                       ) : null
+                    }
+                  />
+                  <KeyValue
+                    label="Agreed to e-mail"
+                    value={
+                      lead.contactConsentAt ? (
+                        <>
+                          {formatDate(lead.contactConsentAt)}
+                          <span className="text-muted">
+                            {lead.contactConsentBy === "visitor" ? ", on the QR page" : lead.contactConsentBy ? `, recorded by ${lead.contactConsentBy}` : ""}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted">Not yet: ask before you send</span>
+                      )
                     }
                   />
                 </dl>

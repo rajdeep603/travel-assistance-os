@@ -45,6 +45,8 @@ export const ProposeCallSchema = z.object({
   message: z.string().trim().max(4000).default(""),
   /** The lead's quotation goes in the same e-mail: its PDF attached to the invite. */
   attachQuotation: z.boolean().default(false),
+  /** The presenter asked, and they agreed to hear from us at these addresses (needed once per lead). */
+  consent: z.boolean().default(false),
 });
 export type ProposeCall = z.input<typeof ProposeCallSchema>;
 
@@ -53,7 +55,11 @@ export interface LeadAfterCall {
   status: string;
   nextStep: string | null;
   nextStepOn: Date | null;
+  contactConsentAt: Date | null;
+  contactConsentBy: string | null;
 }
+
+const AFTER_CALL = { status: true, nextStep: true, nextStepOn: true, contactConsentAt: true, contactConsentBy: true } as const;
 
 /** Whether this server can send Teams invites, and from which mailbox. */
 export function callsConfigured(): { configured: boolean; organizer: string | null } {
@@ -88,7 +94,7 @@ function requireService(meeting?: Pick<LeadMeeting, "provider">) {
  * presenter typed a next step of their own, which is never overwritten.
  */
 async function syncNextStep(leadId: string, now: Date = new Date()): Promise<LeadAfterCall> {
-  const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadId }, select: { status: true, nextStep: true, nextStepOn: true } });
+  const lead = await prisma.lead.findUniqueOrThrow({ where: { id: leadId }, select: AFTER_CALL });
   if (lead.nextStep && !lead.nextStep.startsWith(CALL_NEXT_STEP)) return lead;
   const next = await prisma.leadMeeting.findFirst({
     where: { leadId, status: "SCHEDULED", startsAt: { gt: now } },
@@ -97,7 +103,7 @@ async function syncNextStep(leadId: string, now: Date = new Date()): Promise<Lea
   const nextStep = next ? callNextStep(next.startsAt, next.timeZone) : null;
   const nextStepOn = next ? new Date(`${utcToWallClock(next.startsAt, next.timeZone).date}T00:00:00Z`) : null;
   if (lead.nextStep === nextStep && lead.nextStepOn?.getTime() === nextStepOn?.getTime()) return lead;
-  return prisma.lead.update({ where: { id: leadId }, data: { nextStep, nextStepOn }, select: { status: true, nextStep: true, nextStepOn: true } });
+  return prisma.lead.update({ where: { id: leadId }, data: { nextStep, nextStepOn }, select: AFTER_CALL });
 }
 
 /** The lead's calls, soonest first, cancelled ones included. */
@@ -120,10 +126,12 @@ export async function proposeCall(
 ): Promise<{ meeting: LeadMeeting; existing: boolean; lead: LeadAfterCall }> {
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
-    select: { id: true, customerName: true, email: true, status: true, quoteNumber: true, input: true, createdAt: true },
+    select: { id: true, customerName: true, email: true, status: true, quoteNumber: true, input: true, createdAt: true, contactConsentAt: true },
   });
   if (!lead) throw notFound("Lead");
   const service = requireService();
+  // GDPR: a European buyer is asked before anything reaches their inbox, and the answer is kept on the lead.
+  if (!lead.contactConsentAt && !input.consent) throw badRequest("Ask them first, then confirm they agreed to hear from us at this address.");
   const attachQuotation = input.attachQuotation ?? false;
   const message = input.message ?? "";
   if (attachQuotation && !lead.quoteNumber) throw badRequest("This lead has no quotation yet. Generate one, or send the invite alone.");
@@ -186,7 +194,13 @@ export async function proposeCall(
       createdBy: operator,
     },
   });
-  if (lead.status === "NEW") await prisma.lead.update({ where: { id: leadId }, data: { status: "CONTACTED" } });
+  await prisma.lead.update({
+    where: { id: leadId },
+    data: {
+      ...(lead.status === "NEW" ? { status: "CONTACTED" } : {}),
+      ...(lead.contactConsentAt ? {} : { contactConsentAt: now, contactConsentBy: operator ?? "presenter" }),
+    },
+  });
   return { meeting, existing: false, lead: await syncNextStep(leadId, now) };
 }
 

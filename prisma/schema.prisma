@@ -772,6 +772,9 @@ model Lead {
   nextStep        String?
   nextStepOn      DateTime?  @db.Date
   followUpSentAt  DateTime?
+  /// When they agreed to hear from us by e-mail, and who recorded it ("visitor": they ticked it on the QR page).
+  contactConsentAt DateTime?
+  contactConsentBy String?
   createdBy       String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

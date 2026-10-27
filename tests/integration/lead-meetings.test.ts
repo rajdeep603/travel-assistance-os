@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_ASSUMPTIONS, DEFAULT_COST_CONTAINMENT, DEFAULT_INPUTS, DEFAULT_RUNNING_COST_PRICES } from "@/lib/business-case";
 import { cancelCall, callAvailability, listCalls, proposeCall, rescheduleCall, type ProposeCall } from "@/lib/services/lead-meetings";
-import { createLead, deleteLead, followUpDraft, updateLead } from "@/lib/services/leads";
+import { createLead, createVisitorLead, deleteLead, followUpDraft, updateLead, VisitorLeadSchema } from "@/lib/services/leads";
 import { MeetingProviderError, MockMeetings, setMeetingService, type MeetingRequest, type MeetingService } from "@/lib/services/meetings";
 
 // A Teams call proposed to a lead: one invite per time, never to a
@@ -58,6 +58,7 @@ const call = (change: Partial<ProposeCall> = {}): ProposeCall => ({
   attendees: ["aylin@calls-test.com", "cfo@calls-test.com"],
   subject: "CareTrail: a call about the quotation",
   message: "Dear Aylin,\n\nAs discussed.",
+  consent: true,
   ...change,
 });
 
@@ -81,6 +82,13 @@ describe("Teams calls on a lead", () => {
     await expect(proposeCall(leadId, call(), "presenter", now)).rejects.toMatchObject({ status: 503 });
   });
 
+  it("sends nothing before they agreed to hear from us", async () => {
+    microsoft = new FakeMicrosoft();
+    setMeetingService(microsoft);
+    await expect(proposeCall(leadId, call({ consent: false }), "presenter", now)).rejects.toMatchObject({ status: 400, message: expect.stringContaining("Ask them first") });
+    expect(microsoft.created).toHaveLength(0);
+  });
+
   it("sends one invite from the organiser's calendar, sets the next step and marks the lead contacted", async () => {
     microsoft = new FakeMicrosoft();
     setMeetingService(microsoft);
@@ -101,6 +109,8 @@ describe("Teams calls on a lead", () => {
     });
     expect(microsoft.created[0]).toMatchObject({ subject: "CareTrail: a call about the quotation", attendees: [{ email: "aylin@calls-test.com", name: "Aylin Kaya" }, { email: "cfo@calls-test.com" }] });
     expect(lead).toMatchObject({ status: "CONTACTED", nextStep: "Teams call at 11:00 London time", nextStepOn: new Date("2026-11-04T00:00:00Z") });
+    // Their consent is kept on the lead, with who recorded it; it isn't asked for again.
+    expect(lead).toMatchObject({ contactConsentAt: now, contactConsentBy: "presenter" });
 
     // A double click: the same call back, no second invite.
     const again = await proposeCall(leadId, call(), "presenter", now);
@@ -163,6 +173,21 @@ describe("Teams calls on a lead", () => {
       data: { ref: `LEAD-T${Date.now()}`, quoteNumber: "", customerName: "Visitor", companyName: "Calls Test Assistance", email: "v@calls-test.com", input: input as never, oneTimeTotal: 0, monthlyCost: 0, firstYearCost: 0, netAnnualSaving: 0, source: "VISITOR" },
     });
     await expect(proposeCall(visitor.id, call({ attendees: ["v@calls-test.com"], attachQuotation: true }), null, now)).rejects.toMatchObject({ status: 400, message: expect.stringContaining("no quotation") });
+  });
+
+  it("doesn't ask twice: once agreed, a later call goes without the tick", async () => {
+    setMeetingService(microsoft);
+    const { lead } = await proposeCall(leadId, call({ date: "2026-11-12", consent: false }), "someone-else", now);
+    expect(lead).toMatchObject({ contactConsentAt: now, contactConsentBy: "presenter" });
+  });
+
+  it("takes a visitor's own consent from the QR page", async () => {
+    const { lead } = await createVisitorLead(
+      VisitorLeadSchema.parse({ name: "Vera Visitor", company: "Calls Test Assistance", email: "vera@calls-test.com", consent: true })
+    );
+    expect(lead).toMatchObject({ contactConsentBy: "visitor", contactConsentAt: expect.any(Date) });
+    setMeetingService(microsoft);
+    await expect(proposeCall(lead.id, call({ attendees: ["vera@calls-test.com"], consent: false }), "presenter", now)).resolves.toMatchObject({ existing: false });
   });
 
   it("leaves a next step the presenter wrote alone", async () => {

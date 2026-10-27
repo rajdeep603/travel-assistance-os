@@ -50,19 +50,38 @@ export interface SendParts {
   invite: boolean;
 }
 
+/** What they told us: their own words from the QR page, or the problems picked in the meeting notes. */
+export interface Mentioned {
+  words?: string | null;
+  pains?: string[];
+}
+
+/** Their own words, when short enough to quote; otherwise what they picked. */
+function mentionedLines(m: Mentioned | undefined, company: string): string[] {
+  const words = m?.words?.trim().replace(/\s+/g, " ");
+  if (words && words.length <= 240) return ["", `You mentioned: “${words}”`];
+  if (m?.pains?.length) return ["", `What matters most to ${company || "you"}:`, ...m.pains.map((p) => `- ${p}`)];
+  return [];
+}
+
 /**
  * The e-mail as first drafted for what is ticked; the presenter edits it
- * before it goes. With the quotation, its summary follows the text (added on
- * the server, from the figures).
+ * before it goes. Personal on purpose: their name, what they told us, the
+ * agreed next step. An invite alone never mentions a quotation they haven't
+ * had. With the quotation, its summary follows the text (added on the server).
  */
-export function sendDraft(p: { customerName: string; quoteNumber?: string | null } & SendParts): { subject: string; message: string } {
+export function sendDraft(
+  p: { customerName: string; companyName?: string; quoteNumber?: string | null; mentioned?: Mentioned } & SendParts
+): { subject: string; message: string } {
   const q = p.quoteNumber ?? "";
+  const company = p.companyName?.trim() ?? "";
   const quotation = p.quotation && Boolean(q);
   const greeting = `Dear ${p.customerName.trim() || "all"},`;
+  const mentioned = mentionedLines(p.mentioned, company);
   const attached = `Please find attached our quotation ${q}: the one-time services, the monthly running cost, and what ${BRAND.name} would return with your numbers. The summary is below.`;
   const signature = ["With kind regards,", `${BRAND.poweredBy} · ${BRAND.name}`];
   if (quotation && !p.invite) {
-    return { subject: `${BRAND.name} quotation ${q}`, message: [greeting, "", attached, "", ...signature].join("\n") };
+    return { subject: `${BRAND.name} quotation ${q}`, message: [greeting, "", attached, ...mentioned, "", ...signature].join("\n") };
   }
   if (quotation) {
     return {
@@ -71,6 +90,7 @@ export function sendDraft(p: { customerName: string; quoteNumber?: string | null
         greeting,
         "",
         attached,
+        ...mentioned,
         "",
         "We would like to go through it with your team on a Teams call, at the time in this invitation. If it doesn't suit you, propose a new one and we will move it.",
         "",
@@ -79,13 +99,14 @@ export function sendDraft(p: { customerName: string; quoteNumber?: string | null
     };
   }
   return {
-    subject: q ? `${BRAND.name}: a call about quotation ${q}` : `${BRAND.name}: a follow-up call`,
+    subject: company ? `${company} and ${BRAND.name}: follow-up call` : `${BRAND.name}: follow-up call`,
     message: [
       greeting,
       "",
-      q
-        ? `As discussed, a Teams call to go through our quotation ${q} together and answer your team's questions.`
-        : `As discussed, a Teams call to look at where ${BRAND.name} would help you first.`,
+      "Thank you for the conversation. As agreed, here is our follow-up call.",
+      ...mentioned,
+      "",
+      "On the call we would like to understand your workflow, volumes and systems, so that what we propose fits.",
       "",
       "If the time doesn't suit you, propose a new one from the invite and we will move it.",
       "",

@@ -70,15 +70,30 @@ describe("clocks for a call", () => {
   });
 
   it("drafts the e-mail for what is ticked: the quotation, the invite, or both", () => {
-    const who = { customerName: "Aylin Kaya", quoteNumber: "Q-20261103-ABC123" };
+    const who = { customerName: "Aylin Kaya", companyName: "Assistance Company", quoteNumber: "Q-20261103-ABC123" };
     const both = sendDraft({ ...who, quotation: true, invite: true });
     expect(both.subject).toBe("CareTrail quotation Q-20261103-ABC123 and a call to go through it");
     expect(both.message).toMatch(/^Dear Aylin Kaya,\n\nPlease find attached our quotation Q-20261103-ABC123.*Teams call, at the time in this invitation/s);
     expect(sendDraft({ ...who, quotation: true, invite: false })).toMatchObject({ subject: "CareTrail quotation Q-20261103-ABC123", message: expect.not.stringContaining("Teams") });
-    expect(sendDraft({ ...who, quotation: false, invite: true }).subject).toBe("CareTrail: a call about quotation Q-20261103-ABC123");
-    // No quotation yet (a visitor lead): the invite alone.
-    expect(sendDraft({ customerName: "", quoteNumber: null, quotation: true, invite: true }).subject).toBe("CareTrail: a follow-up call");
+    // The invite alone never mentions a quotation they haven't had.
+    const invite = sendDraft({ ...who, quotation: false, invite: true });
+    expect(invite.subject).toBe("Assistance Company and CareTrail: follow-up call");
+    expect(invite.message).not.toContain("Q-20261103-ABC123");
+    expect(invite.message).not.toContain("quotation");
+    expect(sendDraft({ customerName: "", quoteNumber: null, quotation: true, invite: true }).subject).toBe("CareTrail: follow-up call");
   });
+
+  it("says what they told us: their own words, else what they picked", () => {
+    const who = { customerName: "Aylin Kaya", companyName: "Assistance Company", quotation: false, invite: true };
+    expect(sendDraft({ ...who, mentioned: { words: "Our night  desk drowns\nin status calls.", pains: ["Night shifts and peak call volume"] } }).message).toContain(
+      "You mentioned: “Our night desk drowns in status calls.”"
+    );
+    expect(sendDraft({ ...who, mentioned: { words: "x".repeat(300), pains: ["Night shifts and peak call volume", "Languages the team doesn't speak"] } }).message).toContain(
+      "What matters most to Assistance Company:\n- Night shifts and peak call volume\n- Languages the team doesn't speak"
+    );
+    expect(sendDraft({ ...who }).message).not.toContain("You mentioned");
+  });
+
 });
 
 describe("Microsoft Graph", () => {

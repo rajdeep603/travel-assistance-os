@@ -64,6 +64,8 @@ const SUMMARY_SELECT = {
   nextStep: true,
   nextStepOn: true,
   followUpSentAt: true,
+  contactConsentAt: true,
+  contactConsentBy: true,
   createdBy: true,
   createdAt: true,
   updatedAt: true,
@@ -180,6 +182,9 @@ export async function createVisitorLead(v: VisitorLead): Promise<{ lead: LeadSum
         segment: data.segment ?? same.segment,
         pains: [...new Set([...same.pains, ...pains])],
         message: data.message ?? same.message,
+        // They ticked consent again on this submission.
+        contactConsentAt: new Date(),
+        contactConsentBy: "visitor",
       },
       select: SUMMARY_SELECT,
     });
@@ -196,6 +201,9 @@ export async function createVisitorLead(v: VisitorLead): Promise<{ lead: LeadSum
         monthlyCost: 0,
         firstYearCost: 0,
         netAnnualSaving: 0,
+        // The QR page doesn't take the details without the consent tick.
+        contactConsentAt: new Date(),
+        contactConsentBy: "visitor",
         createdBy: "visitor",
       },
       select: SUMMARY_SELECT,
@@ -385,6 +393,7 @@ const CSV_COLUMNS = [
   "Next step",
   "Next step by",
   "Follow-up sent",
+  "Agreed to e-mail",
   "Notes",
 ] as const;
 
@@ -416,6 +425,7 @@ export function leadsCsv(leads: LeadSummary[]): string {
     l.nextStep,
     l.nextStepOn ? l.nextStepOn.toISOString().slice(0, 10) : null,
     l.followUpSentAt ? l.followUpSentAt.toISOString() : null,
+    l.contactConsentAt ? l.contactConsentAt.toISOString() : null,
     l.notes,
   ]);
   return "\ufeff" + [CSV_COLUMNS as readonly string[], ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";

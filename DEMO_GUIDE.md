@@ -135,8 +135,19 @@ follow-up** drafts a recap from those notes; edit it and send it with the
 quotation the same evening. For large groups and hospitals, pick a
 **60-day pilot** in the quotation: it adds the measures and a four-phase plan.
 
+**At the end of a first meeting, send the invite, not the quotation.** Book
+the scoping call while you are still together ("I'll send you an invite now
+for Tuesday at 3 pm with your operations head"), ask who else should be on it,
+and ask before anything goes: "Is it okay if I send this to your work e-mail?"
+Tick that they agreed; it is kept on the lead (visitors who used the QR page
+agreed there). The suggested text uses their own words from the QR page, or
+the problems in your meeting notes. Talk about the pricing model and a pilot
+range if they ask; send the quotation after the scoping call, when it is no
+longer a guess.
+
 **Send to customer** (in the quotation's header) sends the quotation, a Teams
-call invite, or both, in one e-mail; one of the two stays ticked. With both,
+call invite, or both, in one e-mail; one of the two stays ticked, and it opens
+with the invite alone. With both,
 the customer gets a single Outlook invitation from
 rajdeep.shah@sthiramservices.com with the quotation PDF attached and its
 summary in the text, so accepting, declining or proposing another time reaches

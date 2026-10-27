@@ -4,7 +4,8 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "rea
 import { createPortal } from "react-dom";
 import { AlertTriangle, CalendarClock, CalendarPlus, CheckCircle2, Copy, ExternalLink, FileText, Mail, Send, Video, X } from "lucide-react";
 import { Button, ErrorBanner, readApiError } from "@/components/ui";
-import { CALL_MINUTES, DEFAULT_CALL_MINUTES, MAX_CALL_ATTENDEES, describeCallSlot, defaultCallSlot, sendDraft, type SendParts } from "@/lib/calls";
+import { CALL_MINUTES, DEFAULT_CALL_MINUTES, MAX_CALL_ATTENDEES, describeCallSlot, defaultCallSlot, sendDraft, type Mentioned, type SendParts } from "@/lib/calls";
+import { formatDate } from "@/lib/format";
 import { formatPlainDate } from "@/lib/time";
 import {
   TIME_ZONES,
@@ -20,8 +21,9 @@ import {
 // Send to the customer, in one e-mail: the quotation, a Teams call invite, or
 // both (one at least). With the invite, Microsoft 365 creates the call in the
 // organiser's Outlook calendar and the invitation goes from there, the
-// quotation's PDF attached to it; the quotation alone goes by e-mail. The same
-// panel moves a booked call to another time.
+// quotation's PDF attached to it; the quotation alone goes by e-mail. Nothing
+// goes before the presenter confirms they agreed to hear from us (GDPR), unless
+// the lead already said so. The same panel moves a booked call to another time.
 
 /** A Teams call as the API returns it. */
 export interface CallRecord {
@@ -44,6 +46,14 @@ export interface LeadAfterCall {
   status: string;
   nextStep: string | null;
   nextStepOn: string | null;
+  contactConsentAt: string | null;
+  contactConsentBy: string | null;
+}
+
+/** They agreed to hear from us by e-mail: when, and who recorded it ("visitor": on the QR page). */
+export interface ContactConsent {
+  at: string;
+  by: string | null;
 }
 
 type Availability = "free" | "busy" | "unknown";
@@ -64,8 +74,11 @@ export function ProposeCall({
   title,
   organizer,
   customerName,
+  companyName = "",
   email,
   quoteNumber,
+  mentioned,
+  consent = null,
   initial = { quotation: false, invite: true },
   emailQuotation,
   fileLead,
@@ -79,9 +92,14 @@ export function ProposeCall({
   /** The mailbox Teams invites come from; null when this server can't send them. */
   organizer: string | null;
   customerName: string;
+  companyName?: string;
   email: string;
   /** The quotation that can go too; null when there is none yet. */
   quoteNumber: string | null;
+  /** What they told us, for a personal first line. */
+  mentioned?: Mentioned;
+  /** Already given (the QR page, an earlier send): no need to ask again. */
+  consent?: ContactConsent | null;
   /** What is ticked when the panel opens. */
   initial?: SendParts;
   /** The quotation alone, by e-mail; absent where that isn't offered (the invite is then needed). Returns who it reached. */
@@ -112,7 +130,8 @@ export function ProposeCall({
   const [minutes, setMinutes] = useState<number>(() =>
     meeting ? Math.round((Date.parse(meeting.endsAt) - Date.parse(meeting.startsAt)) / 60_000) : DEFAULT_CALL_MINUTES
   );
-  const draft = useMemo(() => sendDraft({ customerName, quoteNumber, ...parts }), [customerName, quoteNumber, parts]);
+  const draft = useMemo(() => sendDraft({ customerName, companyName, quoteNumber, mentioned, ...parts }), [customerName, companyName, quoteNumber, mentioned, parts]);
+  const [agreed, setAgreed] = useState(false);
   const [to, setTo] = useState(email);
   const [others, setOthers] = useState("");
   // The text follows what is ticked until the presenter writes their own.
@@ -211,6 +230,7 @@ export function ProposeCall({
       if (wrong) return setError(`${wrong} isn't an e-mail address.`);
       if (recipients.length > MAX_CALL_ATTENDEES) return setError(`Send to at most ${MAX_CALL_ATTENDEES} people.`);
       if (!text.subject) return setError("Enter a subject.");
+      if (!consent && !agreed) return setError("Ask them first, then tick that they agreed to hear from us.");
     }
     setBusy(true);
     try {
@@ -225,7 +245,7 @@ export function ProposeCall({
         const res = await fetch(`/api/leads/${filed.id}/meetings`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ ...body, attendees: recipients, ...text, attachQuotation: parts.quotation }),
+          body: JSON.stringify({ ...body, attendees: recipients, ...text, attachQuotation: parts.quotation, consent: agreed }),
         });
         if (!res.ok) throw new Error(await readApiError(res, "The invite couldn't be sent. Please try again."));
         const result = (await res.json()) as { meeting: CallRecord; lead: LeadAfterCall };
@@ -531,6 +551,29 @@ export function ProposeCall({
                         className={FIELD}
                       />
                     </div>
+                    {consent ? (
+                      <p className="flex items-start gap-1.5 text-xs text-emerald-700">
+                        <CheckCircle2 size={14} className="mt-px shrink-0" aria-hidden />
+                        <span>
+                          {consent.by === "visitor" ? "They agreed to hear from us on the QR page" : "They agreed to hear from us"}, {formatDate(consent.at)}.
+                        </span>
+                      </p>
+                    ) : (
+                      <label className="flex items-start gap-2.5 rounded-xl border border-line bg-canvas/60 p-3">
+                        <input
+                          type="checkbox"
+                          checked={agreed}
+                          onChange={(e) => setAgreed(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 accent-brand"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-ink">They agreed to hear from us at these addresses</span>
+                          <span className="mt-0.5 block text-xs text-muted">
+                            Ask first, e.g. “Is it okay if I send this to your work e-mail?” It is kept on the lead.
+                          </span>
+                        </span>
+                      </label>
+                    )}
                   </fieldset>
                   <fieldset className="min-w-0 space-y-3">
                     <legend className="sr-only">The e-mail</legend>

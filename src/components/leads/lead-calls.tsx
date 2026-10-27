@@ -5,6 +5,7 @@ import { CalendarClock, CalendarPlus, ExternalLink, Video, X } from "lucide-reac
 import { Button, Card, ErrorBanner, SectionTitle, readApiError } from "@/components/ui";
 import { ProposeCall, type CallRecord, type LeadAfterCall } from "@/components/leads/propose-call";
 import { describeCallSlot } from "@/lib/calls";
+import { painLabel } from "@/lib/meeting-notes";
 import { formatDayTime, formatTime } from "@/lib/format";
 import { getDisplayTimeZone } from "@/lib/time-zone";
 
@@ -24,7 +25,19 @@ export function LeadCalls({
   lead,
   onLeadChange,
 }: {
-  lead: { id: string; ref: string; customerName: string; email: string | null; quoteNumber: string };
+  lead: {
+    id: string;
+    ref: string;
+    customerName: string;
+    companyName: string;
+    email: string | null;
+    quoteNumber: string;
+    /** What they told us: the problems picked in the notes, and their own words from the QR page. */
+    pains: string[];
+    message: string | null;
+    contactConsentAt: string | null;
+    contactConsentBy: string | null;
+  };
   onLeadChange: (lead: LeadAfterCall) => void;
 }) {
   const [calls, setCalls] = useState<Calls | null>(null);
@@ -167,8 +180,11 @@ export function LeadCalls({
           title={panel.meeting ? "Move the call" : "Propose a call"}
           organizer={calls.organizer}
           customerName={lead.customerName}
+          companyName={lead.companyName}
           email={lead.email ?? ""}
           quoteNumber={lead.quoteNumber || null}
+          mentioned={{ words: lead.message, pains: lead.pains.map(painLabel).filter((p): p is string => Boolean(p)) }}
+          consent={lead.contactConsentAt ? { at: lead.contactConsentAt, by: lead.contactConsentBy } : null}
           fileLead={async () => ({ id: lead.id, ref: lead.ref })}
           meeting={panel.meeting}
           onBooked={({ meeting, lead: after }) => {
