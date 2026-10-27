@@ -1,0 +1,65 @@
+import { BRAND } from "./brand";
+import { addDays, weekdayIndex } from "./time";
+import { timeZoneLabel, utcToWallClock } from "./time-zone";
+
+// ---------------------------------------------------------------------------
+// Teams calls proposed to a lead: the wording and the arithmetic the
+// quotation, the lead page and the server share (no database here). The
+// booking itself is src/lib/services/lead-meetings.ts.
+// ---------------------------------------------------------------------------
+
+export const CALL_MINUTES = [15, 30, 45, 60] as const;
+export type CallMinutes = (typeof CALL_MINUTES)[number];
+export const DEFAULT_CALL_MINUTES: CallMinutes = 30;
+/** Invitees besides the customer: their colleagues, ours. */
+export const MAX_CALL_ATTENDEES = 6;
+
+/** How a booked call starts the lead's next step; a next step typed by hand never does. */
+export const CALL_NEXT_STEP = "Teams call";
+
+/** "Teams call at 11:00 London time": with the lead's next-step date, the follow-up reads it as written. */
+export function callNextStep(startsAt: Date, timeZone: string): string {
+  return `${CALL_NEXT_STEP} at ${utcToWallClock(startsAt, timeZone).time} ${zoneWords(timeZone)}`;
+}
+
+/** "London time", "India time", "UTC". */
+export function zoneWords(timeZone: string): string {
+  const label = timeZoneLabel(timeZone);
+  return label === "UTC" ? "UTC" : `${label} time`;
+}
+
+/** "Tue 3 Nov 2026, 11:00–11:30 London time" */
+export function describeCallSlot(startsAt: Date | string, endsAt: Date | string, timeZone: string): string {
+  const start = new Date(startsAt);
+  const day = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone })
+    .format(start)
+    .replace(",", "");
+  return `${day}, ${utcToWallClock(start, timeZone).time}–${utcToWallClock(new Date(endsAt), timeZone).time} ${zoneWords(timeZone)}`;
+}
+
+/** Where the time picker starts: the next working day at 10:00 on the chosen clock. */
+export function defaultCallSlot(timeZone: string, now: Date = new Date()): { date: string; time: string } {
+  let date = addDays(utcToWallClock(now, timeZone).date, 1);
+  while (weekdayIndex(date) === 0 || weekdayIndex(date) === 6) date = addDays(date, 1);
+  return { date, time: "10:00" };
+}
+
+/** The invite as first drafted; the presenter edits it before it goes. */
+export function callDraft(p: { customerName: string; quoteNumber?: string | null }): { subject: string; message: string } {
+  const quoted = Boolean(p.quoteNumber);
+  return {
+    subject: quoted ? `${BRAND.name}: a call about quotation ${p.quoteNumber}` : `${BRAND.name}: a follow-up call`,
+    message: [
+      `Dear ${p.customerName.trim() || "all"},`,
+      "",
+      quoted
+        ? `As discussed, a Teams call to go through our quotation ${p.quoteNumber} together and answer your team's questions.`
+        : `As discussed, a Teams call to look at where ${BRAND.name} would help you first.`,
+      "",
+      "If the time doesn't suit you, propose a new one from the invite and we will move it.",
+      "",
+      "With kind regards,",
+      `${BRAND.poweredBy} · ${BRAND.name}`,
+    ].join("\n"),
+  };
+}

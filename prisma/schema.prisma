@@ -775,9 +775,44 @@ model Lead {
   createdBy       String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
+  meetings        LeadMeeting[]
 
   @@index([createdAt])
   @@index([quoteNumber])
+}
+
+enum LeadMeetingStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+/// A Teams call proposed to a lead (src/lib/services/lead-meetings.ts): the
+/// invite went from the organiser's Microsoft 365 calendar, which stays the
+/// source of truth for who accepted.
+model LeadMeeting {
+  id              String            @id @default(cuid())
+  lead            Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId          String
+  subject         String
+  message         String
+  startsAt        DateTime
+  endsAt          DateTime
+  /// The zone the time was proposed in (IANA), so it reads back as the customer was told.
+  timeZone        String
+  attendees       String[]
+  /// The mailbox the invite came from.
+  organizer       String
+  provider        String // "graph" | "mock"
+  providerEventId String
+  joinUrl         String?
+  webLink         String?
+  status          LeadMeetingStatus @default(SCHEDULED)
+  cancelledAt     DateTime?
+  createdBy       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([leadId, startsAt])
 }
 
 enum ReceivableStatus {

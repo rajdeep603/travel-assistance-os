@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Download, FileText, Printer, Smartphone, Trash2 } from "lucide-react";
 import { Button, Card, ErrorBanner, KeyValue, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
 import { FollowUp } from "@/components/leads/follow-up";
+import { LeadCalls } from "@/components/leads/lead-calls";
 import { MeetingNotes } from "@/components/leads/meeting-notes";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import { businessCaseReport, longDate, quoteMeta, type BusinessCaseInput } from "@/lib/business-case";
@@ -326,6 +327,7 @@ export default function LeadPage() {
               <div className="space-y-5">
                 {lead.source === "VISITOR" ? <VisitorRequest lead={lead} /> : null}
                 <MeetingNotes leadId={lead.id} value={lead} onSaved={(v) => setLead({ ...lead, ...v })} />
+                <LeadCalls lead={lead} onLeadChange={(v) => setLead((l) => l && { ...l, ...v, status: v.status as LeadStatus })} />
                 <FollowUp
                   leadId={lead.id}
                   sentAt={lead.followUpSentAt}

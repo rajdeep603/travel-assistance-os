@@ -38,6 +38,7 @@ const SCREEN_LIB_FILES = [
   "src/lib/services/provider-network.ts",
   "src/lib/services/guarantee-decision.ts",
   "src/lib/services/leads.ts",
+  "src/lib/services/lead-meetings.ts",
   "src/lib/pilots.ts",
   "src/lib/business-case.ts",
   "src/lib/services/tariff.ts",

@@ -1,4 +1,4 @@
-import { DEMO_TIME_ZONE } from "./time";
+import { DEMO_TIME_ZONE, isValidDate, isValidTime } from "./time";
 
 // ---------------------------------------------------------------------------
 // The display time zone: the clock every date and time on screen is shown in.
@@ -89,6 +89,62 @@ export function timeZoneOffset(id: string, now: Date = new Date()): string {
     .replace("-", "−")
     .replace(/:00$/, "")
     .replace(/([+−])0(\d)/, "$1$2");
+}
+
+const wallClockFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** The date and time a clock in `zone` shows at `instant`, as numbers. */
+function wallClockParts(instant: Date, zone: string): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
+  let formatter = wallClockFormatters.get(zone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+    wallClockFormatters.set(zone, formatter);
+  }
+  const out: Record<string, number> = {};
+  for (const p of formatter.formatToParts(instant)) if (p.type !== "literal") out[p.type] = Number(p.value);
+  return out as ReturnType<typeof wallClockParts>;
+}
+
+/** UTC instant → what a clock in `zone` shows: { date: "YYYY-MM-DD", time: "HH:MM" }. */
+export function utcToWallClock(instant: Date, zone: string): { date: string; time: string } {
+  const p = wallClockParts(instant, zone);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { date: `${p.year}-${pad(p.month)}-${pad(p.day)}`, time: `${pad(p.hour)}:${pad(p.minute)}` };
+}
+
+/**
+ * A date and time on a clock in `zone` → the UTC instant it denotes; an
+ * invalid Date for a malformed date, time or zone. A time skipped by a
+ * daylight-saving change lands an hour on, as calendars do.
+ */
+export function wallClockToUtc(date: string, time: string, zone: string): Date {
+  if (!isValidDate(date) || !isValidTime(time) || !isTimeZone(zone)) return new Date(NaN);
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  const offset = (at: number) => {
+    const p = wallClockParts(new Date(at), zone);
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(at / 1000) * 1000;
+  };
+  const first = guess - offset(guess);
+  const second = guess - offset(first);
+  if (first === second) return new Date(first);
+  // Around a change the two offsets differ: the one whose clock shows the
+  // time asked for wins; a time the change skipped takes the later instant.
+  const shows = (at: number) => {
+    const w = utcToWallClock(new Date(at), zone);
+    return w.date === date && w.time === time;
+  };
+  return new Date(shows(second) ? second : shows(first) ? first : Math.max(first, second));
 }
 
 /** The cookie's value from a Cookie header or document.cookie string, if it names a zone. */

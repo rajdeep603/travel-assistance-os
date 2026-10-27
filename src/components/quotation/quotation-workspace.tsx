@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Check, CheckCircle2, Download, Mail, Plus, Printer, Send, X } from "lucide-react";
+import { CalendarPlus, Check, CheckCircle2, Download, Mail, Plus, Printer, Send, X } from "lucide-react";
 import { Button, ErrorBanner, readApiError } from "@/components/ui";
+import { ProposeCall } from "@/components/leads/propose-call";
 import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import {
   COST_ITEMS,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/business-case";
 import { formatMoney } from "@/lib/format";
 import { PILOT_DAYS, PILOTS, pilotPlan } from "@/lib/pilots";
+import { describeCallSlot } from "@/lib/calls";
 import { printElement } from "@/lib/client/print";
 import { zonedToday } from "@/lib/time";
 
@@ -32,7 +34,8 @@ import { zonedToday } from "@/lib/time";
 // Generate quotation: the customer's details, the monthly services (each one
 // can be left out or re-priced) and Sthiram's service charges on the left,
 // the quotation exactly as it will print on the right. From here it prints,
-// downloads, goes by e-mail, or is submitted as a lead.
+// downloads, goes by e-mail, is submitted as a lead, or a Teams call about it
+// is proposed (which submits it first).
 // ---------------------------------------------------------------------------
 
 /** A service charge as typed: the amount stays text until it is sent. */
@@ -135,6 +138,9 @@ export function QuotationWorkspace({
 
   const [rates, setRates] = useState<RateText>(() => rateText(base.prices));
   const [busy, setBusy] = useState<"pdf" | "print" | "email" | "submit" | null>(null);
+  /** The mailbox Teams invites come from, when this server can send them. */
+  const [callOrganizer, setCallOrganizer] = useState<string | null>(null);
+  const [proposing, setProposing] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [submitted, setSubmitted] = useState<{ number: string; id: string; ref: string } | null>(null);
@@ -154,7 +160,8 @@ export function QuotationWorkspace({
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     customerRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRef.current();
+    // A panel open on top (Propose a call) takes its own Escape.
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && closeRef.current();
     window.addEventListener("keydown", onKey);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -170,6 +177,10 @@ export function QuotationWorkspace({
       .then((res) => (res.ok ? res.json() : { configured: false }))
       .then((body: { configured?: boolean }) => setEmailConfigured(Boolean(body.configured)))
       .catch(() => setEmailConfigured(false));
+    fetch("/api/meetings")
+      .then((res) => (res.ok ? res.json() : { configured: false }))
+      .then((body: { configured?: boolean; organizer?: string | null }) => setCallOrganizer(body.configured ? (body.organizer ?? null) : null))
+      .catch(() => setCallOrganizer(null));
   }, []);
 
   const set = (change: Partial<QuoteDraft>) => onDraftChange({ ...draft, ...change });
@@ -270,6 +281,30 @@ export function QuotationWorkspace({
     }
   }
 
+  /** Files the quotation as a lead (or finds it filed already): submitting does, and so does proposing a call. */
+  async function fileLead(): Promise<{ lead: { id: string; ref: string }; existing: boolean }> {
+    const res = await fetch("/api/leads", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ input, ...(leadId ? { leadId } : {}) }),
+    });
+    if (!res.ok) throw new Error(await readApiError(res, "The quotation couldn't be submitted. Please try again."));
+    const filed = (await res.json()) as { lead: { id: string; ref: string }; existing: boolean };
+    setSubmitted({ number: meta.number, id: filed.lead.id, ref: filed.lead.ref });
+    return filed;
+  }
+
+  function proposeCall() {
+    setNote(null);
+    if (missing.customer || missing.company) {
+      setShowErrors(true);
+      setNote({ tone: "error", text: "Enter the customer's name and company to propose a call." });
+      customerRef.current?.focus();
+      return;
+    }
+    setProposing(true);
+  }
+
   async function submit() {
     setNote(null);
     if (missing.customer || missing.company) {
@@ -280,14 +315,7 @@ export function QuotationWorkspace({
     }
     setBusy("submit");
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ input, ...(leadId ? { leadId } : {}) }),
-      });
-      if (!res.ok) throw new Error(await readApiError(res, "The quotation couldn't be submitted. Please try again."));
-      const { lead, existing } = (await res.json()) as { lead: { id: string; ref: string }; existing: boolean };
-      setSubmitted({ number: meta.number, id: lead.id, ref: lead.ref });
+      const { lead, existing } = await fileLead();
       setNote({
         tone: "ok",
         text: existing
@@ -363,6 +391,12 @@ export function QuotationWorkspace({
             <Button variant="secondary" busy={busy === "email"} onClick={() => void email()}>
               {busy === "email" ? null : <Mail size={15} aria-hidden />}
               E-mail
+            </Button>
+          ) : null}
+          {callOrganizer ? (
+            <Button variant="secondary" onClick={proposeCall}>
+              <CalendarPlus size={15} aria-hidden />
+              Propose a call
             </Button>
           ) : null}
           <Button variant={submittedNow ? "success" : "primary"} busy={busy === "submit"} disabled={submittedNow} onClick={() => void submit()}>
@@ -616,6 +650,25 @@ export function QuotationWorkspace({
           </div>
         </div>
       </div>
+
+      {proposing && callOrganizer ? (
+        <ProposeCall
+          organizer={callOrganizer}
+          customerName={draft.customerName.trim()}
+          email={draft.email.trim()}
+          quoteNumber={meta.number}
+          filesQuotation
+          fileLead={async () => (await fileLead()).lead}
+          onBooked={({ meeting, filed }) =>
+            setNote({
+              tone: "ok",
+              text: `Teams call booked for ${describeCallSlot(meeting.startsAt, meeting.endsAt, meeting.timeZone)}. The invite went to ${meeting.attendees.join(", ")}${filed ? `, and the call is on ${filed.ref}` : ""}.`,
+              lead: filed ?? undefined,
+            })
+          }
+          onClose={() => setProposing(false)}
+        />
+      ) : null}
     </div>,
     document.body
   );

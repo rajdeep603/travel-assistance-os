@@ -101,6 +101,20 @@ export const env = {
   get followUpReplyTo(): string {
     return (process.env.FOLLOW_UP_REPLY_TO ?? "").trim();
   },
+  /**
+   * Microsoft 365, for Teams calls proposed from a quotation: an Entra app
+   * with the Graph application permission Calendars.ReadWrite (limited in
+   * Exchange Online to the organiser's mailbox), and that mailbox. The invite
+   * goes out from the organiser's Outlook calendar. All four must be set.
+   */
+  get microsoftMeetings(): { tenantId: string; clientId: string; clientSecret: string; organizer: string } | null {
+    const tenantId = (process.env.MS_TENANT_ID ?? "").trim();
+    const clientId = (process.env.MS_CLIENT_ID ?? "").trim();
+    const clientSecret = (process.env.MS_CLIENT_SECRET ?? "").trim();
+    const organizer = (process.env.MS_MEETING_ORGANIZER ?? "").trim().toLowerCase();
+    if (!tenantId || !clientId || !clientSecret || !organizer) return null;
+    return { tenantId, clientId, clientSecret, organizer };
+  },
   /** Sender for e-mail replies and Letters of Guarantee. */
   get emailFrom(): string {
     return process.env.EMAIL_FROM || "claims@demo-assistance.example";

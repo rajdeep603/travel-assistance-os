@@ -135,6 +135,17 @@ follow-up** drafts a recap from those notes; edit it and send it with the
 quotation the same evening. For large groups and hospitals, pick a
 **60-day pilot** in the quotation: it adds the measures and a four-phase plan.
 
+**Propose a call** (in the quotation's header, and on the lead under
+**Teams calls**) books the next conversation before they leave the booth:
+pick the day and time on *their* clock, add their colleagues, and send. The
+Teams invite comes from rajdeep.shah@sthiramservices.com's Outlook calendar,
+so accepting, declining or proposing another time reaches a real inbox. The
+quotation is submitted as a lead on the way, the call becomes the lead's next
+step, and the follow-up e-mail carries the join link. A warning shows if the
+time clashes with something in that calendar. Move or cancel the call from the
+lead; Outlook tells everyone invited. Placeholder addresses
+(`example.com`) are refused, as with e-mail.
+
 ## If they mention… call volumes, seasonal spikes, emergencies
 
 **Have them call the hotline** (number on screen) while `/calls` is visible.

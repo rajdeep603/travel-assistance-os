@@ -67,6 +67,11 @@ export function MeetingNotes({
     if (dirty) setSaved(false);
   }, [dirty]);
 
+  // A Teams call booked on the lead sets its next step: the form shows it rather than saving the old one back.
+  useEffect(() => {
+    setForm((f) => ({ ...f, nextStep: value.nextStep ?? "", nextStepOn: value.nextStepOn?.slice(0, 10) ?? "" }));
+  }, [value.nextStep, value.nextStepOn]);
+
   const set = (change: Partial<Form>) => setForm((f) => ({ ...f, ...change }));
   const togglePain = (id: string) => set({ pains: form.pains.includes(id) ? form.pains.filter((p) => p !== id) : [...form.pains, id] });
 

@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import type { Lead, LeadSource, LeadStatus, Prisma } from "@prisma/client";
 import { BRAND } from "@/lib/brand";
+import { CALL_NEXT_STEP, describeCallSlot } from "@/lib/calls";
 import {
   DEFAULT_ASSUMPTIONS,
   DEFAULT_COST_CONTAINMENT,
@@ -22,6 +23,7 @@ import { withRef } from "@/lib/refs";
 import { utcToZoned, zonedToday } from "@/lib/time";
 import { BusinessCaseInputSchema, businessCasePdf } from "./business-case-report";
 import { getEmailService, isReservedAddress } from "./email";
+import { upcomingCall } from "./lead-meetings";
 import { sendEmail } from "./outbox";
 
 // ---------------------------------------------------------------------------
@@ -289,7 +291,12 @@ export async function followUpDraft(id: string): Promise<FollowUpDraft> {
   const pilot = pilotPlan(lead.pilot);
   const quoted = hasQuotation(lead);
   const pains = lead.pains.map(painLabel).filter((p): p is string => Boolean(p));
-  const next = [lead.nextStep, lead.nextStepOn ? longDate(lead.nextStepOn.toISOString().slice(0, 10)) : null].filter(Boolean).join(", ");
+  const call = await upcomingCall(id);
+  // A next step the booked call wrote is said once, as the call.
+  const next =
+    call && lead.nextStep?.startsWith(CALL_NEXT_STEP)
+      ? ""
+      : [lead.nextStep, lead.nextStepOn ? longDate(lead.nextStepOn.toISOString().slice(0, 10)) : null].filter(Boolean).join(", ");
   const text = [
     `Dear ${lead.customerName},`,
     "",
@@ -299,6 +306,12 @@ export async function followUpDraft(id: string): Promise<FollowUpDraft> {
     ...(pains.length ? ["", `What matters most to ${lead.companyName}:`, ...pains.map((p) => `- ${p}`)] : []),
     ...(pilot
       ? ["", `Where we would start: a ${PILOT_DAYS}-day pilot, ${pilot.label}.`, pilot.scope, "It would be judged on:", ...pilot.measures.map((m) => `- ${m}`)]
+      : []),
+    ...(call
+      ? [
+          "",
+          `Our Teams call: ${describeCallSlot(call.startsAt, call.endsAt, call.timeZone)}. The invite came separately${call.joinUrl ? `, and this is the link to join: ${call.joinUrl}` : ""}.`,
+        ]
       : []),
     ...(next ? ["", `Next step: ${next}.`] : []),
     "",
