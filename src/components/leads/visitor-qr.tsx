@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Printer, X } from "lucide-react";
-import { BrandMark } from "@/components/brand";
+import { BrandLogo } from "@/components/brand";
 import { Button } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
 import { printElement } from "@/lib/client/print";
@@ -46,10 +46,9 @@ export function VisitorQr({ onClose }: { onClose: () => void }) {
       <div className="animate-modal-in w-full max-w-md">
         <div ref={cardRef} className="rounded-3xl bg-surface p-7 text-center shadow-2xl print:shadow-none">
           <div className="flex items-center justify-center gap-2.5">
-            <BrandMark size={32} />
-            <div className="text-left">
-              <p className="text-base font-semibold leading-tight tracking-tight text-ink">{BRAND.name}</p>
-              <p className="text-xs text-muted">{BRAND.tagline}</p>
+            <div className="text-center">
+              <BrandLogo height={64} tagline className="mx-auto" />
+              <p className="mt-1.5 text-xs text-muted">{BRAND.tagline}</p>
             </div>
           </div>
           <h2 className="mt-5 text-2xl font-semibold tracking-tight text-ink">Scan to get a recap and a quotation for your numbers</h2>

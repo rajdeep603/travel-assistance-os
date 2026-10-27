@@ -23,7 +23,12 @@ The look follows the reference dashboard the user supplied for ITIC 2026 (`CareT
   - Cards: `rounded-2xl border border-line bg-surface shadow-card` (`Card` in `ui.tsx`); `hover:shadow-card-hover` only when the whole card is a link. No gradient washes on pages.
   - **Pastel icon tiles** (`TILE_TONES` in `ui.tsx`: `bg-blue-50 text-blue-600` and so on) carry identity on cards, KPI tiles and list rows; use `StatTile` for a headline figure with an icon. Violet tiles mean AI (the Ask AI card, AI insights, the assistant).
   - Use the tokens in new and touched code. Many pages still use raw `slate-*` and `blue-*`; migrate them when you touch them.
-- **Brand.** The name and credits come from `src/lib/brand.ts`, and the mark from `src/components/brand.tsx`. Never hard-code "CareTrail". The wordmark carries an "AI" pill (`translate="no"`, so Arabic keeps it).
+- **Brand.** The name and credits come from `src/lib/brand.ts`. Never hard-code "CareTrail".
+  - The official logo is `BrandLogo` in `src/components/brand.tsx`, drawn from `public/brand/caretrail-wordmark.svg` and `caretrail-logo.svg` (the user's artwork, outlines only).
+  - The version with "POWERED BY STHIRAM" (`tagline`) is legible only from about 80 px tall. Use it on printed or large surfaces, such as the QR table card. Everywhere else use the wordmark, with "Powered by Sthiram" as real text next to it.
+  - `BrandMark` is the square icon alone, for favicons, tight phone headers and the upload page.
+  - PDFs use `caretrail-logo.png` (1200 × 233); also put the name in the PDF's text so it can be searched.
+  - The navy "CARE" disappears on the dark stage, so don't place the logo there.
 - **Type.** Geist only. Page titles and big figures are `font-bold`; card titles `text-lg font-semibold` on the dashboard, `SectionTitle` (16 px) elsewhere. Use `tabular-nums` for timers, refs and table columns, sentence case for labels, and no all-caps eyebrows. Page titles come from `PageHeader` (28 px, 30 px from `md`); don't set a smaller `h1` by hand.
 
 ## Header

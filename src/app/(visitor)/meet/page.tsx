@@ -2,7 +2,7 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { CheckCircle2, FileSearch, Headset, ReceiptText, Send } from "lucide-react";
-import { BrandMark } from "@/components/brand";
+import { BrandLogo } from "@/components/brand";
 import { VoiceOrb } from "@/components/voice/voice-orb";
 import { readApiError } from "@/components/ui";
 import { BRAND } from "@/lib/brand";
@@ -75,13 +75,9 @@ export default function MeetPage() {
   return (
     <>
       <header className="flex items-center gap-2.5">
-        <BrandMark size={34} />
         <div>
-          <p className="flex items-center gap-1.5 text-lg font-bold leading-tight tracking-tight text-ink">
-            {BRAND.name}
-            <span translate="no" className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">AI</span>
-          </p>
-          <p className="text-xs text-slate-600">{BRAND.tagline}</p>
+          <BrandLogo height={38} />
+          <p className="mt-1 text-xs text-slate-600">{BRAND.tagline}</p>
         </div>
       </header>
 

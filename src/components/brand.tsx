@@ -27,3 +27,23 @@ export function BrandMark({ size = 28, idSuffix = "" }: { size?: number; idSuffi
     </svg>
   );
 }
+
+/**
+ * The CareTrail logo: the mark and the wordmark (public/brand/caretrail-*.svg).
+ * With `tagline`, "Powered by Sthiram" sits under the wordmark; it is only
+ * legible from about 80 px tall, so smaller places use the wordmark alone.
+ */
+export function BrandLogo({ height = 32, tagline = false, className = "" }: { height?: number; tagline?: boolean; className?: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- a static SVG, also shown before sign-in
+    <img
+      src={tagline ? "/brand/caretrail-logo.svg" : "/brand/caretrail-wordmark.svg"}
+      alt={tagline ? "CareTrail, powered by Sthiram" : "CareTrail"}
+      height={height}
+      width={Math.round((height * 515) / 100)}
+      translate="no"
+      className={`block shrink-0 ${className}`}
+      style={{ height, width: "auto" }}
+    />
+  );
+}

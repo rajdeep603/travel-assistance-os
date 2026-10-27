@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import PDFDocument from "pdfkit";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import { formatDateTime, formatEnum, formatMoney } from "@/lib/format";
@@ -18,14 +20,22 @@ const C = {
   line: "#e2e8f0",
   canvas: "#f1f5f9",
   brand: "#2563eb",
-  stage: "#09152b",
-  stageMuted: "#94a3b8",
+  sky: "#eaf2ff",
+  skyLine: "#d6e4fd",
   live: "#14b8a6",
 };
 
 const eur = (n: number) => formatMoney(Math.round(n), "EUR");
 const pct = (share: number | null) => (share == null ? "—" : `${Math.round(share * 100)}%`);
 const dur = (seconds: number | null) => (seconds == null ? "—" : formatShortDuration(seconds));
+
+/** The CareTrail logo (public/brand), 1200 × 233. */
+const LOGO = { file: "caretrail-logo.png", width: 1200, height: 233 };
+
+function logoPath(): string | null {
+  const file = path.join(process.cwd(), "public", "brand", LOGO.file);
+  return fs.existsSync(file) ? file : null;
+}
 
 /** "caretrail-operations-summary-30-days-2026-10-22.pdf" */
 export function overviewPdfName(days: number, date: string): string {
@@ -73,13 +83,15 @@ export function renderOverviewPdf(o: Overview, opts: { timeZone: string; now?: D
       return at + 24;
     };
 
-    // --- Letterhead: the stage, as on screen ---------------------------------
-    doc.roundedRect(left, y, width, 132, 12).fill(C.stage);
-    text(BRAND.name, left + 20, y + 18, { font: B, size: 24, color: "#ffffff" });
-    text(BRAND.tagline, left + 20, y + 48, { size: 11, color: "#38bdf8" });
-    text("Operations summary", right - 240, y + 20, { font: B, size: 13, color: "#ffffff", width: 220, align: "right" });
-    text(`Last ${o.days} days, to ${formatDateTime(now, opts.timeZone)}`, right - 240, y + 40, { size: 9, color: C.stageMuted, width: 220, align: "right" });
-    text(`Times in ${timeZoneLabel(opts.timeZone)} time`, right - 240, y + 53, { size: 9, color: C.stageMuted, width: 220, align: "right" });
+    // --- Letterhead: the sky and the logo, as on screen ----------------------
+    doc.roundedRect(left, y, width, 132, 12).fillAndStroke(C.sky, C.skyLine);
+    const logo = logoPath();
+    if (logo) doc.image(logo, left + 20, y + 16, { height: 30, width: (30 * LOGO.width) / LOGO.height });
+    else text(BRAND.name, left + 20, y + 18, { font: B, size: 24, color: C.ink });
+    text(BRAND.tagline, left + 20, y + 50, { size: 10, color: C.brand });
+    text("Operations summary", right - 240, y + 20, { font: B, size: 13, color: C.ink, width: 220, align: "right" });
+    text(`Last ${o.days} days, to ${formatDateTime(now, opts.timeZone)}`, right - 240, y + 40, { size: 9, color: C.muted, width: 220, align: "right" });
+    text(`Times in ${timeZoneLabel(opts.timeZone)} time`, right - 240, y + 53, { size: 9, color: C.muted, width: 220, align: "right" });
 
     // The four outcomes, as the strip under the route on screen.
     const outcomes = [
@@ -91,9 +103,9 @@ export function renderOverviewPdf(o: Overview, opts: { timeZone: string; now?: D
     const colW = (width - 40) / 4;
     outcomes.forEach((item, i) => {
       const x = left + 20 + i * colW;
-      text(item.value, x, y + 68, { font: B, size: 18, color: "#ffffff", width: colW - 10 });
-      text(item.label, x, y + 89, { font: B, size: 7.5, color: "#e2e8f0", width: colW - 12 });
-      text(item.note, x, y + 109, { size: 7, color: C.stageMuted, width: colW - 12 });
+      text(item.value, x, y + 72, { font: B, size: 18, color: C.ink, width: colW - 10 });
+      text(item.label, x, y + 93, { font: B, size: 7.5, color: "#334155", width: colW - 12 });
+      text(item.note, x, y + 111, { size: 7, color: C.muted, width: colW - 12 });
     });
     y += 132 + 18;
 
@@ -180,7 +192,7 @@ export function renderOverviewPdf(o: Overview, opts: { timeZone: string; now?: D
     // --- Footer --------------------------------------------------------------------
     const footY = doc.page.height - doc.page.margins.bottom - 10;
     rule(footY - 8);
-    text(`${POWERED_BY} · ${BRAND.company} · Figures from the demonstration environment (fictional records) · Generated ${formatDateTime(now, opts.timeZone)}`, left, footY, { size: 7.5, color: C.muted });
+    text(`${BRAND.name} · ${POWERED_BY} · ${BRAND.company} · Figures from the demonstration environment (fictional records) · Generated ${formatDateTime(now, opts.timeZone)}`, left, footY, { size: 7.5, color: C.muted });
 
     doc.end();
   });

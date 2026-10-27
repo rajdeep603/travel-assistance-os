@@ -6,8 +6,7 @@ import { DockedSidebar, SidebarToggle } from "@/components/nav";
 import { AttentionBell } from "@/components/attention-bell";
 import { OperatorMenu } from "@/components/operator-menu";
 import { PresentToggle } from "@/components/present-toggle";
-import { BrandMark } from "@/components/brand";
-import { BRAND } from "@/lib/brand";
+import { BrandLogo, BrandMark } from "@/components/brand";
 import { SessionWatch } from "@/components/session-watch";
 import { TimeZoneProvider, TimeZoneSwitch } from "@/components/time-zone";
 import { OPERATION_TIME_ZONE, TIME_ZONE_COOKIE, isTimeZone } from "@/lib/time-zone";
@@ -37,8 +36,8 @@ export default function AppLayout({ children }: Readonly<{ children: React.React
               <SidebarToggle />
               {/* The brand stays on screen while the sidebar is out of view. */}
               <p className="flex shrink-0 items-center gap-2 pr-1 text-base font-bold tracking-tight text-ink lg:hidden lg:sidebar-hidden:flex">
-                <BrandMark size={26} />
-                <span className="hidden min-[420px]:inline">{BRAND.name}</span>
+                <span className="min-[420px]:hidden"><BrandMark size={26} /></span>
+                <BrandLogo height={26} className="hidden min-[420px]:block" />
               </p>
               <SearchButton />
             </div>

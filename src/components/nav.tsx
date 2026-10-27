@@ -25,7 +25,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { BrandMark } from "@/components/brand";
+import { BrandLogo } from "@/components/brand";
 import { T } from "@/components/i18n";
 import { BRAND, POWERED_BY } from "@/lib/brand";
 import {
@@ -132,11 +132,7 @@ function SidebarBody({ drawer = false }: { drawer?: boolean }) {
   return (
     <>
       <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
-        <BrandMark size={32} idSuffix={drawer ? "-drawer" : ""} />
-        <p className="flex min-w-0 items-center gap-1.5 text-xl font-bold tracking-tight text-ink">
-          {BRAND.name}
-          <span translate="no" className="rounded-md bg-brand/10 px-1.5 py-0.5 text-xs font-bold text-brand">AI</span>
-        </p>
+        <BrandLogo height={34} />
       </div>
       <div className="pt-3">
         <SideNav highlightId={drawer ? "nav-active-drawer" : "nav-active"} />
