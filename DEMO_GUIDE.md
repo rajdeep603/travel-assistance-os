@@ -26,6 +26,11 @@ people make the decisions.*
    days", the activity chart and the night shift show a live operation. By
    hand: `docker compose exec app node demo-refresh.cjs` (a dry run), then
    `--apply`.
+7. **Leads → Import meetings (CSV)** with your booked meetings and a brief
+   for each (see *Booked meetings and business cards* below), so **Leads**
+   opens on the day's meetings in order.
+8. Plan B is ready on the laptop and the films are on the iPad (see *Plan B*
+   at the end).
 
 ## Visitors' own phones: the QR page
 
@@ -38,6 +43,43 @@ picked already in the meeting notes. After the show, open the lead:
 **Generate quotation** starts the business case with their details filled
 in, and the quotation files onto the same lead; **Write the follow-up**
 sends the recap (with the quotation once there is one).
+
+## Booked meetings and business cards
+
+**Booked meetings.** Keep the meetings you booked for the show in a
+spreadsheet, one row each, and save it as CSV with this header row:
+
+```
+customerName,companyName,email,phone,role,segment,meetingAt,brief
+```
+
+Only `customerName` and `companyName` are needed. `meetingAt` is the time on
+the Istanbul clock, as `2026-11-02 14:30` (or an ISO time with its offset,
+`2026-11-02T11:30:00Z`). `segment` is one of `assistance`, `insurer`,
+`cost-containment`, `hospital`, `air-ambulance`, `partner` (or its label as
+the meeting notes show it). `brief` is your preparation: who they are, what to
+probe, what to show; line breaks are kept. **Leads → Import meetings (CSV)**
+checks every row first: if one is wrong, nothing is imported and each problem
+is listed by its row number (the header is row 1), with a template to
+download. Importing the list again updates the same leads (matched by e-mail,
+or by company and name when there is no e-mail), so fix the spreadsheet and
+import it again whenever a meeting moves. Imported meetings are marked
+*Booked meeting* and record no consent to e-mail.
+
+At the show, open **Leads**: *Upcoming meetings* lists today's first, in
+order, with the next one marked. Each opens the lead on **Before the
+meeting**: the time and your brief, editable in place (**Edit**). Any lead can
+get one with **Add a meeting brief**.
+
+**Business cards.** **Leads → Scan a business card** opens the iPad's camera
+(on the laptop, it picks a photo). The AI reads the card into a short form:
+name, company, job title, e-mail, phone, website. Check it against the card,
+correct anything, and **Save lead**. If a lead with that e-mail already exists
+(they also scanned the QR code, or you imported their meeting), that lead is
+updated and opened instead of a second one. The photo isn't kept. A card is
+not consent to e-mail: ask before you send anything, and tick it in the send
+panel when they agree. Without internet or the AI model, the form opens empty
+for you to type the card in.
 
 ## The viewer's clock, the period, and the numbers to take away
 
@@ -280,6 +322,63 @@ The original modules, unchanged:
 > “We're not here to replace your systems. **Give us one manual workflow
 > and we'll build an AI-powered pilot around it** — like any of the ones you
 > just saw.”
+
+## Plan B: when the venue Wi-Fi fails
+
+CareTrail also runs on the presenter laptop, with no internet, and the iPad
+opens it over a phone's hotspot. The AI then answers on its offline rules,
+which give the rehearsed results on the demo's own records and sample files.
+
+**The morning of day one, while you still have internet (5 minutes):**
+
+1. Laptop: Postgres running (`brew services start postgresql@17`), then
+   `npm ci` if `node_modules` is missing, then **`npm run demo:offline`**. It
+   builds CareTrail, creates a fresh demo database (`caretrail_offline` on
+   `localhost:5432`; `OFFLINE_DB=…` picks another name) and starts it on
+   port 3000 (`OFFLINE_PORT=…` for another). Sign in with your usual operator
+   login.
+2. In that local copy, **Leads → Import meetings (CSV)** with your meetings
+   file, so the day's meetings and briefs are there offline too. Stop it with
+   Ctrl+C.
+3. iPad: put the films in the **Files** app under *On My iPad*, not iCloud
+   Drive, which streams: the explainer (`CareTrail-explainer-1080p.mp4`, and
+   the music-only cut for a silent loop) and the 60-second cuts. Play each
+   once in airplane mode.
+4. Phone: know the hotspot's name and password, and check that the laptop
+   and the iPad both join it.
+
+**When the Wi-Fi goes:**
+
+1. Phone: **Personal Hotspot** on. Laptop and iPad join it.
+2. Laptop: **`npm run demo:offline -- --keep-data --no-build`**. It starts in
+   seconds, with the data from the morning (`--keep-data` keeps the database,
+   `--no-build` reuses the build). It prints the address for the iPad, such as
+   `http://172.20.10.3:3000`. If macOS asks whether `node` may accept
+   incoming connections, allow it.
+3. iPad (Chrome): open that address and sign in. Sign-in works over plain
+   http on the hotspot. On the laptop itself, `http://localhost:3000`.
+4. If the phone has no signal either, the hotspot may stop as well: carry on
+   with the laptop alone, and play the films from the iPad.
+
+**What works offline:** the dashboard and its figures, cases, the inbox, the
+demo's sample documents and their extractions, claims, bill review and
+settlement, guarantees of payment, provider search and booking, the internal
+assistant (answers from the knowledge base, on the offline rules), the
+business case and quotation (print and PDF), Leads with the booked meetings,
+their briefs and the Before the meeting card, the interface languages and the
+time zones.
+
+**What needs the internet:** live voice agents and the hotline (Grok and
+Twilio: show past calls and their transcripts in the Call Center instead), AI reading of
+new documents, photos and business cards (the card form opens empty: type it
+in), translation beyond the built-in glossaries, sending e-mail, Teams
+invites, WhatsApp, and the visitor QR page (visitors' phones aren't on your
+hotspot).
+
+**Afterwards:** what you entered offline stays in the laptop's database.
+**Leads → Export CSV** there, then add those leads on the live site. Running
+`npm run demo:offline` without `--keep-data` starts again from a fresh
+database.
 
 ## Troubleshooting
 

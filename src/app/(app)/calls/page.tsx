@@ -159,7 +159,8 @@ export default function CallsPage() {
       </div>
 
       <div className="mb-5">
-        <LiveBoard monitorUrl={config?.monitorUrl ?? null} onCallEnded={() => void loadCalls()} />
+        {/* Calls exist only where voice or telephony is set up (as LiveRefresh does); elsewhere, Plan B's bare `next start` included, there's no gateway to listen to. */}
+        <LiveBoard monitorUrl={config && (config.voiceConfigured || config.telephonyConfigured) ? config.monitorUrl : null} onCallEnded={() => void loadCalls()} />
       </div>
 
       <Card>

@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import type {
   AIService,
   AISource,
+  BusinessCard,
   CaseIntakeAnalysis,
   ChatMessage,
   ClaimSummaryInput,
@@ -101,6 +102,9 @@ class ResilientAIService implements AIService {
   }
   translateText(text: string, targetLanguage: string): Promise<string> {
     return this.run("translateText", (s) => s.translateText(text, targetLanguage));
+  }
+  readBusinessCard(file: DocumentFile): Promise<BusinessCard> {
+    return this.run("readBusinessCard", (s) => s.readBusinessCard(file));
   }
 }
 

@@ -741,6 +741,10 @@ enum LeadStatus {
 enum LeadSource {
   QUOTATION
   VISITOR
+  /// Read from a business card the presenter photographed at the booth. Not consent to e-mail.
+  CARD
+  /// A meeting booked before the show, imported with the presenter's brief.
+  MEETING
 }
 
 /// A quotation submitted from the business case. Unlike the rest of the
@@ -775,6 +779,9 @@ model Lead {
   /// When they agreed to hear from us by e-mail, and who recorded it ("visitor": they ticked it on the QR page).
   contactConsentAt DateTime?
   contactConsentBy String?
+  /// A meeting booked with them (at the show), and the presenter's preparation for it: who they are, what to probe, what to show.
+  meetingAt       DateTime?
+  brief           String?
   createdBy       String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
@@ -782,6 +789,7 @@ model Lead {
 
   @@index([createdAt])
   @@index([quoteNumber])
+  @@index([meetingAt])
 }
 
 enum LeadMeetingStatus {

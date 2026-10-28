@@ -80,3 +80,12 @@ export const ReadDocumentSchema = z.object({
   text: z.string().describe("Full transcription, line by line, as written"),
   language: z.string().nullable().describe("ISO 639-1 code of the main language"),
 });
+
+export const BusinessCardSchema = z.object({
+  name: text().describe("The person's full name, as printed"),
+  company: text().describe("Their company or organisation"),
+  jobTitle: text().describe("Their job title or role"),
+  email: text(),
+  phone: text().describe("The mobile number if there are several, else the first; with the country code if printed"),
+  website: text(),
+});

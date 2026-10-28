@@ -1,6 +1,7 @@
 import type { DocumentKind } from "@prisma/client";
 import type {
   AIService,
+  BusinessCard,
   CaseIntakeAnalysis,
   ChatMessage,
   ClaimSummaryInput,
@@ -320,6 +321,11 @@ export class MockAIService implements AIService {
     let out = text;
     for (const [from, en] of glossary) out = out.replace(new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), en);
     return `[Offline glossary translation — verify before relying on it]\n${out}`;
+  }
+
+  /** Offline rules can't read a photo: an empty card, for the presenter to type in. */
+  async readBusinessCard(): Promise<BusinessCard> {
+    return { name: null, company: null, jobTitle: null, email: null, phone: null, website: null };
   }
 }
 

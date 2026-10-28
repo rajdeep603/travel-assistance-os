@@ -145,12 +145,24 @@ export interface AIService {
   readDocument(file: DocumentFile): Promise<{ text: string; language: string | null }>;
   /** Translates text into the target language (by name, e.g. "English"). */
   translateText(text: string, targetLanguage: string): Promise<string>;
+  /** Reads a photographed business card, field by field. */
+  readBusinessCard(file: DocumentFile): Promise<BusinessCard>;
 }
 
 export interface DocumentFile {
   buffer: Buffer;
   mimeType: string;
   filename: string;
+}
+
+/** What a business card says; null for anything not printed on it. */
+export interface BusinessCard {
+  name: string | null;
+  company: string | null;
+  jobTitle: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
 }
 
 // --- Notifications (mocked for the demo) -----------------------------------

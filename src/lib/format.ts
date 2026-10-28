@@ -56,6 +56,11 @@ export function formatTime(iso: string | Date, timeZone: string = getDisplayTime
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone }).format(new Date(iso));
 }
 
+/** "Mon 19 Oct" in the display zone (or the one given). */
+export function formatDay(iso: string | Date, timeZone: string = getDisplayTimeZone()): string {
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone }).format(new Date(iso)).replace(",", "");
+}
+
 /** "Mon 19 Oct, 20:00" in the display zone (or the one given). */
 export function formatDayTime(iso: string | Date, timeZone: string = getDisplayTimeZone()): string {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone })

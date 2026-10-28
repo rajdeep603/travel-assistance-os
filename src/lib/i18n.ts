@@ -469,6 +469,8 @@ const D: Dictionary = {
   Webhooks: ["Webhooks", "Webhooks", "Webhooks", "Webhooks"],
   Quotation: ["Cotización", "Devis", "Cotação", "عرض السعر"],
   "Meeting notes": ["Notas de la reunión", "Notes de réunion", "Notas da reunião", "ملاحظات الاجتماع"],
+  "Upcoming meetings": ["Próximas reuniones", "Prochaines réunions", "Próximas reuniões", "الاجتماعات القادمة"],
+  "Before the meeting": ["Antes de la reunión", "Avant la réunion", "Antes da reunião", "قبل الاجتماع"],
 };
 
 const COLUMN: Record<Exclude<UiLanguage, "en">, number> = { es: 0, fr: 1, pt: 2, ar: 3 };

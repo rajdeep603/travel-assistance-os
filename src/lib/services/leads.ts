@@ -17,6 +17,7 @@ import { prisma } from "@/lib/db";
 import { signedEmail } from "@/lib/email-signature";
 import { ApiError, badRequest, notFound, serviceUnavailable } from "@/lib/errors";
 import { env } from "@/lib/env";
+import { leadSourceLabel } from "@/lib/lead-sources";
 import { LEAD_PAINS, LEAD_SEGMENTS, painLabel, segmentLabel } from "@/lib/meeting-notes";
 import { PILOT_DAYS, PILOTS, pilotPlan } from "@/lib/pilots";
 import { round2 } from "@/lib/fx";
@@ -28,21 +29,22 @@ import { upcomingCall } from "./lead-meetings";
 import { sendEmail } from "./outbox";
 
 // ---------------------------------------------------------------------------
-// Leads: quotations submitted from the business case, and visitors who left
-// their details on the booth's QR page. These are real prospects met at the
-// booth, kept apart from the fictional demo data.
+// Leads: quotations submitted from the business case, visitors who left their
+// details on the booth's QR page, business cards photographed at the booth
+// (business-cards.ts) and meetings booked before the show (meeting-import.ts).
+// These are real prospects, kept apart from the fictional demo data.
 // ---------------------------------------------------------------------------
 
 export const LEAD_STATUSES = ["NEW", "CONTACTED", "WON", "LOST"] as const satisfies readonly LeadStatus[];
-export const LEAD_SOURCES = ["QUOTATION", "VISITOR"] as const satisfies readonly LeadSource[];
+export const LEAD_SOURCES = ["QUOTATION", "VISITOR", "CARD", "MEETING"] as const satisfies readonly LeadSource[];
 
-/** A lead has a quotation once the presenter has submitted one; a visitor lead starts without. */
+/** A lead has a quotation once the presenter has submitted one; the other sources start without. */
 export const hasQuotation = (lead: { quoteNumber: string }): boolean => lead.quoteNumber.length > 0;
 
 /** A lead in a list: everything but the quotation's inputs. */
 export type LeadSummary = Omit<Lead, "input">;
 
-const SUMMARY_SELECT = {
+export const SUMMARY_SELECT = {
   id: true,
   ref: true,
   quoteNumber: true,
@@ -67,10 +69,54 @@ const SUMMARY_SELECT = {
   followUpSentAt: true,
   contactConsentAt: true,
   contactConsentBy: true,
+  meetingAt: true,
+  brief: true,
   createdBy: true,
   createdAt: true,
   updatedAt: true,
 } as const;
+
+/** A lead without a quotation yet (a visitor, a business card, a booked meeting): no number, no figures. */
+export const NO_QUOTATION = { quoteNumber: "", oneTimeTotal: 0, monthlyCost: 0, firstYearCost: 0, netAnnualSaving: 0 } as const;
+
+/** The business case a later quotation starts from: the standard numbers, with the contact's details filled in. */
+export function contactInput(c: { name: string; company: string; email: string | null; phone: string | null }): Prisma.InputJsonObject {
+  const input: BusinessCaseInput = {
+    operation: DEFAULT_INPUTS,
+    assumptions: DEFAULT_ASSUMPTIONS,
+    prices: DEFAULT_RUNNING_COST_PRICES,
+    costContainment: DEFAULT_COST_CONTAINMENT,
+    quote: { customerName: c.name, companyName: c.company, email: c.email ?? "", phone: c.phone ?? "", services: [] },
+  };
+  return input as unknown as Prisma.InputJsonObject;
+}
+
+/** Who a lead is, for finding it again. */
+export interface LeadIdentity {
+  email: string | null;
+  companyName: string;
+  customerName: string;
+}
+
+/**
+ * The lead these details belong to, so a second card or a re-imported list
+ * updates it instead of opening another: the same e-mail address in any case;
+ * else the same company and name, on a lead without an e-mail address when
+ * one was given (a different address is a different person). Newest first.
+ */
+export async function findLeadFor(who: LeadIdentity, db: Prisma.TransactionClient = prisma) {
+  const same = (value: string) => ({ equals: value.trim(), mode: "insensitive" as const });
+  const select = { id: true, email: true, phone: true, role: true, notes: true } as const;
+  if (who.email) {
+    const byEmail = await db.lead.findFirst({ where: { email: same(who.email) }, orderBy: { createdAt: "desc" }, select });
+    if (byEmail) return byEmail;
+  }
+  return db.lead.findFirst({
+    where: { companyName: same(who.companyName), customerName: same(who.customerName), ...(who.email ? { email: null } : {}) },
+    orderBy: { createdAt: "desc" },
+    select,
+  });
+}
 
 /**
  * Saves a quotation as a lead. Submitting the same quotation twice (a double
@@ -136,17 +182,6 @@ export const VisitorLeadSchema = z.object({
 
 export type VisitorLead = z.infer<typeof VisitorLeadSchema>;
 
-/** The business case a later quotation starts from: the standard numbers, with the visitor's details filled in. */
-function visitorInput(v: VisitorLead): BusinessCaseInput {
-  return {
-    operation: DEFAULT_INPUTS,
-    assumptions: DEFAULT_ASSUMPTIONS,
-    prices: DEFAULT_RUNNING_COST_PRICES,
-    costContainment: DEFAULT_COST_CONTAINMENT,
-    quote: { customerName: v.name, companyName: v.company, email: v.email.trim().toLowerCase(), phone: v.phone, services: [] },
-  };
-}
-
 /**
  * Saves a visitor's details from the QR page. The same e-mail address within
  * a day updates that lead (a second scan, a corrected field) rather than
@@ -165,7 +200,7 @@ export async function createVisitorLead(v: VisitorLead): Promise<{ lead: LeadSum
     segment: v.segment,
     pains,
     message: v.message || null,
-    input: visitorInput(v) as unknown as Prisma.InputJsonObject,
+    input: contactInput({ name: v.name, company: v.company, email, phone: v.phone }),
   };
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const same = await prisma.lead.findFirst({
@@ -197,11 +232,7 @@ export async function createVisitorLead(v: VisitorLead): Promise<{ lead: LeadSum
         ...data,
         ref,
         source: "VISITOR",
-        quoteNumber: "",
-        oneTimeTotal: 0,
-        monthlyCost: 0,
-        firstYearCost: 0,
-        netAnnualSaving: 0,
+        ...NO_QUOTATION,
         // The QR page doesn't take the details without the consent tick.
         contactConsentAt: new Date(),
         contactConsentBy: "visitor",
@@ -271,6 +302,12 @@ export const LeadUpdateSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .nullable()
       .transform((v) => (v ? new Date(`${v}T00:00:00Z`) : null)),
+    /** The booked meeting, as an instant with its offset (the page converts from the display zone). */
+    meetingAt: z.iso
+      .datetime({ offset: true })
+      .nullable()
+      .transform((v) => (v ? new Date(v) : null)),
+    brief: text(4000),
   })
   .partial();
 
@@ -393,6 +430,8 @@ const CSV_COLUMNS = [
   "Follow-up sent",
   "Agreed to e-mail",
   "Notes",
+  "Meeting",
+  "Brief",
 ] as const;
 
 /** A cell that Excel, Numbers and Sheets all read back as typed. */
@@ -407,7 +446,7 @@ export function leadsCsv(leads: LeadSummary[]): string {
   const rows = leads.map((l) => [
     l.ref,
     l.createdAt.toISOString(),
-    l.source === "VISITOR" ? "QR page" : "Quotation",
+    leadSourceLabel(l.source),
     l.companyName,
     l.customerName,
     l.role,
@@ -425,6 +464,8 @@ export function leadsCsv(leads: LeadSummary[]): string {
     l.followUpSentAt ? l.followUpSentAt.toISOString() : null,
     l.contactConsentAt ? l.contactConsentAt.toISOString() : null,
     l.notes,
+    l.meetingAt ? l.meetingAt.toISOString() : null,
+    l.brief,
   ]);
   return "\ufeff" + [CSV_COLUMNS as readonly string[], ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Download, FileText, Printer, Smartphone, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Download, FileText, Printer, Smartphone, Trash2 } from "lucide-react";
 import { Button, Card, ErrorBanner, KeyValue, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
+import { BeforeMeeting } from "@/components/leads/before-meeting";
 import { FollowUp } from "@/components/leads/follow-up";
 import { LeadCalls } from "@/components/leads/lead-calls";
 import { MeetingNotes } from "@/components/leads/meeting-notes";
@@ -12,11 +13,13 @@ import { QuotationPreview } from "@/components/quotation/quotation-preview";
 import { businessCaseReport, longDate, quoteMeta, type BusinessCaseInput } from "@/lib/business-case";
 import { printElement } from "@/lib/client/print";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import type { LeadSourceId } from "@/lib/lead-sources";
 import { painLabel, segmentLabel } from "@/lib/meeting-notes";
 
 // One lead: who it is, where it stands, and the quotation exactly as it was
-// submitted, to print or download again. A visitor from the QR page has no
-// quotation yet: their request is shown instead, and one can be generated.
+// submitted, to print or download again. A booked meeting opens on its brief.
+// A visitor from the QR page, a business card or a booked meeting has no
+// quotation yet: what we know is shown instead, and one can be generated.
 
 type LeadStatus = "NEW" | "CONTACTED" | "WON" | "LOST";
 
@@ -30,7 +33,7 @@ interface LeadDetail {
   email: string | null;
   phone: string | null;
   status: LeadStatus;
-  source: "QUOTATION" | "VISITOR";
+  source: LeadSourceId;
   role: string | null;
   message: string | null;
   segment: string | null;
@@ -42,10 +45,19 @@ interface LeadDetail {
   followUpSentAt: string | null;
   contactConsentAt: string | null;
   contactConsentBy: string | null;
+  meetingAt: string | null;
+  brief: string | null;
   createdBy: string | null;
   createdAt: string;
   input: BusinessCaseInput;
 }
+
+/** Where a lead without a quotation came from, after its ref and contact. */
+const ORIGIN: Record<Exclude<LeadSourceId, "QUOTATION">, string> = {
+  VISITOR: "left their details on the QR page",
+  CARD: "from their business card",
+  MEETING: "booked meeting",
+};
 
 const STATUSES: { value: LeadStatus; label: string }[] = [
   { value: "NEW", label: "New" },
@@ -95,6 +107,8 @@ export default function LeadPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"status" | "pdf" | "print" | "delete" | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // "Add a meeting brief" on a lead that has neither a meeting time nor a brief yet.
+  const [planning, setPlanning] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -201,12 +215,18 @@ export default function LeadPage() {
           <PageHeader
             title={lead.companyName}
             subtitle={
-              quoted
+              quoted || lead.source === "QUOTATION"
                 ? `${lead.ref} · ${lead.customerName} · submitted ${formatDateTime(lead.createdAt)}${lead.createdBy && lead.createdBy !== "visitor" ? ` by ${lead.createdBy}` : ""}`
-                : `${lead.ref} · ${lead.customerName}${lead.role ? `, ${lead.role}` : ""} · left their details on the QR page, ${formatDateTime(lead.createdAt)}`
+                : `${lead.ref} · ${lead.customerName}${lead.role ? `, ${lead.role}` : ""} · ${ORIGIN[lead.source]}${lead.source === "MEETING" ? "" : `, ${formatDateTime(lead.createdAt)}`}`
             }
           >
             <div className="flex flex-wrap items-center gap-2">
+              {lead.meetingAt || lead.brief || planning ? null : (
+                <Button variant="secondary" onClick={() => setPlanning(true)}>
+                  <CalendarPlus size={15} aria-hidden />
+                  Add a meeting brief
+                </Button>
+              )}
               {quoted ? (
                 <>
                   <Button variant="secondary" busy={busy === "print"} onClick={() => void print()}>
@@ -226,6 +246,16 @@ export default function LeadPage() {
               )}
             </div>
           </PageHeader>
+
+          {lead.meetingAt || lead.brief || planning ? (
+            <BeforeMeeting
+              leadId={lead.id}
+              value={lead}
+              startEditing={planning && !lead.meetingAt && !lead.brief}
+              onSaved={(v) => setLead((l) => l && { ...l, ...v })}
+              onCancel={() => setPlanning(false)}
+            />
+          ) : null}
 
           <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
             <div className="space-y-4">
@@ -257,6 +287,8 @@ export default function LeadPage() {
                 <dl className="mt-2">
                   <KeyValue label="Customer" value={lead.customerName} />
                   <KeyValue label="Company" value={lead.companyName} />
+                  {/* A visitor's role is with their request, below. */}
+                  {lead.role && lead.source !== "VISITOR" ? <KeyValue label="Role" value={lead.role} /> : null}
                   <KeyValue
                     label="E-mail"
                     value={
