@@ -1,3 +1,4 @@
+import { signedHtml } from "@/lib/email-signature";
 import { env } from "@/lib/env";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,8 @@ export interface MeetingRequest {
   subject: string;
   /** The invite's text, as typed; Teams adds its join block below it. */
   text: string;
+  /** The quotation's summary, set below the text in a box of its own. */
+  summary?: string;
   startsAt: Date;
   endsAt: Date;
   attendees: MeetingAttendee[];
@@ -68,17 +71,6 @@ export class MeetingProviderError extends Error {
 }
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
-
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-
-/** The invite's text as Outlook shows it: paragraphs and line breaks kept. */
-export function inviteHtml(text: string): string {
-  return text
-    .trim()
-    .split(/\n{2,}/)
-    .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
-    .join("");
-}
 
 /** Graph's dateTimeTimeZone, always in UTC: every invitee's calendar shows it in their own clock. */
 const utc = (d: Date) => ({ dateTime: d.toISOString().replace(/Z$/, ""), timeZone: "UTC" });
@@ -162,7 +154,8 @@ export class GraphMeetings implements MeetingService {
     const files = request.attachments ?? [];
     const event = await this.graph<GraphEvent>("POST", "/events", {
       subject: request.subject,
-      body: { contentType: "HTML", content: inviteHtml(request.text) },
+      // Sthiram's signature closes the text; Teams adds the link to join below it.
+      body: { contentType: "HTML", content: signedHtml(request.text, request.summary) },
       start: utc(request.startsAt),
       end: utc(request.endsAt),
       // Exchange sends the invite the moment there are attendees, and a file

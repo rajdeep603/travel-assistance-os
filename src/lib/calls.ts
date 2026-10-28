@@ -68,7 +68,8 @@ function mentionedLines(m: Mentioned | undefined, company: string): string[] {
  * The e-mail as first drafted for what is ticked; the presenter edits it
  * before it goes. Personal on purpose: their name, what they told us, the
  * agreed next step. An invite alone never mentions a quotation they haven't
- * had. With the quotation, its summary follows the text (added on the server).
+ * had. With the quotation, its summary follows the text; Sthiram's signature
+ * closes every one (both added on the server).
  */
 export function sendDraft(
   p: { customerName: string; companyName?: string; quoteNumber?: string | null; mentioned?: Mentioned } & SendParts
@@ -79,9 +80,8 @@ export function sendDraft(
   const greeting = `Dear ${p.customerName.trim() || "all"},`;
   const mentioned = mentionedLines(p.mentioned, company);
   const attached = `Please find attached our quotation ${q}: the one-time services, the monthly running cost, and what ${BRAND.name} would return with your numbers. The summary is below.`;
-  const signature = ["With kind regards,", `${BRAND.poweredBy} · ${BRAND.name}`];
   if (quotation && !p.invite) {
-    return { subject: `${BRAND.name} quotation ${q}`, message: [greeting, "", attached, ...mentioned, "", ...signature].join("\n") };
+    return { subject: `${BRAND.name} quotation ${q}`, message: [greeting, "", attached, ...mentioned].join("\n") };
   }
   if (quotation) {
     return {
@@ -93,8 +93,6 @@ export function sendDraft(
         ...mentioned,
         "",
         "We would like to go through it with your team on a Teams call, at the time in this invitation. If it doesn't suit you, propose a new one and we will move it.",
-        "",
-        ...signature,
       ].join("\n"),
     };
   }
@@ -109,8 +107,6 @@ export function sendDraft(
       "On the call we would like to understand your workflow, volumes and systems, so that what we propose fits.",
       "",
       "If the time doesn't suit you, propose a new one from the invite and we will move it.",
-      "",
-      ...signature,
     ].join("\n"),
   };
 }

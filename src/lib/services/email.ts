@@ -23,6 +23,8 @@ export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
+  /** An HTML version of the same message, when it has one (Sthiram's signature with its logos). */
+  html?: string;
   attachments?: EmailAttachment[];
   /** Threading: the Message-ID being replied to. */
   inReplyTo?: string;
@@ -85,6 +87,7 @@ class SesSmtpEmail implements EmailService {
       to: emailAddress(message.to),
       subject: message.subject,
       text: message.text,
+      ...(message.html ? { html: message.html } : {}),
       ...(message.inReplyTo ? { inReplyTo: message.inReplyTo, references: message.inReplyTo } : {}),
       ...(message.replyTo ? { replyTo: message.replyTo } : {}),
       attachments: message.attachments?.map((a) => ({ filename: a.filename, content: a.content, contentType: a.type })),
@@ -109,7 +112,8 @@ class SendGridEmail implements EmailService {
         from: { email: emailAddress(env.emailFrom), name: `${BRAND.name} (demo)` },
         subject: message.subject,
         ...(message.replyTo ? { reply_to: { email: emailAddress(message.replyTo) } } : {}),
-        content: [{ type: "text/plain", value: message.text }],
+        // Plain text first, as SendGrid requires.
+        content: [{ type: "text/plain", value: message.text }, ...(message.html ? [{ type: "text/html", value: message.html }] : [])],
         ...(message.inReplyTo ? { headers: { "In-Reply-To": message.inReplyTo, References: message.inReplyTo } } : {}),
         ...(message.attachments?.length
           ? {

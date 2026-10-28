@@ -96,6 +96,7 @@ export function FollowUp({
             Message
             <textarea value={draft.text} rows={14} maxLength={8000} onChange={(e) => setDraft({ ...draft, text: e.target.value })} className={`${FIELD} font-[inherit] leading-relaxed`} />
           </label>
+          <p className="!mt-1 text-xs text-muted">Our signature, with the Sthiram logo, follows your text.</p>
           {draft.blocked ? <p className="text-xs text-warn">{draft.blocked}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button busy={busy === "send"} disabled={Boolean(draft.blocked)} onClick={() => void send()}>

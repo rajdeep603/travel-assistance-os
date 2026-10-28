@@ -16,7 +16,7 @@ interface Common {
 }
 
 export async function sendEmail(
-  input: Common & { to: string; subject: string; text: string; attachments?: EmailAttachment[]; threadId?: string; replyTo?: string }
+  input: Common & { to: string; subject: string; text: string; html?: string; attachments?: EmailAttachment[]; threadId?: string; replyTo?: string }
 ): Promise<OutboundMessage> {
   const email = emailServiceFor(input.to);
   const row = await prisma.outboundMessage.create({
@@ -38,6 +38,7 @@ export async function sendEmail(
       to: input.to,
       subject: input.subject,
       text: input.text,
+      html: input.html,
       attachments: input.attachments,
       inReplyTo: input.threadId,
       replyTo: input.replyTo,

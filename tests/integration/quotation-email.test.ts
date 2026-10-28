@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_ASSUMPTIONS, DEFAULT_COST_CONTAINMENT, DEFAULT_INPUTS, DEFAULT_RUNNING_COST_PRICES } from "@/lib/business-case";
 import { emailBusinessCase } from "@/lib/services/business-case-report";
+import { SIGNATURE_HTML, SIGNATURE_TEXT } from "@/lib/email-signature";
 import { MockEmail, setEmailService, type EmailMessage, type EmailService } from "@/lib/services/email";
 
 // E-mailing the quotation records it in the outbox and attaches the PDF; it
@@ -47,6 +48,10 @@ describe("e-mailing the quotation", () => {
     expect(message.subject).toMatch(/^CareTrail quotation Q-\d{8}-[0-9A-F]{6}$/);
     expect(message.text).toContain("Prepared for Aylin Kaya, Assistance Company");
     expect(message.text).toContain("- Setup and configuration: €6,000");
+    // Sthiram's signature closes both bodies, the logos in the HTML one.
+    expect(message.text.endsWith(SIGNATURE_TEXT)).toBe(true);
+    expect(message.html).toContain("Prepared for Aylin Kaya, Assistance Company");
+    expect(message.html).toContain(SIGNATURE_HTML);
     expect(message.attachments).toHaveLength(1);
     expect(message.attachments![0]).toMatchObject({ type: "application/pdf" });
     expect(message.attachments![0].filename).toMatch(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{6}\.pdf$/);

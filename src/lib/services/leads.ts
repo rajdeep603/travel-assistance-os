@@ -14,6 +14,7 @@ import {
   type BusinessCaseInput,
 } from "@/lib/business-case";
 import { prisma } from "@/lib/db";
+import { signedEmail } from "@/lib/email-signature";
 import { ApiError, badRequest, notFound, serviceUnavailable } from "@/lib/errors";
 import { env } from "@/lib/env";
 import { LEAD_PAINS, LEAD_SEGMENTS, painLabel, segmentLabel } from "@/lib/meeting-notes";
@@ -322,9 +323,6 @@ export async function followUpDraft(id: string): Promise<FollowUpDraft> {
         ]
       : []),
     ...(next ? ["", `Next step: ${next}.`] : []),
-    "",
-    "With kind regards,",
-    `${BRAND.poweredBy} · ${BRAND.name}`,
   ].join("\n");
   return {
     to: lead.email,
@@ -344,7 +342,7 @@ function followUpBlocked(to: string | null): string | null {
 
 export const FollowUpSchema = z.object({ subject: z.string().trim().min(1).max(200), text: z.string().trim().min(1).max(8000) });
 
-/** Sends the follow-up as written, with the quotation PDF, and marks the lead contacted. */
+/** Sends the follow-up as written, Sthiram's signature below, with the quotation PDF, and marks the lead contacted. */
 export async function sendFollowUp(id: string, message: z.infer<typeof FollowUpSchema>, operator: string | null): Promise<LeadSummary> {
   const lead = await getLead(id);
   const blocked = followUpBlocked(lead.email);
@@ -356,7 +354,7 @@ export async function sendFollowUp(id: string, message: z.infer<typeof FollowUpS
   const sent = await sendEmail({
     to: lead.email!,
     subject: message.subject,
-    text: message.text,
+    ...signedEmail(message.text),
     attachments,
     automatic: false,
     approvedBy: operator,

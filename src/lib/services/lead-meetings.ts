@@ -152,20 +152,21 @@ export async function proposeCall(
     .digest("hex")
     .slice(0, 40);
   // The quotation exactly as filed on the lead: its own number and date.
-  let text = message;
+  let summary: string | undefined;
   let attachments: MeetingAttachment[] | undefined;
   if (attachQuotation) {
     const { pdf, filename, report } = await businessCasePdf(BusinessCaseInputSchema.parse(lead.input), {
       number: lead.quoteNumber,
       date: utcToZoned(lead.createdAt).date,
     });
-    text = [message, report.summary].filter(Boolean).join("\n\n");
+    summary = report.summary;
     attachments = [{ filename, content: pdf, type: "application/pdf" }];
   }
   const scheduled = await service
     .create({
       subject: input.subject,
-      text,
+      text: message,
+      summary,
       startsAt,
       endsAt,
       attendees: attendees.map((email) => ({ email, ...(email === lead.email?.toLowerCase() ? { name: lead.customerName } : {}) })),

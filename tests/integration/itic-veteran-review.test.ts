@@ -8,6 +8,7 @@ import { MockEmail, setEmailService, type EmailMessage, type EmailService } from
 import { deleteDocument, deleteInboundMessage } from "@/lib/services/erase";
 import { createLead, followUpDraft, sendFollowUp, updateLead, LeadUpdateSchema } from "@/lib/services/leads";
 import { getShiftHandover, nightOf } from "@/lib/services/shift-handover";
+import { SIGNATURE_HTML, SIGNATURE_TEXT } from "@/lib/email-signature";
 
 // Meeting notes and the same-day follow-up on a lead; removing a visitor's
 // file with everything derived from it; the night-shift handover from the
@@ -79,7 +80,8 @@ describe("meeting notes and the follow-up", () => {
     expect(updated.status).toBe("CONTACTED");
     expect(updated.followUpSentAt).toBeInstanceOf(Date);
     const sent = provider.sent.at(-1)!;
-    expect(sent).toMatchObject({ to: "buyer@follow-up-test.com", subject: "Our meeting today", text: "Dear Ayşe,\n\nThank you." });
+    expect(sent).toMatchObject({ to: "buyer@follow-up-test.com", subject: "Our meeting today", text: `Dear Ayşe,\n\nThank you.\n\n${SIGNATURE_TEXT}` });
+    expect(sent.html).toContain(SIGNATURE_HTML);
     expect(sent.attachments?.[0].filename).toMatch(/\.pdf$/);
   });
 

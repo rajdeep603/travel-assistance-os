@@ -161,7 +161,8 @@ describe("Teams calls on a lead", () => {
     expect(request.attachments).toHaveLength(1);
     expect(request.attachments![0]).toMatchObject({ type: "application/pdf", filename: expect.stringMatching(/^sthiram-caretrail-quotation-Q-\d{8}-[0-9A-F]{6}\.pdf$/) });
     expect(request.attachments![0].content.subarray(0, 5).toString()).toBe("%PDF-");
-    expect(request.text).toMatch(/^Dear Aylin,\n\nAs discussed\.\n\n.*Prepared for Aylin Kaya, Calls Test Assistance/s);
+    expect(request.text).toBe("Dear Aylin,\n\nAs discussed.");
+    expect(request.summary).toContain("Prepared for Aylin Kaya, Calls Test Assistance");
     // Without it, no file and the text as typed.
     expect(microsoft.created[0].attachments).toBeUndefined();
     expect(microsoft.created[0].text).toBe("Dear Aylin,\n\nAs discussed.");

@@ -597,10 +597,10 @@ export function ProposeCall({
                       />
                       <p className="mt-1 text-xs text-muted">
                         {parts.quotation && parts.invite
-                          ? "The quotation's summary follows your text, then the Teams link to join."
+                          ? "The quotation's summary follows your text, then our signature and the Teams link to join."
                           : parts.invite
-                            ? "Teams adds the link to join below it."
-                            : "The quotation's summary follows your text."}
+                            ? "Our signature follows your text, and Teams adds the link to join below it."
+                            : "The quotation's summary follows your text, then our signature."}
                       </p>
                       {subject !== null || message !== null ? (
                         <button

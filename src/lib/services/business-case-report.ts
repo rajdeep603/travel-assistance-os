@@ -14,6 +14,7 @@ import {
   type BusinessCaseInput,
   type BusinessCaseReport,
 } from "@/lib/business-case";
+import { signedEmail } from "@/lib/email-signature";
 import { ApiError, badRequest, serviceUnavailable } from "@/lib/errors";
 import { zonedToday } from "@/lib/time";
 import { quotationPdfName, renderQuotationPdf } from "./business-case-pdf";
@@ -78,9 +79,9 @@ export const quotationEmailText = (number: string) =>
   `Hello,\n\nPlease find attached our quotation ${number}: the one-time services, the monthly running cost, and what ${BRAND.name} would return with your numbers. The summary is below.`;
 
 /**
- * E-mails the quotation PDF, the summary below the text, one message per
- * recipient (the customer, their colleagues). Every address is checked before
- * any is sent.
+ * E-mails the quotation PDF, the summary below the text and Sthiram's
+ * signature last, one message per recipient (the customer, their colleagues).
+ * Every address is checked before any is sent.
  */
 export async function emailBusinessCase(params: {
   to: string | string[];
@@ -103,7 +104,7 @@ export async function emailBusinessCase(params: {
     const message = await sendEmail({
       to,
       subject: params.subject?.trim() || `${BRAND.name} quotation ${number}`,
-      text: [params.message?.trim() || quotationEmailText(number), "", report.summary].join("\n"),
+      ...signedEmail(params.message?.trim() || quotationEmailText(number), report.summary),
       attachments: [{ filename, content: pdf, type: "application/pdf" }],
       automatic: false,
       approvedBy: params.operator,

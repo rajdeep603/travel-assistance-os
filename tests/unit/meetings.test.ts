@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { callNextStep, defaultCallSlot, describeCallSlot, sendDraft } from "@/lib/calls";
-import { GraphMeetings, MeetingProviderError, inviteHtml } from "@/lib/services/meetings";
+import { GraphMeetings, MeetingProviderError } from "@/lib/services/meetings";
+import { SIGNATURE_HTML, SIGNATURE_TEXT, signedEmail, signedHtml } from "@/lib/email-signature";
 import { utcToWallClock, wallClockToUtc } from "@/lib/time-zone";
 
 // Teams calls: the clock arithmetic, the invite's wording, and exactly what
@@ -80,6 +81,8 @@ describe("clocks for a call", () => {
     expect(invite.subject).toBe("Assistance Company and CareTrail: follow-up call");
     expect(invite.message).not.toContain("Q-20261103-ABC123");
     expect(invite.message).not.toContain("quotation");
+    // The server adds Sthiram's signature, so the draft has no sign-off of its own.
+    expect(invite.message.trimEnd()).toMatch(/we will move it\.$/);
     expect(sendDraft({ customerName: "", quoteNumber: null, quotation: true, invite: true }).subject).toBe("CareTrail: follow-up call");
   });
 
@@ -120,7 +123,7 @@ describe("Microsoft Graph", () => {
     expect(create.headers.authorization).toBe("Bearer token-1");
     expect(JSON.parse(create.body)).toEqual({
       subject: "CareTrail: a call about quotation Q-1",
-      body: { contentType: "HTML", content: "<p>Dear Aylin,</p><p>A call &lt;about&gt; the quotation &amp; more.<br>See you then.</p>" },
+      body: { contentType: "HTML", content: signedHtml("Dear Aylin,\n\nA call <about> the quotation & more.\nSee you then.") },
       start: { dateTime: "2026-11-03T09:00:00.000", timeZone: "UTC" },
       end: { dateTime: "2026-11-03T09:30:00.000", timeZone: "UTC" },
       attendees: [
@@ -224,7 +227,39 @@ describe("Microsoft Graph", () => {
     expect(await fakeGraph(() => ({ body: { value: [] } })).graph.availability(slot)).toBe("unknown");
   });
 
-  it("writes the invite's text as Outlook paragraphs", () => {
-    expect(inviteHtml("One\n\n\nTwo\nlines")).toBe("<p>One</p><p>Two<br>lines</p>");
+  it("writes the invite's text as paragraphs, Sthiram's signature below", () => {
+    const html = signedHtml("One <b>\n\n\nTwo\nlines & more");
+    expect(html).toContain("font-size:16px");
+    expect(html).toContain('<p style="margin:0 0 16px 0;">One &lt;b&gt;</p><p style="margin:0 0 16px 0;">Two<br>lines &amp; more</p>');
+    expect(html.endsWith(SIGNATURE_HTML)).toBe(true);
+    expect(SIGNATURE_HTML).toContain("Team Sthiram Services LLP");
+    expect(SIGNATURE_HTML).toContain("https://listmonk.sthiramservices.com/uploads/sthiram-logo-email.png");
+  });
+
+  it("turns \"- \" lines into a list, the line above it into its heading", () => {
+    expect(signedHtml("What matters most:\n- Night shifts\n- Languages")).toContain(
+      '<p style="margin:0 0 6px 0;"><strong>What matters most:</strong></p><ul style="margin:0 0 16px 0;padding:0 0 0 22px;"><li style="margin:0 0 4px 0;">Night shifts</li><li style="margin:0 0 4px 0;">Languages</li></ul>'
+    );
+  });
+
+  it("sets the quotation's summary in a box: title, who it is for, labelled figures, the disclaimer small", () => {
+    const html = signedHtml("Dear Aylin,", "CareTrail business case\nPrepared for Aylin Kaya\n\nResults\n- Cost saved: €38,260 a month\n\nEstimates for discussion.");
+    expect(html).toMatch(/Dear Aylin,<\/p><table[^>]*><tr><td[^>]*background:#F4F8F6/);
+    expect(html).toContain('font-weight:bold;color:#0A6B47;">CareTrail business case</p>');
+    expect(html).toContain('color:#3A3F3B;">Prepared for Aylin Kaya</p>');
+    expect(html).toContain("<li style=\"margin:0 0 4px 0;\"><strong>Cost saved:</strong> €38,260 a month</li>");
+    expect(html).toContain('font-size:12px;line-height:18px;color:#5B615D;">Estimates for discussion.</p>');
+  });
+
+  it("links web addresses in the text, leaving a full stop after one outside the link", () => {
+    expect(signedHtml("Join: https://teams.microsoft.com/l/meetup-join/a?x=1&y=2.")).toContain(
+      '<a href="https://teams.microsoft.com/l/meetup-join/a?x=1&amp;y=2" style="color:#0A6B47;">https://teams.microsoft.com/l/meetup-join/a?x=1&amp;y=2</a>.</p>'
+    );
+  });
+
+  it("gives an e-mail both bodies, each ending with the signature", () => {
+    const mail = signedEmail("Dear Aylin,\n\nAs promised.\n", "Summary\n- One: 1");
+    expect(mail.text).toBe(`Dear Aylin,\n\nAs promised.\n\nSummary\n- One: 1\n\n${SIGNATURE_TEXT}`);
+    expect(mail.html).toMatch(/^<!doctype html><html>.*<body[^>]*>.*Dear Aylin,.*Team Sthiram Services LLP.*<\/body><\/html>$/s);
   });
 });
