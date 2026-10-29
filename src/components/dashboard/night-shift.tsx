@@ -6,9 +6,8 @@ import type { HandoverEvent, ShiftHandover } from "@/lib/services/shift-handover
 import { T } from "@/components/i18n";
 
 // ---------------------------------------------------------------------------
-// The night-shift handover on the overview: what the AI did between 20:00 and
-// 08:00 while the team was off, the moments that mattered, and what it left
-// for the morning. The night is always named by its date, and the presenter
+// The night-shift handover on the overview: what the AI handled between 20:00
+// and 08:00, the moments that mattered, and what it left for the morning shift. The night is always named by its date, and the presenter
 // can step to another night with activity.
 // ---------------------------------------------------------------------------
 
@@ -57,10 +56,10 @@ export function NightShift({ handover: h, waiting, timeZone = OPERATION_TIME_ZON
         <div className="min-w-0">
           <h2 id="night-title" className="flex items-center gap-2 text-lg font-semibold text-ink">
             <Moon size={17} className="text-brand" aria-hidden />
-            <T>While your team slept</T>
+            <T>Night shift</T>
           </h2>
           <p className="mt-0.5 text-xs tabular-nums text-muted">
-            Night shift {span}{h.inProgress ? " · still running" : ""}{zoneNote}
+            {span}{h.inProgress ? " · still running" : ""}{zoneNote}
           </p>
         </div>
         <div className="flex items-center gap-1.5">

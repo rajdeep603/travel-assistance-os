@@ -88,8 +88,7 @@ Moments that answer what a veteran asks first:
   IT: decisions the AI never takes, the audit trail, data and hosting, and how
   it sits beside their systems (pilot and roadmap items are labelled).
 - **Alarm centres and night shifts** (the "2am calls"): the overview's
-  **While your team slept** panel shows one night shift, 20:00 to 08:00, by
-  date: calls the AI closed in six languages, the emergency it put through to
+  **Night shift** panel shows one night, 20:00 to 08:00, by date: calls the AI closed in six languages, the emergency it put through to
   the doctor, the hospital's top-up request. The arrows step through other
   nights.
 - **"Try one of ours."** With the live model on, a visitor's own anonymised

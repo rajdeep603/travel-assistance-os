@@ -282,7 +282,7 @@ const D: Dictionary = {
   "cases waiting for information": ["casos esperando información", "dossiers en attente d'informations", "casos aguardando informação", "حالات بانتظار معلومات"],
   "Medical spend under control": ["Gasto médico bajo control", "Dépenses médicales maîtrisées", "Gasto médico sob controle", "الإنفاق الطبي تحت السيطرة"],
   "found above the reference tariff": ["detectado por encima de la tarifa de referencia", "trouvés au-dessus du tarif de référence", "encontrado acima da tabela de referência", "فوق التعرفة المرجعية"],
-  "While your team slept": ["Mientras su equipo dormía", "Pendant que votre équipe dormait", "Enquanto sua equipe dormia", "بينما كان فريقك نائماً"],
+  "Night shift": ["Turno de noche", "Équipe de nuit", "Turno da noite", "المناوبة الليلية"],
   Caseload: ["Carga de casos", "Charge de dossiers", "Carteira de casos", "حجم الحالات"],
   "Claims pipeline": ["Flujo de reclamaciones", "Flux des sinistres", "Fluxo de sinistros", "مسار المطالبات"],
 

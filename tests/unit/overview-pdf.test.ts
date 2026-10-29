@@ -72,7 +72,7 @@ describe("the operations summary PDF", () => {
       "2 hospital bill reviews to accept · 1 escalated case",
       "18 cases",
       "10 claims",
-      "night shift 19 Oct 2026, 22:30 to 20 Oct 2026, 10:30",
+      "Night shift: 19 Oct 2026, 22:30 to 20 Oct 2026, 10:30",
       "emergencies put through to a doctor",
       "Languages served in the period: English, German, Spanish, Turkish",
       "People stay in charge",

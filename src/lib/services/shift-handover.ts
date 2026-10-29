@@ -5,8 +5,8 @@ import { getAgent } from "@/lib/voice/agents/registry";
 import { languageNames } from "./outcomes";
 
 // ---------------------------------------------------------------------------
-// The night-shift handover: what the AI did between 20:00 and 08:00 Istanbul
-// time while the team was off, and what it left for the morning. Computed from
+// The night-shift handover: what the AI handled between 20:00 and 08:00
+// Istanbul time, and what it left for the morning shift. Computed from
 // the records of one night, which is always named by its date: the overview
 // never presents an older night as last night.
 // ---------------------------------------------------------------------------

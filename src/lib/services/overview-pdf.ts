@@ -149,7 +149,7 @@ export function renderOverviewPdf(o: Overview, opts: { timeZone: string; now?: D
     // --- Last night ---------------------------------------------------------------
     if (o.handover) {
       const h = o.handover;
-      y = heading(`While the team slept: night shift ${formatDateTime(h.start, opts.timeZone)} to ${formatDateTime(h.end, opts.timeZone)}`, y);
+      y = heading(`Night shift: ${formatDateTime(h.start, opts.timeZone)} to ${formatDateTime(h.end, opts.timeZone)}`, y);
       const night = [
         [String(h.calls.byAi), "calls handled by AI", h.calls.total ? `of ${h.calls.total}; ${h.calls.transferred} handed to a person` : "no calls"],
         [String(h.calls.emergencies), "emergencies put through to a doctor", "the AI opened the case and briefed them"],
