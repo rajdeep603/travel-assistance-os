@@ -33,6 +33,7 @@ const ENDPOINTS: { method: "GET" | "POST"; path: string; what: string; example: 
   { method: "POST", path: "/api/v1/documents", what: "Multipart file (and optional caseRef): what was read, plus the bill review for an invoice.", example: "/api/v1/documents" },
   { method: "POST", path: "/api/v1/calls", what: 'Places an AI call ({"agent": "outbound-provider-validation", "to": "+1…", "brief": {…}, "clientRef": "…"}); the result comes back as a call.completed webhook.', example: "/api/v1/calls" },
   { method: "GET", path: "/api/v1/calls/{ref}", what: "A call: status, duration, summary, what the agent recorded, and the transcript.", example: "/api/v1/calls/CALL-1078" },
+  { method: "POST", path: "/api/v1/messages", what: 'Sends a text message to an approved number or an e-mail ({"channel": "sms"|"email", "to": "…", "text": "…", "subject": "…"}).', example: "/api/v1/messages" },
   { method: "POST", path: "/api/v1/approved-numbers", what: 'Approves a number AI agents may call ({"number": "+1…", "label": "…"}), on top of the configured list.', example: "/api/v1/approved-numbers" },
 ];
 
