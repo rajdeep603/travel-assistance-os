@@ -100,7 +100,8 @@ export function NumberPicker({
       </label>
       {adding ? (
         <div className="rounded-lg border border-line bg-canvas/60 p-2">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+          {/* Stacked: the picker lives in narrow side columns, where two fields side by side truncate the number. */}
+          <div className="grid gap-2">
             <input
               type="tel"
               inputMode="tel"
