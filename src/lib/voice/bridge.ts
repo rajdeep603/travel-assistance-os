@@ -9,6 +9,7 @@ import type { AgentContext, AgentProfile } from "./agents/types";
 import type { VoiceLeg } from "./legs/types";
 import { voiceLanguage } from "./languages";
 import { monitorBus } from "./monitor";
+import { NoiseGate } from "./noise-gate";
 import { XaiRealtimeSession } from "./realtime/xai-session";
 import { readyTone } from "./tones";
 import { executeTool, realtimeTools } from "./tools/registry";
@@ -362,6 +363,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     // Closing the leg before a redirect lands would hang up on the caller.
     if (handover) await handover;
     reason = failure ?? reason;
+    if (gate?.hiddenFrames) outcome = { ...outcome, noiseGate: { hiddenSeconds: Math.round(gate.hiddenFrames / 50) } };
     liveSessions.delete(call.id);
     disarmIdle();
     for (const t of timers) clearTimeout(t);
@@ -419,6 +421,10 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     if (!profile.internal) emitWebhook("call.completed", { ref: call.ref, agent: profile.id, channel, status, durationSec, summary, caseId: ctx.caseId ?? null, outcome });
   }
 
+  // Phone legs pass through the noise gate: a noisy room around the phone
+  // (a trade-show hall) must not start turns or cut the agent off.
+  const gate = channel === "PHONE" && leg.format.type === "audio/pcmu" && env.phoneNoiseGate ? new NoiseGate() : null;
+
   // --- Connect to the model -------------------------------------------------
   try {
     await session.connect();
@@ -458,7 +464,13 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   });
 
   // --- Wire audio, transcripts and tools ---------------------------------------
-  leg.onAudio((b64) => session.appendAudio(b64));
+  if (gate) {
+    leg.onAudio((b64) => {
+      for (const frame of gate.process(Buffer.from(b64, "base64"))) session.appendAudio(frame.toString("base64"));
+    });
+  } else {
+    leg.onAudio((b64) => session.appendAudio(b64));
+  }
   leg.onText((text) => {
     disarmIdle();
     idleNudges = 0;
@@ -483,13 +495,20 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     disarmIdle();
     idleNudges = 0;
     leg.clearPlayback();
+    // The caller got through while the agent spoke: the agent has stopped, so the gate relaxes.
+    gate?.setStrict(false);
     emit({ type: "user_speaking" });
   });
   session.on("response_started", () => {
     agentSpoke = true;
     disarmIdle();
+    gate?.setStrict(true);
   });
-  session.on("response_done", () => armIdle());
+  session.on("response_done", () => {
+    armIdle();
+    // Strict until the caller has actually heard the end of the answer.
+    void leg.awaitPlayback(90_000).then(() => gate?.setStrict(false));
+  });
   // The caller has finished: the model is working out its answer.
   session.on("speech_stopped", () => emit({ type: "agent_thinking" }));
   session.on("agent_transcript_delta", (text) => emit({ type: "transcript_delta", role: "agent", text }));

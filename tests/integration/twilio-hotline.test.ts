@@ -6,6 +6,10 @@ import { getExpectedTwilioSignature } from "twilio/lib/webhooks/webhooks";
 import { createGateway } from "../../voice-gateway/gateway";
 import { callerNumber, setTelephony, transferTwiml, type TelephonyService, type TransferInput } from "@/lib/services/telephony";
 import { startFakeXai } from "../fakes/fake-xai";
+import { linearToMulaw } from "@/lib/voice/g711";
+
+/** A loud 20 ms μ-law frame: a voice, which the phone leg's noise gate lets through untouched. */
+const VOICE_FRAME = Buffer.from(Array.from({ length: 160 }, (_, i) => linearToMulaw(Math.sin((2 * Math.PI * 440 * i) / 8000) * 6000))).toString("base64");
 
 // Inbound hotline end to end: Twilio webhook (signed) → TwiML media stream →
 // gateway → Grok (scripted) → emergency → warm transfer with a whisper. And
@@ -169,8 +173,8 @@ describe("Ring my phone from a demo step", () => {
     expect(Buffer.from(tone[0].media.payload, "base64")).toHaveLength(160);
 
     // The presenter reads the first line; the agent answers.
-    twilio.send(JSON.stringify({ event: "media", streamSid: "MZ9", media: { track: "inbound", payload: "f39/" } }));
-    expect((await model.waitFor((e) => e.type === "input_audio_buffer.append")).audio).toBe("f39/");
+    twilio.send(JSON.stringify({ event: "media", streamSid: "MZ9", media: { track: "inbound", payload: VOICE_FRAME } }));
+    expect((await model.waitFor((e) => e.type === "input_audio_buffer.append" && e.audio === VOICE_FRAME)).audio).toBe(VOICE_FRAME);
     model.say("Elbette. Hastanın doğum tarihini alabilir miyim?");
     const spoken = Buffer.from("audio:Elbette. Hastanın doğum tarihini alabilir miyim?").toString("base64");
     const deadline = Date.now() + 3000;
@@ -276,9 +280,14 @@ describe("Hotline emergency over a phone media stream", () => {
     while (!fromGateway.some((m) => m.event === "media") && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
     expect(fromGateway.find((m) => m.event === "media")).toMatchObject({ streamSid: "MZ1" });
 
-    // Caller audio flows to the model.
-    twilio.send(JSON.stringify({ event: "media", streamSid: "MZ1", media: { track: "inbound", payload: "f39/" } }));
-    expect((await model.waitFor((e) => e.type === "input_audio_buffer.append")).audio).toBe("f39/");
+    // Caller audio flows to the model untouched: a voice passes the noise gate, room noise reaches it as silence.
+    const NOISE_FRAME = Buffer.from(Array.from({ length: 160 }, (_, i) => linearToMulaw(Math.sin((2 * Math.PI * 440 * i) / 8000) * 200))).toString("base64");
+    twilio.send(JSON.stringify({ event: "media", streamSid: "MZ1", media: { track: "inbound", payload: NOISE_FRAME } }));
+    const gated = await model.waitFor((e) => e.type === "input_audio_buffer.append");
+    expect(gated.audio).not.toBe(NOISE_FRAME);
+    expect(Buffer.from(gated.audio, "base64").every((b) => b === 0xff)).toBe(true);
+    twilio.send(JSON.stringify({ event: "media", streamSid: "MZ1", media: { track: "inbound", payload: VOICE_FRAME } }));
+    expect((await model.waitFor((e) => e.type === "input_audio_buffer.append" && e.audio === VOICE_FRAME)).audio).toBe(VOICE_FRAME);
 
     // Emergency: critical case, then transfer.
     model.callFunction("create_case", {

@@ -52,6 +52,10 @@ export const env = {
   get hotlineAgent(): string {
     return process.env.HOTLINE_AGENT || "inbound-hotline";
   },
+  /** The adaptive noise gate on phone calls (room noise never starts a turn or cuts the agent off); "off" disables it. */
+  get phoneNoiseGate(): boolean {
+    return (process.env.VOICE_PHONE_NOISE_GATE ?? "on").trim().toLowerCase() !== "off";
+  },
   /** Cap on simultaneous AI phone calls (cost and capacity guard). */
   get maxConcurrentCalls(): number {
     const n = Number(process.env.MAX_CONCURRENT_CALLS);

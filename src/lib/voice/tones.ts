@@ -5,23 +5,10 @@
 // (a presenter reading an inbound demo script): they hear the tone, then speak.
 // ---------------------------------------------------------------------------
 
+import { MULAW_SILENCE, linearToMulaw } from "./g711";
+
 const RATE = 8000;
 const FRAME = 160; // 20 ms at 8 kHz
-
-/** 16-bit linear → μ-law (G.711). */
-function linearToMulaw(sample: number): number {
-  const BIAS = 0x84;
-  const CLIP = 32635;
-  let s = Math.max(-32768, Math.min(32767, Math.round(sample)));
-  const sign = s < 0 ? 0x80 : 0;
-  if (sign) s = -s;
-  if (s > CLIP) s = CLIP;
-  s += BIAS;
-  let exponent = 7;
-  for (let mask = 0x4000; (s & mask) === 0 && exponent > 0; exponent--, mask >>= 1);
-  const mantissa = (s >> (exponent + 3)) & 0x0f;
-  return ~(sign | (exponent << 4) | mantissa) & 0xff;
-}
 
 /** A sine note with short fades, as μ-law bytes. */
 function note(frequencyHz: number, ms: number, amplitude: number): Uint8Array {
@@ -35,8 +22,7 @@ function note(frequencyHz: number, ms: number, amplitude: number): Uint8Array {
   return out;
 }
 
-/** Silence in μ-law (0xff is the zero sample). */
-const silence = (ms: number) => new Uint8Array(Math.round((RATE * ms) / 1000)).fill(0xff);
+const silence = (ms: number) => new Uint8Array(Math.round((RATE * ms) / 1000)).fill(MULAW_SILENCE);
 
 function frames(bytes: Uint8Array): string[] {
   const out: string[] = [];

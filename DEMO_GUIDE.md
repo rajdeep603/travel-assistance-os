@@ -123,6 +123,14 @@ and the server, so the booth's Wi-Fi only carries the click; it shows live
 under the demo run with its transcript and tool steps. Nothing on that screen
 is a note to you: the prospect watches it. What to point out is here instead.
 
+**A noisy hall.** Phone calls pass through an adaptive noise gate on the
+server: the chatter around the phone reaches the agent as silence, so it
+never starts a turn, cuts the agent off or makes it ask "sorry?". A voice
+held to the phone passes untouched, and while the agent is speaking it takes
+a clear voice to interrupt it. Hold the phone close and speak normally;
+`VOICE_PHONE_NOISE_GATE=off` disables the gate if ever needed. The browser
+session uses the browser's own noise suppression.
+
 **What to point out, per run (not on screen):**
 
 - **Assistance company.** "Where is my case?": set the language to theirs
