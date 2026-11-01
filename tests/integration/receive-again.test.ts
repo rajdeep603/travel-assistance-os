@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { EMAIL_SAMPLES } from "@/lib/intake/samples";
 import { receiveSample } from "@/lib/intake/simulate";
 import { deleteInboundMessage } from "@/lib/services/erase";
 
@@ -16,6 +17,7 @@ async function claimsOpenedBy(caseId: string, messageRef: string) {
 }
 
 afterAll(async () => {
+  await prisma.inboundMessage.deleteMany({ where: { ref: "MSG-0999" } });
   for (const tag of TAGS) {
     for (const m of await prisma.inboundMessage.findMany({ where: { externalId: { startsWith: tag } }, select: { id: true } })) {
       await deleteInboundMessage(m.id, { replacingSample: true });
@@ -49,5 +51,21 @@ describe("receiving a sample again", () => {
     // No claim on the case is left without documents by the replacement.
     const empty = await prisma.claim.findMany({ where: { caseId, documents: { none: {} } }, select: { history: true } });
     expect(empty.filter((c) => JSON.stringify(c.history).includes(first.ref))).toHaveLength(0);
+  });
+
+  it("also replaces an older untagged copy of the sample, but never a seeded message", async () => {
+    const sample = EMAIL_SAMPLES.find((e) => e.id === "hospital-final-invoice")!;
+    // A copy from before copies were tagged, and a seeded twin (refs MSG-09xx are the seed's).
+    const untagged = await prisma.inboundMessage.create({
+      data: { ref: `MSG-T${Date.now() % 100000}`, channel: "EMAIL", fromAddress: sample.from, subject: sample.subject, bodyText: sample.body },
+    });
+    const seeded = await prisma.inboundMessage.upsert({
+      where: { ref: "MSG-0999" },
+      create: { ref: "MSG-0999", channel: "EMAIL", fromAddress: sample.from, subject: sample.subject, bodyText: sample.body },
+      update: {},
+    });
+    await receiveSample("email", "hospital-final-invoice");
+    expect(await prisma.inboundMessage.findUnique({ where: { id: untagged.id } })).toBeNull();
+    expect(await prisma.inboundMessage.findUnique({ where: { id: seeded.id } })).not.toBeNull();
   });
 });
