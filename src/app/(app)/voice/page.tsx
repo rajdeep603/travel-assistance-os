@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Info, Mic, MicOff, PhoneCall, PhoneOff, ShieldAlert } from "lucide-react";
 import { ErrorBanner, PageHeader } from "@/components/ui";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
@@ -90,8 +90,11 @@ export default function VoicePage() {
   const [caseOverrideId, setCaseOverrideId] = useState<string | null>(null);
   const [recordRef, setRecordRef] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<VoiceCatalog | null>(null);
-  // A phone call placed from here shows live under the stage (the gateway's monitor feed).
+  // The demo-run step on screen: its call-my-phone controls sit under its cue card.
+  const [activeStep, setActiveStep] = useState<ResolvedStep | null>(null);
+  // A phone call placed from here shows live under the demo run (the gateway's monitor feed).
   const [liveMonitorUrl, setLiveMonitorUrl] = useState<string | null>(null);
+  const hideBoard = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (urlAgent) setAgentId(urlAgent);
   }, [urlAgent]);
@@ -136,12 +139,54 @@ export default function VoicePage() {
 
   /** A demo-run step: its agent, case (or record) and language, all at once. */
   const openStep = useCallback((step: ResolvedStep) => {
+    setActiveStep(step);
     setAgentId(step.agentId);
     if (step.language) setLanguage(step.language);
     setCaseOverrideId(step.case?.id ?? null);
     setRecordRef(step.record ?? null);
     remember({ agent: step.agentId, lang: step.language ?? undefined, caseId: step.case?.id ?? null, record: step.record ?? null, run: step.trackId, step: step.id });
   }, []);
+
+  // The step's phone call rehearses it only while the picker still shows the step's agent.
+  const stepForCall = activeStep && scenario && activeStep.agentId === scenario.agentId ? activeStep : null;
+
+  /** The live board appears when a call is placed and leaves a while after it ends. */
+  function showLive() {
+    if (hideBoard.current) clearTimeout(hideBoard.current);
+    hideBoard.current = null;
+    fetch("/api/calls/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => c && setLiveMonitorUrl(c.monitorUrl))
+      .catch(() => undefined);
+  }
+  function liveEnded() {
+    if (hideBoard.current) clearTimeout(hideBoard.current);
+    hideBoard.current = setTimeout(() => setLiveMonitorUrl(null), 15_000);
+  }
+
+  const phonePanel = scenario ? (
+    <PhoneCallPanel
+      target={{
+        agentId: scenario.agentId,
+        agentLabel: scenario.label,
+        direction: scenario.direction,
+        caseId: scenario.case?.id ?? null,
+        caseRef: scenario.case?.ref ?? null,
+        record: recordRef ?? scenario.record?.ref ?? null,
+        blocked,
+      }}
+      step={stepForCall ? { trackId: stepForCall.trackId, id: stepForCall.id, youPlay: stepForCall.youPlay } : null}
+      language={language}
+      languages={stepForCall ? catalog?.languages : undefined}
+      defaultLanguageLabel={scenario.defaultLanguage === "Turkish" ? "Default (Turkish)" : "Auto: follows the caller"}
+      onLanguage={(name) => {
+        setLanguage(name);
+        remember({ lang: name });
+      }}
+      disabled={live || busy}
+      onPlaced={showLive}
+    />
+  ) : null;
 
   // When the session went live, for the stage's call timer.
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -162,10 +207,20 @@ export default function VoicePage() {
         initialTrackId={urlRun}
         initialStepId={urlStep}
         onStep={openStep}
-        onTrack={(id) => remember({ run: id, step: null })}
+        onTrack={(id) => {
+          setActiveStep(null);
+          remember({ run: id, step: null });
+        }}
         onPrepared={loadCatalog}
         disabled={live || busy}
+        callPanel={stepForCall ? phonePanel : null}
       />
+
+      {liveMonitorUrl ? (
+        <div className="animate-fade-up mb-5">
+          <LiveBoard monitorUrl={liveMonitorUrl} onCallEnded={liveEnded} />
+        </div>
+      ) : null}
 
       {linkedCase && caseOverrideId ? <CaseContextBanner kase={linkedCase} action="This voice session works" /> : null}
 
@@ -209,27 +264,7 @@ export default function VoicePage() {
                 onUseCase={pickCase}
                 disabled={live || busy}
               />
-              {scenario ? (
-                <PhoneCallPanel
-                  target={{
-                    agentId: scenario.agentId,
-                    agentLabel: scenario.label,
-                    direction: scenario.direction,
-                    caseId: scenario.case?.id ?? null,
-                    caseRef: scenario.case?.ref ?? null,
-                    record: recordRef ?? scenario.record?.ref ?? null,
-                    blocked,
-                  }}
-                  language={language}
-                  disabled={live || busy}
-                  onPlaced={() => {
-                    fetch("/api/calls/config")
-                      .then((r) => (r.ok ? r.json() : null))
-                      .then((c) => c && setLiveMonitorUrl(c.monitorUrl))
-                      .catch(() => undefined);
-                  }}
-                />
-              ) : null}
+              {stepForCall ? null : phonePanel}
             </div>
           ) : null}
         </div>
@@ -297,12 +332,6 @@ export default function VoicePage() {
           />
         </div>
       </div>
-
-      {liveMonitorUrl ? (
-        <div className="animate-fade-up mt-5">
-          <LiveBoard monitorUrl={liveMonitorUrl} />
-        </div>
-      ) : null}
 
       {state.booking || state.handoff ? (
         <div className="animate-fade-up mt-5 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">

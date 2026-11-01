@@ -10,6 +10,7 @@ import type { VoiceLeg } from "./legs/types";
 import { voiceLanguage } from "./languages";
 import { monitorBus } from "./monitor";
 import { XaiRealtimeSession } from "./realtime/xai-session";
+import { readyTone } from "./tones";
 import { executeTool, realtimeTools } from "./tools/registry";
 import type { ToolContext } from "./tools/types";
 import { emit as emitWebhook } from "@/lib/services/webhooks";
@@ -29,6 +30,18 @@ export interface LiveSessionHandle {
   answeredBy(result: string): void;
 }
 export const liveSessions = new Map<string, LiveSessionHandle>();
+
+/**
+ * How a call opens when the call record says so (kept in its outcome): a demo
+ * step rung on the presenter's phone, where they read the caller's lines.
+ * Otherwise the agent's own opening cue applies.
+ */
+export interface CallOpening {
+  /** Stay silent until the caller speaks; a phone caller hears a short tone when the line is open. */
+  wait: boolean;
+  /** A bracketed system cue in place of the agent's (who the caller plays, the exchange to expect). */
+  cue?: string;
+}
 
 /** Phone-only actions, provided by the telephony layer. */
 export interface CallControls {
@@ -71,6 +84,8 @@ function agentContext(
 
 /** Silence after the agent finished speaking before it checks on a phone caller. */
 const PHONE_IDLE_MS = 12_000;
+/** On a quiet opening, how long the caller may take to speak first before the agent greets after all. */
+const QUIET_OPENING_IDLE_MS = 25_000;
 
 /** Tools after which the agent must not speak again (the call is over or handed on). */
 const FINAL_TOOLS = new Set(["end_call"]);
@@ -93,6 +108,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   const startedAt = Date.now();
   // Browser rehearsals of outbound agents carry their brief on the call, like phone calls do.
   const brief = params.brief ?? (call.outcome as { brief?: Record<string, unknown> } | null)?.brief ?? null;
+  const opening = (call.outcome as { opening?: CallOpening } | null)?.opening ?? null;
   const language = voiceLanguage(call.language);
 
   const conversation = await prisma.conversation.create({
@@ -254,12 +270,14 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   let idleSeq = 0;
   let idleTimer: NodeJS.Timeout | null = null;
   let idleNudges = 0;
+  /** Whether the agent has said anything yet (a quiet opening waits for the caller). */
+  let agentSpoke = false;
   const disarmIdle = () => {
     idleSeq += 1;
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = null;
   };
-  const armIdle = () => {
+  const armIdle = (afterMs = PHONE_IDLE_MS) => {
     if (channel !== "PHONE" || ended) return;
     disarmIdle();
     const seq = idleSeq;
@@ -269,11 +287,13 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
         if (seq !== idleSeq || ended) return;
         idleNudges += 1;
         session.sendText(
-          idleNudges > 2
-            ? "[The caller has been silent for a long time. Say a short goodbye and end the call.]"
-            : "[The caller hasn't said anything for a while. Briefly check whether they're still there; don't repeat what you already said.]"
+          !agentSpoke
+            ? "[The caller is on the line but hasn't said anything yet. Greet them briefly and ask how you can help.]"
+            : idleNudges > 2
+              ? "[The caller has been silent for a long time. Say a short goodbye and end the call.]"
+              : "[The caller hasn't said anything for a while. Briefly check whether they're still there; don't repeat what you already said.]"
         );
-      }, PHONE_IDLE_MS);
+      }, afterMs);
     });
   };
 
@@ -465,8 +485,11 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     leg.clearPlayback();
     emit({ type: "user_speaking" });
   });
-  session.on("response_started", disarmIdle);
-  session.on("response_done", armIdle);
+  session.on("response_started", () => {
+    agentSpoke = true;
+    disarmIdle();
+  });
+  session.on("response_done", () => armIdle());
   // The caller has finished: the model is working out its answer.
   session.on("speech_stopped", () => emit({ type: "agent_thinking" }));
   session.on("agent_transcript_delta", (text) => emit({ type: "transcript_delta", role: "agent", text }));
@@ -506,6 +529,15 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     setTimeout(() => session.sendText("[Time is nearly up. Wrap up politely within twenty seconds.]"), Math.max(0, max - 30_000)),
     setTimeout(() => void ctx.actions.hangup("maximum call length reached"), max)
   );
-  session.sendText(profile.openingCue);
+  if (opening?.wait) {
+    // The caller speaks first (a presenter reading an inbound script): the cue
+    // is context, not a turn, and a phone caller hears a short tone once the
+    // line is open. If they stay silent, the agent greets after all.
+    if (opening.cue) session.sendText(opening.cue, { respond: false });
+    if (leg.format.type === "audio/pcmu") for (const frame of readyTone()) leg.sendAudio(frame);
+    armIdle(QUIET_OPENING_IDLE_MS);
+  } else {
+    session.sendText(opening?.cue ?? profile.openingCue);
+  }
   return finished;
 }

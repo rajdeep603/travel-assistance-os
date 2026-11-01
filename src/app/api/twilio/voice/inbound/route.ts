@@ -15,10 +15,17 @@ export const dynamic = "force-dynamic";
  * and connects its audio to the voice gateway (bidirectional Media Stream).
  * The gateway authenticates the stream with the signed ticket parameter —
  * Twilio drops query strings from Stream URLs, so it travels as a <Parameter>.
+ *
+ * "Ring my phone" (POST /api/calls/ring-me) reaches it too, with ?callId=:
+ * that call record already exists and says which inbound agent answers, in
+ * which language, and whether it waits for the caller to speak first.
  */
 export const POST = withTwiml(async (req) => {
   const p = await readTwilioRequest(req);
-  const profile = getAgent(env.hotlineAgent);
+  const rungId = new URL(req.url).searchParams.get("callId");
+  const rung = rungId ? await prisma.call.findUnique({ where: { id: rungId } }) : null;
+  if (rungId && (!rung || (rung.twilioCallSid && rung.twilioCallSid !== p.CallSid))) return twiml("<Hangup/>");
+  const profile = getAgent(rung?.agentProfile ?? env.hotlineAgent);
   if (!profile) throw new Error(`HOTLINE_AGENT "${env.hotlineAgent}" is not a known agent profile`);
 
   const active = await prisma.call.count({
@@ -26,6 +33,8 @@ export const POST = withTwiml(async (req) => {
       channel: "PHONE",
       status: { in: ["RINGING", "IN_PROGRESS"] },
       startedAt: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+      // The rung call is itself ringing.
+      ...(rung ? { id: { not: rung.id } } : {}),
     },
   });
   if (active >= env.maxConcurrentCalls) {
@@ -41,12 +50,17 @@ export const POST = withTwiml(async (req) => {
   const sipCase = sipCaseRef ? await prisma.case.findUnique({ where: { ref: sipCaseRef }, select: { id: true } }) : null;
   const sipLanguage = voiceLanguage(p["SipHeader_X-Language"] ?? null)?.name ?? null;
 
-  // "Ring my phone" (POST /api/calls/ring-me): the hotline dialled the caller, so
-  // Twilio's From is our number and To the person who answered; the record keeps
-  // the caller as the caller.
+  // "Ring my phone": the hotline dialled the caller, so Twilio's From is our
+  // number and To the person who answered; the record keeps the caller as the
+  // caller. (Rung calls carry their record; this covers one placed without it.)
   const rangThem = p.Direction === "outbound-api";
   // Twilio retries webhooks; one CallSid is one Call.
   const call =
+    (rung
+      ? rung.twilioCallSid
+        ? rung
+        : await prisma.call.update({ where: { id: rung.id }, data: { twilioCallSid: p.CallSid, status: "RINGING" } })
+      : null) ??
     (await prisma.call.findUnique({ where: { twilioCallSid: p.CallSid } })) ??
     (await withRef("call", (ref) =>
       prisma.call.create({

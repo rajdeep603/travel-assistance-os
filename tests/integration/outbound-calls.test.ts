@@ -8,6 +8,7 @@ import { createGateway } from "../../voice-gateway/gateway";
 import { gatewaySecret, signToken } from "@/lib/auth/tokens";
 import { placeOutboundCall, retryUnansweredCalls } from "@/lib/services/outbound-calls";
 import { setTelephony, type PlaceCallInput, type TelephonyService } from "@/lib/services/telephony";
+import { demoStep, rehearsalNote } from "@/lib/voice/demo-runs";
 import { zonedToUtc, zonedToday } from "@/lib/time";
 import { startFakeXai } from "../fakes/fake-xai";
 
@@ -110,6 +111,16 @@ describe("placing outbound calls", () => {
     expect(brief.patient).toContain("Oliver Bennett");
     const event = await prisma.caseEvent.findFirst({ where: { caseId, title: { contains: call.ref } } });
     expect(event?.actor).toBe("operator:elif");
+  });
+
+  it("briefs the agent on the step's rehearsal when a demo step is placed on a real phone", async () => {
+    const rehearsal = rehearsalNote(demoStep("hospital", "coordination")!.step);
+    const call = await placeOutboundCall({ profileId: "outbound-hospital-coordination", caseId, to: HOSPITAL, placedBy: "elif", rehearsal });
+    const brief = (call.outcome as { brief: Record<string, string> }).brief;
+    expect(brief.rehearsal).toContain("presenter playing The admissions desk");
+    expect(brief.rehearsal).toContain('1. They say: "Admissions, good morning."');
+    expect(brief.patient).toContain("Oliver Bennett");
+    await prisma.call.update({ where: { id: call.id }, data: { status: "COMPLETED", endedAt: new Date() } });
   });
 
   it("answers Twilio with a media stream for the call", async () => {

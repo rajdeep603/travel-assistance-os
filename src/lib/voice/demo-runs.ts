@@ -1,11 +1,14 @@
 import type { LeadSegment } from "@/lib/meeting-notes";
+import { HOTLINE_SCRIPTS } from "./call-scripts";
 
 // ---------------------------------------------------------------------------
 // Fifteen-minute demo runs: for each kind of prospect, three or four voice
 // agents in the order that tells their story, each on the demo case that fits
 // it, with the lines the presenter says as the other side. Pure data (no
 // database), so the Voice Agents page, the lead page and ⌘K can all read it;
-// `/api/voice/demo-runs` adds whether each step's case is ready.
+// `/api/voice/demo-runs` adds whether each step's case is ready. A step can
+// also run on a real phone (the presenter's own): the agent is then told the
+// exchange the step expects (`rehearsalNote`), so the call stays to the point.
 // ---------------------------------------------------------------------------
 
 export interface DemoCue {
@@ -30,8 +33,6 @@ export interface DemoStep {
   /** For outbound steps: the lines to answer with. */
   cues?: DemoCue[];
   youPlay: string;
-  /** What the prospect should notice while it runs. */
-  notice: string;
   minutes: number;
 }
 
@@ -40,8 +41,6 @@ export interface DemoTrack {
   label: string;
   /** Who this run is for, in a line. */
   audience: string;
-  /** What to close the meeting on, after the last step. */
-  closeOn: string;
   steps: DemoStep[];
 }
 
@@ -94,7 +93,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
     id: "assistance",
     label: "Assistance company",
     audience: "A case platform buyer: the 24/7 desk, the calls that fill it, and every call filed on the case.",
-    closeOn: "The case page: every call, e-mail and letter on one timeline.",
     steps: [
       {
         id: "where-is-my-case",
@@ -102,7 +100,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         agentId: "inbound-hotline",
         scriptId: "where-is-my-case",
         youPlay: "Carlos Garcia, knee injury in Beşiktaş (CASE-1015)",
-        notice: "Set the language to theirs first: the hotline finds the case from a name and date of birth and answers in it.",
         minutes: 4,
       },
       {
@@ -111,7 +108,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         agentId: "appointment-booking",
         scriptId: "book-doctor",
         youPlay: "A traveller in Taksim",
-        notice: "A case is opened and a provider booked while they watch; the booking lands on the stage.",
         minutes: 4,
       },
       {
@@ -121,7 +117,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1016",
         cues: REMINDER_CUES,
         youPlay: "Siobhan Murphy, whose eye appointment is tomorrow",
-        notice: "Outbound calls run from the records: the appointment, address and time come from the case.",
         minutes: 3,
       },
       {
@@ -131,7 +126,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1015",
         cues: WELLBEING_CUES,
         youPlay: "Carlos Garcia, the day after his visit",
-        notice: "The follow-up is recorded on the case; “worse” hands over to the doctor.",
         minutes: 3,
       },
     ],
@@ -140,7 +134,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
     id: "insurer",
     label: "Large group or insurer",
     audience: "A voice pilot on one flow: hospitals chasing guarantees, and claims completed by phone.",
-    closeOn: "Pick one call flow for a 60-day pilot.",
     steps: [
       {
         id: "hospital-line",
@@ -148,7 +141,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         agentId: "inbound-provider-line",
         scriptId: "hospital-guarantee",
         youPlay: "Marmara Demo Heart Center's international desk",
-        notice: "Nothing is shared before the patient is verified; the letter is found and re-sent on request.",
         minutes: 4,
       },
       {
@@ -158,7 +150,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1024",
         cues: LOG_CUES,
         youPlay: "The hospital's billing office",
-        notice: "Turkish by default; the receipt is confirmed on the case. The agent never changes the amount.",
         minutes: 3,
       },
       {
@@ -168,7 +159,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1021",
         cues: CLAIM_CUES,
         youPlay: "James Carter, the claimant",
-        notice: "The missing items come from the claim's documents; an upload link goes out by text. No promise of approval.",
         minutes: 4,
       },
       {
@@ -177,7 +167,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         agentId: "inbound-hotline",
         scriptId: "flight-delay",
         youPlay: "James Carter, Premier policy POL-TR-100945",
-        notice: "The payout is worked out from the policy; the claims team keeps the final decision.",
         minutes: 3,
       },
     ],
@@ -186,7 +175,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
     id: "cost-containment",
     label: "Cost containment",
     audience: "Bill review buyers: the euros found on an invoice, and the call that agrees them.",
-    closeOn: "The money card on CASE-1022 and the overview's savings row.",
     steps: [
       {
         id: "bill-negotiation",
@@ -195,7 +183,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1022",
         cues: BILL_CUES,
         youPlay: "Marmara Demo Heart Center's billing office (push back)",
-        notice: "“Make it ready” receives the hospital's final invoice and reviews it: €4,802.50 found. The agent holds its line and never names its limit.",
         minutes: 6,
       },
       {
@@ -204,7 +191,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         agentId: "inbound-hotline",
         scriptId: "claim-status",
         youPlay: "Siobhan Murphy, claim CLM-10241",
-        notice: "The claim's status and what it still needs, from the records, in their language.",
         minutes: 3,
       },
       {
@@ -214,7 +200,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         record: "RCV-0905",
         cues: PAYER_CUES,
         youPlay: "The payer's accounts desk, abroad",
-        notice: "The same platform works for the hospital's billing office; disputes go to a person, never a discount.",
         minutes: 4,
       },
     ],
@@ -223,7 +208,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
     id: "hospital",
     label: "Hospital international desk",
     audience: "A hospital that chases guarantees and payments by phone, in languages its desk doesn't speak.",
-    closeOn: "“Your desk stops chasing guarantees by phone.”",
     steps: [
       {
         id: "hospital-line",
@@ -231,7 +215,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         agentId: "inbound-provider-line",
         scriptId: "hospital-guarantee",
         youPlay: "The hospital's international patient desk",
-        notice: "The guarantee, its amount and a top-up request in one call, any hour.",
         minutes: 4,
       },
       {
@@ -241,7 +224,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         record: "RCV-0905",
         cues: PAYER_CUES,
         youPlay: "The payer's accounts desk, abroad",
-        notice: "Status, approved amount and payment date recorded on the invoice; what's missing is written down.",
         minutes: 4,
       },
       {
@@ -251,7 +233,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1024",
         cues: ADMISSIONS_CUES,
         youPlay: "The admissions desk",
-        notice: "Turkish by default; figures are repeated back; the update is filed on the case.",
         minutes: 4,
       },
       {
@@ -261,7 +242,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1022",
         cues: TRANSPORT_CUES,
         youPlay: "The treating cardiologist",
-        notice: "The doctor's answers decide the transport; the plan shows what an air ambulance would have cost.",
         minutes: 3,
       },
     ],
@@ -270,7 +250,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
     id: "air-ambulance",
     label: "Air ambulance or repatriation",
     audience: "Operators who want the assessment call to turn into a quote request without a hand-written brief.",
-    closeOn: "The transport card: the least intensive safe option, every option's cost, quote requests sent.",
     steps: [
       {
         id: "transport",
@@ -279,7 +258,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1022",
         cues: TRANSPORT_CUES,
         youPlay: "The treating cardiologist",
-        notice: "Stretcher, oxygen and escort become a transport plan; quote requests go to the operators.",
         minutes: 5,
       },
       {
@@ -289,7 +267,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1024",
         cues: ADMISSIONS_CUES,
         youPlay: "The admissions desk",
-        notice: "Ward, doctor and cost estimate on the case before the mission is planned.",
         minutes: 4,
       },
       {
@@ -299,7 +276,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1015",
         cues: WELLBEING_CUES,
         youPlay: "Carlos Garcia, the day after his visit",
-        notice: "The patient is called back after the visit; deterioration hands over to the doctor.",
         minutes: 3,
       },
     ],
@@ -308,7 +284,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
     id: "partner",
     label: "Technology partner",
     audience: "A CTO or integrator: the agents' tool steps, the records they write, and the API behind them.",
-    closeOn: "Integration by API and signed webhooks (the Developers page).",
     steps: [
       {
         id: "flight-delay",
@@ -316,7 +291,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         agentId: "inbound-hotline",
         scriptId: "flight-delay",
         youPlay: "James Carter, Premier policy POL-TR-100945",
-        notice: "Every tool call shows on the stage as a step; the transcript and summary land on the call record.",
         minutes: 3,
       },
       {
@@ -326,7 +300,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1022",
         cues: BILL_CUES,
         youPlay: "The hospital's billing office (push back)",
-        notice: "The brief, the guardrails and the agreement record: rules the agent can't talk its way around.",
         minutes: 5,
       },
       {
@@ -336,7 +309,6 @@ export const DEMO_TRACKS: DemoTrack[] = [
         caseRef: "CASE-1021",
         cues: CLAIM_CUES,
         youPlay: "James Carter, the claimant",
-        notice: "The missing list is computed from the documents; the upload link is a signed URL.",
         minutes: 4,
       },
     ],
@@ -350,4 +322,34 @@ export function demoTrack(id: string | null | undefined): DemoTrack | null {
 /** The agents a track's steps need prepared (hotline steps need nothing). */
 export function trackAgents(track: DemoTrack): string[] {
   return [...new Set(track.steps.filter((s) => s.caseRef || s.record).map((s) => s.agentId))];
+}
+
+/** A run and one of its steps by id, as a demo-step phone call names them. */
+export function demoStep(trackId: string | null | undefined, stepId: string | null | undefined): { track: DemoTrack; step: DemoStep } | null {
+  const track = demoTrack(trackId);
+  const step = track?.steps.find((s) => s.id === stepId);
+  return track && step ? { track, step } : null;
+}
+
+/** The lines of a step: its own cues, or the turns of the hotline script it reads. */
+export function stepCues(step: DemoStep): DemoCue[] {
+  return step.cues ?? HOTLINE_SCRIPTS.find((s) => s.id === step.scriptId)?.turns ?? [];
+}
+
+/**
+ * What the agent is told when a demo step runs on a real phone: who the
+ * presenter plays and the exchange they expect, turn by turn, so the agent
+ * keeps to that order and the presenter's lines fit. Facts still come from
+ * its tools: the note describes the flow, never the answers.
+ */
+export function rehearsalNote(step: DemoStep): string {
+  const turns = stepCues(step)
+    .map((c, i) => `${i + 1}. They say: "${c.say}" You then: ${c.hear}`)
+    .join(" ");
+  return (
+    `This call is a demonstration rehearsal: the person on the line is a presenter playing ${step.youPlay}, showing you to a prospect. ` +
+    `The exchange they expect, in order: ${turns} ` +
+    "Keep to this order and keep each turn short, so their next line fits. Never say their lines or answer for them: wait for each. " +
+    "Every fact still comes from your tools, as usual."
+  );
 }

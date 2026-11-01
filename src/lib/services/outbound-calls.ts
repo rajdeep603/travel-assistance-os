@@ -40,6 +40,8 @@ export interface PlaceCallInput {
   brief?: Record<string, unknown> | null;
   /** The caller's own reference for this call, kept on the outcome and sent back in webhooks. */
   clientRef?: string | null;
+  /** A demo step on a real phone: the exchange the presenter expects, added to the brief (src/lib/voice/demo-runs.ts). */
+  rehearsal?: string | null;
 }
 
 export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
@@ -81,7 +83,7 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
       : profile.buildRecordBrief
         ? await profile.buildRecordBrief(input.record ?? null)
         : null);
-  const brief = rawBrief ? briefWithFit(rawBrief, fit) : null;
+  const brief = rawBrief ? briefWithFit({ ...rawBrief, ...(input.rehearsal ? { rehearsal: input.rehearsal } : {}) }, fit) : null;
   const retries = input.retryOf
     ? (((await prisma.call.findUnique({ where: { id: input.retryOf } }))?.outcome as { retries?: number } | null)?.retries ?? 0) + 1
     : 0;

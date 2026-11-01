@@ -26,7 +26,7 @@ const fakeTelephony: TelephonyService = {
   configured: true,
   fromNumber: "+15550100199",
   validateSignature: (sig, url, params) => sig === getExpectedTwilioSignature(AUTH_TOKEN, url, params),
-  placeCall: async () => ({ sid: "CA_out" }),
+  placeCall: async () => ({ sid: `CA_out_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }),
   transfer: async (input) => {
     transfers.push(input);
   },
@@ -106,6 +106,100 @@ describe("Twilio inbound webhook", () => {
     // Twilio retries webhooks: the same CallSid must not create a second call.
     await POST(signedRequest("/api/twilio/voice/inbound", { CallSid: sid, From: "+447700900002", To: "+15550100199" }));
     expect(await prisma.call.count({ where: { twilioCallSid: sid } })).toBe(1);
+  });
+});
+
+describe("Ring my phone from a demo step", () => {
+  it("rings the presenter with the step's agent, which stays quiet until they read the first line", async () => {
+    process.env.OUTBOUND_ALLOWED_NUMBERS = "+447700900009";
+    const { POST: ringMe } = await import("@/app/api/calls/ring-me/route");
+    const res = await ringMe(
+      new Request("http://app:3000/api/calls/ring-me", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ to: "+44 7700 900009", language: "Turkish", demo: { run: "insurer", step: "hospital-line" } }),
+      }),
+      undefined
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    const call = await prisma.call.findUniqueOrThrow({ where: { id: body.call.id } });
+    createdCallSids.push(call.twilioCallSid!);
+    // The record exists before the phone rings: the step's own agent, the chosen language, the caller as the caller.
+    expect(call).toMatchObject({ direction: "INBOUND", channel: "PHONE", agentProfile: "inbound-provider-line", status: "RINGING", language: "Turkish", fromNumber: "+447700900009" });
+    const outcome = call.outcome as { rangThem: boolean; opening: { wait: boolean; cue: string }; demo: { run: string; step: string } };
+    expect(outcome.rangThem).toBe(true);
+    expect(outcome.opening.wait).toBe(true);
+    expect(outcome.opening.cue).toContain("Marmara Heart Center");
+    expect(outcome.demo).toEqual({ run: "insurer", step: "hospital-line" });
+
+    // Answered: Twilio reaches the inbound webhook with the call's id, which is the call (no second record).
+    const { POST: inbound } = await import("@/app/api/twilio/voice/inbound/route");
+    const params = { CallSid: call.twilioCallSid!, Direction: "outbound-api", From: "+15550100199", To: "+447700900009" };
+    const xml = await (await inbound(signedRequest(`/api/twilio/voice/inbound?callId=${call.id}`, params))).text();
+    expect(xml).toContain('<Stream url="wss://demo.example.com/ws/twilio">');
+    const ticket = xml.match(/name="ticket" value="([^"]+)"/)![1];
+    expect(await prisma.call.count({ where: { twilioCallSid: call.twilioCallSid! } })).toBe(1);
+    // Another call's SID with this id is hung up.
+    expect(await (await inbound(signedRequest(`/api/twilio/voice/inbound?callId=${call.id}`, { ...params, CallSid: "CA_someone_else" }))).text()).toContain("<Hangup/>");
+
+    // The media stream: the provider line, in Turkish, told the step's script, and silent.
+    const twilio = new WebSocket(`${gatewayUrl}/ws/twilio`);
+    const fromGateway: Record<string, any>[] = [];
+    twilio.on("message", (raw) => {
+      const msg = JSON.parse(raw.toString());
+      fromGateway.push(msg);
+      if (msg.event === "mark") twilio.send(JSON.stringify({ event: "mark", streamSid: "MZ9", mark: msg.mark }));
+    });
+    await new Promise<void>((resolve) => twilio.once("open", () => resolve()));
+    twilio.send(JSON.stringify({ event: "connected", protocol: "Call", version: "1.0.0" }));
+    twilio.send(JSON.stringify({ event: "start", start: { streamSid: "MZ9", callSid: call.twilioCallSid, accountSid: "AC1", customParameters: { ticket } } }));
+    const model = await fake.nextConnection();
+    const update = await model.waitFor((e) => e.type === "session.update");
+    expect(update.session.instructions).toContain("hospitals, clinics and other medical providers");
+    expect(update.session.instructions).toContain("Language for this call: Turkish");
+    model.send({ type: "session.updated" });
+    const cue = await model.waitFor((e) => e.type === "conversation.item.create");
+    expect(JSON.stringify(cue)).toContain("stay silent until they do");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(model.received.some((e) => e.type === "response.create")).toBe(false);
+    // The phone hears the ready tone from the bridge itself (20 ms μ-law frames), not the model.
+    const tone = fromGateway.filter((m) => m.event === "media");
+    expect(tone.length).toBeGreaterThan(10);
+    expect(Buffer.from(tone[0].media.payload, "base64")).toHaveLength(160);
+
+    // The presenter reads the first line; the agent answers.
+    twilio.send(JSON.stringify({ event: "media", streamSid: "MZ9", media: { track: "inbound", payload: "f39/" } }));
+    expect((await model.waitFor((e) => e.type === "input_audio_buffer.append")).audio).toBe("f39/");
+    model.say("Elbette. Hastanın doğum tarihini alabilir miyim?");
+    const spoken = Buffer.from("audio:Elbette. Hastanın doğum tarihini alabilir miyim?").toString("base64");
+    const deadline = Date.now() + 3000;
+    while (!fromGateway.some((m) => m.event === "media" && m.media.payload === spoken) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+    expect(fromGateway.some((m) => m.event === "media" && m.media.payload === spoken)).toBe(true);
+
+    twilio.send(JSON.stringify({ event: "stop", streamSid: "MZ9", stop: { accountSid: "AC1", callSid: call.twilioCallSid } }));
+    let final = call;
+    for (let i = 0; i < 50 && !final.endedAt; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      final = await prisma.call.findUniqueOrThrow({ where: { id: call.id } });
+    }
+    expect(final.endedAt).not.toBeNull();
+    expect(final.agentProfile).toBe("inbound-provider-line");
+    twilio.close();
+  });
+
+  it("still lets the hotline greet when rung without a step, and refuses an outbound step", async () => {
+    process.env.OUTBOUND_ALLOWED_NUMBERS = "+447700900009";
+    const { POST: ringMe } = await import("@/app/api/calls/ring-me/route");
+    const plain = await ringMe(new Request("http://app:3000/api/calls/ring-me", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: "+447700900009" }) }), undefined);
+    expect(plain.status).toBe(201);
+    const call = await prisma.call.findUniqueOrThrow({ where: { id: (await plain.json()).call.id } });
+    createdCallSids.push(call.twilioCallSid!);
+    expect(call.agentProfile).toBe("inbound-hotline");
+    expect((call.outcome as { opening?: unknown }).opening).toBeUndefined();
+
+    const outbound = await ringMe(new Request("http://app:3000/api/calls/ring-me", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: "+447700900009", demo: { run: "insurer", step: "log-check" } }) }), undefined);
+    expect(outbound.status).toBe(400);
   });
 });
 

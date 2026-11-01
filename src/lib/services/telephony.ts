@@ -26,11 +26,27 @@ export interface TransferInput {
   announcement: string;
 }
 
+/** What a number lookup says about a phone number (GET /api/v1/phone-lookup). */
+export interface PhoneLookup {
+  /** E.164, as the carrier normalised it. */
+  number: string;
+  valid: boolean;
+  countryCode: string | null;
+  nationalFormat: string | null;
+  /** "mobile", "landline", "voip"…; only when asked for (a paid lookup). */
+  lineType: string | null;
+  carrier: string | null;
+  /** Why it isn't valid (TOO_SHORT, INVALID_COUNTRY_CODE…). */
+  validationErrors: string[];
+}
+
 export interface TelephonyService {
   readonly name: string;
   readonly configured: boolean;
   /** The platform's own phone number (caller ID). */
   readonly fromNumber: string | null;
+  /** Whether a number is real and well formed (free), and with lineType what kind of line it is (paid). Carriers without it leave it out. */
+  lookup?(number: string, opts: { lineType: boolean }): Promise<PhoneLookup>;
   validateSignature(signature: string | null, url: string, params: Record<string, string>): boolean;
   placeCall(input: PlaceCallInput): Promise<{ sid: string }>;
   transfer(input: TransferInput): Promise<void>;
@@ -156,6 +172,20 @@ class TwilioTelephony implements TelephonyService {
     const res = await fetch(url, { headers: { Authorization: `Basic ${Buffer.from(`${this.accountSid}:${this.authToken}`).toString("base64")}` } });
     if (!res.ok) throw new Error(`Media download failed (${res.status})`);
     return Buffer.from(await res.arrayBuffer());
+  }
+
+  async lookup(number: string, opts: { lineType: boolean }): Promise<PhoneLookup> {
+    const r = await this.client.lookups.v2.phoneNumbers(number).fetch(opts.lineType ? { fields: "line_type_intelligence" } : {});
+    const intel = (r as unknown as { lineTypeIntelligence?: { type?: string | null; carrier_name?: string | null } | null }).lineTypeIntelligence ?? null;
+    return {
+      number: r.phoneNumber ?? number,
+      valid: Boolean(r.valid),
+      countryCode: r.countryCode ?? null,
+      nationalFormat: r.nationalFormat ?? null,
+      lineType: intel?.type ?? null,
+      carrier: intel?.carrier_name ?? null,
+      validationErrors: (r.validationErrors ?? []).map(String),
+    };
   }
 }
 

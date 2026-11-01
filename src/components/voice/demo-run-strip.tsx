@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ListChecks, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, ListChecks, RefreshCw } from "lucide-react";
 import { Button, Card, readApiError } from "@/components/ui";
 import type { AgentFit } from "@/lib/voice/agents/types";
 import { HOTLINE_SCRIPTS } from "@/lib/voice/call-scripts";
@@ -11,7 +11,9 @@ import type { DemoCue, DemoStep, DemoTrack } from "@/lib/voice/demo-runs";
 // The 15-minute demo run above the voice stage: pick who you're meeting, and
 // the steps appear in order, each on the case that fits its agent, with a dot
 // saying whether that case is ready. A step loads its agent, case and
-// language into the picker and shows the lines to say as the other side.
+// language into the picker and shows the lines to say as the other side,
+// with the call-my-phone controls under them. Nothing here is a note to the
+// presenter: the prospect watches this screen.
 // ---------------------------------------------------------------------------
 
 export interface ResolvedStep extends DemoStep {
@@ -35,6 +37,7 @@ export function DemoRunStrip({
   onTrack,
   onPrepared,
   disabled,
+  callPanel,
 }: {
   initialTrackId: string | null;
   initialStepId: string | null;
@@ -45,6 +48,8 @@ export function DemoRunStrip({
   /** Demo cases were repaired: reload the agent catalogue. */
   onPrepared: () => void;
   disabled: boolean;
+  /** The step's call-my-phone controls, shown under its cue card. */
+  callPanel?: ReactNode;
 }) {
   const [tracks, setTracks] = useState<ResolvedTrack[] | null>(null);
   const [trackId, setTrackId] = useState<string | null>(initialTrackId);
@@ -199,13 +204,11 @@ export function DemoRunStrip({
                 <Check size={14} className="text-brand" aria-hidden /> Every step is ready.
               </span>
             )}
-            <span className="ms-auto">
-              <span className="font-semibold text-ink">Close on:</span> {track.closeOn}
-            </span>
           </div>
           {error ? <p className="text-xs text-red-700">{error}</p> : null}
 
           {step ? <CueCard step={step} /> : null}
+          {step ? callPanel : null}
         </div>
       ) : null}
     </Card>
@@ -249,12 +252,6 @@ function CueCard({ step }: { step: ResolvedStep }) {
         </ol>
       ) : null}
       {script?.note ? <p className="mt-2 text-xs text-muted">{script.note}</p> : null}
-      <p className="mt-2 flex items-start gap-1.5 text-xs text-muted">
-        <ChevronDown size={13} className="mt-0.5 shrink-0 -rotate-90 rtl:rotate-90" aria-hidden />
-        <span>
-          <span className="font-semibold text-ink">They should notice:</span> {step.notice}
-        </span>
-      </p>
     </div>
   );
 }

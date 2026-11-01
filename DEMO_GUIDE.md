@@ -112,11 +112,60 @@ starts an agent on a case that doesn't fit; it offers the ready case instead,
 and from a case page only the agents the case fits are offered.
 
 Each step runs either way: **Start conversation** for the browser (you play
-the other side), or **Call by phone** under the picker: pick the number (add
-the prospect's own mobile with its country code, **Add a number**) and the
-agent rings it about that case; for hotline steps the hotline rings it and
-greets. The call then shows live under the stage with its transcript and
-tool steps, so the prospect hears it on their phone while the room watches.
+the other side), or **Call my phone** under the step's lines. The number is
+your own mobile by default (the first approved number; **Add a number** puts
+a visitor's in, with its country code), with the language beside it. For an
+inbound step the step's agent rings the phone, plays a short tone and stays
+quiet: read the first line and it answers, in the language chosen or the one
+you speak. For an outbound step the agent rings the phone and opens the call
+along the step's lines, so your answers fit. The call runs between the phone
+and the server, so the booth's Wi-Fi only carries the click; it shows live
+under the demo run with its transcript and tool steps. Nothing on that screen
+is a note to you: the prospect watches it. What to point out is here instead.
+
+**What to point out, per run (not on screen):**
+
+- **Assistance company.** "Where is my case?": set the language to theirs
+  first; the hotline finds the case from a name and date of birth and answers
+  in it. A traveller needs a doctor: a case is opened and a provider booked
+  while they watch; the booking lands on the stage. The reminder call: outbound
+  calls run from the records (appointment, address, time). The follow-up call
+  is recorded on the case; "worse" hands over to the doctor. Close on the case
+  page: every call, e-mail and letter on one timeline.
+- **Large group or insurer.** The hospital line: nothing is shared before the
+  patient is verified; the letter is found and re-sent on request. Did the
+  letter arrive?: Turkish by default; the receipt is confirmed on the case and
+  the agent never changes the amount. The claim missing documents: the missing
+  items come from the claim's documents, an upload link goes out by text, no
+  promise of approval. Flight delay: the payout is worked out from the policy;
+  the claims team keeps the final decision. Close on one call flow for a
+  60-day pilot.
+- **Cost containment.** Negotiation: *Make it ready* receives the hospital's
+  final invoice and reviews it (€4,802.50 found); the agent holds its line and
+  never names its limit. "Where is my claim?": status and what it still needs,
+  from the records, in their language. Chasing a payer: the same platform works
+  for the hospital's billing office; disputes go to a person, never a discount.
+  Close on the money card on CASE-1022 and the overview's savings row.
+- **Hospital international desk.** Your desk calls about a guarantee: the
+  guarantee, its amount and a top-up request in one call, any hour. Chasing the
+  payer's invoice: status, approved amount and payment date recorded on the
+  invoice; what's missing is written down. The assistance company calls your
+  admissions desk: Turkish by default, figures repeated back, the update filed
+  on the case. The journey home: the doctor's answers decide the transport; the
+  plan shows what an air ambulance would have cost. Close on "your desk stops
+  chasing guarantees by phone".
+- **Air ambulance or repatriation.** The assessment call: stretcher, oxygen
+  and escort become a transport plan; quote requests go to the operators.
+  Coordinating with the hospital: ward, doctor and cost estimate on the case
+  before the mission is planned. After discharge: the patient is called back;
+  deterioration hands over to the doctor. Close on the transport card: the
+  least intensive safe option, every option's cost, quote requests sent.
+- **Technology partner.** The coverage question: every tool call shows on the
+  stage as a step; transcript and summary land on the call record. The
+  negotiation: the brief, the guardrails and the agreement record are rules the
+  agent can't talk its way around. The claim completed by phone: the missing
+  list is computed from the documents; the upload link is a signed URL. Close
+  on integration by API and signed webhooks (the Developers page).
 
 | Who | Demo run | Steps |
 |---|---|---|
