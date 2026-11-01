@@ -98,7 +98,29 @@ for you to type the card in.
   figures on one A4 page, for the CFO who asks "can I have that?".
 - **Leads → Export CSV** gives every lead as a spreadsheet for the CRM.
 
-## 20-minute meetings: what to show, by who you're meeting
+## 15-minute meetings: the demo runs
+
+Each kind of prospect has a **demo run** on the Voice Agents page (`/voice?run=…`;
+also **Start demo run** on a booked meeting's lead page, and "Demo run: …" in
+⌘K): three or four agents in the order that tells their story, each on the
+demo case that fits it, with the lines you say as the other side and what the
+prospect should notice. Every step has a dot: green when its case is ready,
+amber when a rehearsal used it up (a letter acknowledged, an appointment
+cancelled, a bill agreed) or its dates drifted. **Make all ready** repairs the
+pinned cases in one click: press it before each meeting. The picker never
+starts an agent on a case that doesn't fit; it offers the ready case instead,
+and from a case page only the agents the case fits are offered.
+
+| Who | Demo run | Steps |
+|---|---|---|
+| **Assistance company** | `/voice?run=assistance` | "Where is my case?" (their language) → a traveller needs a doctor → the reminder call (`CASE-1016`) → the follow-up call (`CASE-1015`) |
+| **Large group / insurer** | `/voice?run=insurer` | a hospital asks about a guarantee → did the letter arrive? (`CASE-1024`) → the claim missing documents (`CASE-1021`) → "Is my flight delay covered?" |
+| **Cost containment** | `/voice?run=cost-containment` | negotiate the overbilled invoice (`CASE-1022`; *Make it ready* receives and reviews it) → "Where is my claim?" → chasing a payer (`RCV-0905`) |
+| **Hospital international desk** | `/voice?run=hospital` | your desk calls about a guarantee → chasing the payer's invoice (`RCV-0905`) → the assistance company calls your admissions desk (`CASE-1024`) → planning the journey home (`CASE-1022`) |
+| **Air ambulance / repatriation** | `/voice?run=air-ambulance` | the assessment call (`CASE-1022`) → coordinating with the hospital (`CASE-1024`) → after discharge (`CASE-1015`) |
+| **Tech partner / CTO** | `/voice?run=partner` | a coverage question with its tool steps → a negotiation with a private limit (`CASE-1022`) → a claim completed by phone (`CASE-1021`) |
+
+## The longer version: 20 minutes, by who you're meeting
 
 Open the **Voice Agents** page (`/voice`) before they sit down. Pick the
 agent and **set the language to theirs** (Spanish, Arabic, Turkish, German,

@@ -23,6 +23,20 @@ export interface AgentContext {
   language?: string | null;
 }
 
+/**
+ * Whether a case (or record) gives an outbound agent something real to call
+ * about: a reminder needs an upcoming appointment, the claims call needs
+ * missing documents. Checked before a session starts, so a presenter is never
+ * put on a call the agent can't carry.
+ */
+export interface AgentFit {
+  ready: boolean;
+  /** Why it isn't ready, in plain words; empty when it is. */
+  why: string;
+  /** The record the agent will talk about ("APT-2026-1009 · Tue 3 Nov 10:30 · Kadikoy Demo Eye Institute"). */
+  record?: string | null;
+}
+
 export interface AgentGuardrails {
   /** What it never does, beyond the rules every agent shares (BASE_NEVER). */
   never: string[];
@@ -62,6 +76,10 @@ export interface AgentProfile {
   requiresCase?: boolean;
   /** Outbound only: facts for the agent, built from the case before dialling. */
   buildBrief?(caseId: string): Promise<Record<string, unknown>>;
+  /** Outbound only: does this case give the agent something to call about? Uses the same selection as buildBrief. */
+  fit?(caseId: string): Promise<AgentFit>;
+  /** Outbound only, for agents that call about a record rather than a case: is that record (or the default one) ready? */
+  fitRecord?(record?: string | null): Promise<AgentFit>;
   /**
    * Outbound only, for calls about a record rather than a case (an invoice,
    * "RCV-1003"): its facts; the longest-waiting suitable record when none is given.

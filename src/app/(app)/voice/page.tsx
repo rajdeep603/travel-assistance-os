@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Info, Mic, MicOff, PhoneCall, PhoneOff, ShieldAlert } from "lucide-react";
 import { ErrorBanner, PageHeader } from "@/components/ui";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
-import { AgentPicker, type VoiceCatalog } from "@/components/voice/agent-picker";
+import { AgentPicker, blockedReason, type VoiceCatalog } from "@/components/voice/agent-picker";
+import { DemoRunStrip, type ResolvedStep } from "@/components/voice/demo-run-strip";
 import { BookingPanel, ProvidersPanel, ResultsPanel } from "@/components/voice/session-panels";
 import { TranscriptPanel } from "@/components/voice/transcript-panel";
 import { StageButton, VoiceStage } from "@/components/voice/voice-stage";
@@ -61,14 +62,31 @@ function statusLine(s: VoiceState, agentLabel: string | null): { title: string; 
 const BOOKING_AGENTS = new Set(["appointment-booking", "inbound-hotline"]);
 const DEFAULT_AGENT = "appointment-booking";
 
+/** Keeps the choice in the address bar, so a refresh or a shared link reopens it. */
+function remember(next: Partial<Record<"agent" | "lang" | "caseId" | "record" | "run" | "step", string | null>>) {
+  const params = new URLSearchParams(window.location.search);
+  for (const [key, value] of Object.entries(next)) {
+    if (value === undefined) continue;
+    if (value) params.set(key, value);
+    else params.delete(key);
+  }
+  window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
+}
+
 export default function VoicePage() {
   const { state, start, stop, sendText, setMuted, getLevels } = useGrokVoice();
   const urlCaseId = useQueryParam("caseId");
   const urlAgent = useQueryParam("agent");
   const urlLanguage = useQueryParam("lang");
   const urlRecord = useQueryParam("record");
+  const urlRun = useQueryParam("run");
+  const urlStep = useQueryParam("step");
   const [agentId, setAgentId] = useState(DEFAULT_AGENT);
   const [language, setLanguage] = useState("");
+  // The case every agent is judged on: the one the page was opened for, or one
+  // picked here ("Use CASE-1021", a demo-run step). Without one, each agent brings its demo case.
+  const [caseOverrideId, setCaseOverrideId] = useState<string | null>(null);
+  const [recordRef, setRecordRef] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<VoiceCatalog | null>(null);
   useEffect(() => {
     if (urlAgent) setAgentId(urlAgent);
@@ -76,13 +94,19 @@ export default function VoicePage() {
   useEffect(() => {
     if (urlLanguage) setLanguage(urlLanguage);
   }, [urlLanguage]);
+  useEffect(() => {
+    if (urlCaseId) setCaseOverrideId(urlCaseId);
+  }, [urlCaseId]);
+  useEffect(() => {
+    if (urlRecord) setRecordRef(urlRecord);
+  }, [urlRecord]);
 
   const loadCatalog = useCallback(() => {
-    fetch("/api/voice/agents")
+    fetch(`/api/voice/agents${caseOverrideId ? `?caseId=${encodeURIComponent(caseOverrideId)}` : ""}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((body) => body && setCatalog(body))
       .catch(() => undefined);
-  }, []);
+  }, [caseOverrideId]);
   useEffect(loadCatalog, [loadCatalog]);
 
   // An agent the picker doesn't offer (say, an old link) falls back to the default.
@@ -90,24 +114,30 @@ export default function VoicePage() {
     if (catalog && !catalog.scenarios.some((s) => s.agentId === agentId)) setAgentId(DEFAULT_AGENT);
   }, [catalog, agentId]);
   const scenario = catalog?.scenarios.find((s) => s.agentId === agentId) ?? null;
-  // Opened from a case, the session is for that case; otherwise outbound agents use their demo case.
-  const caseId = urlCaseId ?? (scenario?.direction === "outbound" ? (scenario.case?.id ?? null) : null);
+  // The catalogue judged every agent on the chosen case, or gave each its demo case.
+  const caseId = scenario?.case?.id ?? null;
   const linkedCase = useCaseContext(caseId);
+  // An outbound agent starts only on a case (or record) that gives it something to call about.
+  const blocked = blockedReason(scenario);
   const live = state.phase === "live";
   const busy = state.phase === "starting";
   const { title, detail } = statusLine(state, scenario?.label ?? null);
   const notConfigured = state.error?.code === "VOICE_NOT_CONFIGURED";
 
-  /** Keeps the choice in the address bar, so a refresh or a shared link reopens it. */
-  function remember(next: { agent?: string; lang?: string }) {
-    const params = new URLSearchParams(window.location.search);
-    if (next.agent !== undefined) params.set("agent", next.agent);
-    if (next.lang !== undefined) {
-      if (next.lang) params.set("lang", next.lang);
-      else params.delete("lang");
-    }
-    window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
+  /** Judges every agent on this case from now on (the ready demo case the picker offered). */
+  function pickCase(kase: { id: string } | null) {
+    setCaseOverrideId(kase?.id ?? null);
+    remember({ caseId: kase?.id ?? null });
   }
+
+  /** A demo-run step: its agent, case (or record) and language, all at once. */
+  const openStep = useCallback((step: ResolvedStep) => {
+    setAgentId(step.agentId);
+    if (step.language) setLanguage(step.language);
+    setCaseOverrideId(step.case?.id ?? null);
+    setRecordRef(step.record ?? null);
+    remember({ agent: step.agentId, lang: step.language ?? undefined, caseId: step.case?.id ?? null, record: step.record ?? null, run: step.trackId, step: step.id });
+  }, []);
 
   // When the session went live, for the stage's call timer.
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -124,7 +154,16 @@ export default function VoicePage() {
         subtitle="Pick an agent and a language, then play the other side: a traveller, a hospital desk or a treating doctor. Every call is filed on the case."
       />
 
-      {linkedCase && urlCaseId ? <CaseContextBanner kase={linkedCase} action="This voice session works" /> : null}
+      <DemoRunStrip
+        initialTrackId={urlRun}
+        initialStepId={urlStep}
+        onStep={openStep}
+        onTrack={(id) => remember({ run: id, step: null })}
+        onPrepared={loadCatalog}
+        disabled={live || busy}
+      />
+
+      {linkedCase && caseOverrideId ? <CaseContextBanner kase={linkedCase} action="This voice session works" /> : null}
 
       {notConfigured ? (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
@@ -162,8 +201,8 @@ export default function VoicePage() {
                 remember({ lang: name });
               }}
               onPrepared={loadCatalog}
+              onUseCase={pickCase}
               disabled={live || busy}
-              caseOverride={urlCaseId && linkedCase ? { id: linkedCase.id, ref: linkedCase.ref } : null}
             />
           ) : null}
         </div>
@@ -197,8 +236,10 @@ export default function VoicePage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => void start({ caseId: caseId ?? undefined, profile: agentId, language: language || undefined, record: urlRecord ?? scenario?.record?.ref })}
-                  className="inline-flex h-14 items-center gap-2.5 rounded-full bg-brand px-7 text-base font-semibold text-white shadow-lg shadow-brand/30 transition-colors duration-150 hover:bg-brand-deep focus-visible:outline-brand-2 active:scale-[0.98]"
+                  disabled={Boolean(blocked)}
+                  title={blocked ?? undefined}
+                  onClick={() => void start({ caseId: caseId ?? undefined, profile: agentId, language: language || undefined, record: recordRef ?? scenario?.record?.ref })}
+                  className="inline-flex h-14 items-center gap-2.5 rounded-full bg-brand px-7 text-base font-semibold text-white shadow-lg shadow-brand/30 transition-colors duration-150 hover:bg-brand-deep focus-visible:outline-brand-2 enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <PhoneCall size={19} aria-hidden />
                   {state.phase === "idle" ? "Start conversation" : "Start again"}

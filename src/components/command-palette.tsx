@@ -17,6 +17,7 @@ import {
   PanelLeft,
   Phone,
   Plane,
+  PlayCircle,
   Presentation,
   ReceiptText,
   Search,
@@ -32,6 +33,7 @@ import { TIME_ZONES } from "@/lib/time-zone";
 import { useUiLanguage } from "@/components/i18n";
 import { UI_LANGUAGES } from "@/lib/i18n";
 import { SIDEBAR_TOGGLE_EVENT } from "@/lib/sidebar";
+import { DEMO_TRACKS } from "@/lib/voice/demo-runs";
 import type { SearchHit, SearchKind } from "@/lib/services/search";
 import { T } from "@/components/i18n";
 
@@ -172,6 +174,17 @@ export function CommandPalette() {
   const { lang, setLang } = useUiLanguage();
   const commands = useMemo<Item[]>(() => {
     const items: Item[] = NAV_ITEMS.map((n) => ({ id: `nav:${n.href}`, group: "Go to", label: n.label, icon: n.icon, run: () => go(n.href) }));
+    for (const t of DEMO_TRACKS) {
+      items.push({
+        id: `run:${t.id}`,
+        group: "Demo runs",
+        label: `Demo run: ${t.label}`,
+        hint: t.steps.map((s) => s.title).join(" · "),
+        icon: PlayCircle,
+        keywords: `demo run meeting rehearse ${t.steps.map((s) => s.agentId.replace(/-/g, " ")).join(" ")}`,
+        run: () => go(`/voice?run=${encodeURIComponent(t.id)}`),
+      });
+    }
     for (const a of agents) {
       items.push({ id: `voice:${a.agentId}`, group: "Voice agents", label: a.label, hint: `You play: ${a.youPlay}`, icon: Mic, keywords: "voice call agent talk", run: () => go(`/voice?agent=${encodeURIComponent(a.agentId)}`) });
     }

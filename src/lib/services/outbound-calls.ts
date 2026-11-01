@@ -5,6 +5,7 @@ import { ApiError, badRequest, forbidden, notFound } from "@/lib/errors";
 import { maskPhone } from "@/lib/format";
 import { withRef } from "@/lib/refs";
 import { getAgent } from "@/lib/voice/agents/registry";
+import { briefWithFit } from "@/lib/voice/fit-note";
 import { voiceLanguage } from "@/lib/voice/languages";
 import { getTelephony } from "./telephony";
 
@@ -64,12 +65,17 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
     throw notFound("Case");
   }
 
-  const brief =
+  // Does the case (or record) give the agent something to call about? An unfit
+  // one is still dialled when asked, but the agent is told why, not left to improvise.
+  const fit =
+    input.caseId && profile.fit ? await profile.fit(input.caseId) : !input.caseId && profile.fitRecord ? await profile.fitRecord(input.record ?? null) : null;
+  const rawBrief =
     input.caseId && profile.buildBrief
       ? await profile.buildBrief(input.caseId)
       : profile.buildRecordBrief
         ? await profile.buildRecordBrief(input.record ?? null)
         : null;
+  const brief = rawBrief ? briefWithFit(rawBrief, fit) : null;
   const retries = input.retryOf
     ? (((await prisma.call.findUnique({ where: { id: input.retryOf } }))?.outcome as { retries?: number } | null)?.retries ?? 0) + 1
     : 0;
@@ -90,10 +96,11 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
         language: voiceLanguage(input.language)?.name ?? null,
         outcome: {
           brief,
+          ...(fit ? { fit } : {}),
           retries,
           ...(input.retryOf ? { retryOf: input.retryOf } : {}),
           ...(input.extraOutcome ?? {}),
-        } as Prisma.InputJsonValue,
+        } as unknown as Prisma.InputJsonValue,
       },
     })
   );

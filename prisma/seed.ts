@@ -158,6 +158,35 @@ async function main() {
   await seedNetwork(caseIds, addOnly);
   await seedTransportPlans(caseIds, addOnly);
   await seedFamilyUpdates(caseIds);
+  // --- Appointments -----------------------------------------------------------
+  // Seeded before the deploy-mode return: the voice demos' reminder, follow-up and
+  // hospital calls need them. A deploy creates the ones the database lacks.
+  for (const a of APPOINTMENTS) {
+    const { patientRef, providerRef, caseRef, daysFromNow, time, notes, ...rest } = a;
+    const when = slotAt(daysFromNow, time);
+    const data = {
+      ...rest,
+      notes: notes ?? null,
+      scheduledAt: when,
+      patientId: patientIds.get(patientRef)!,
+      providerId: providerIds.get(providerRef)!,
+      caseId: caseRef ? caseIds.get(caseRef) : undefined,
+    };
+    if (addOnly && (await prisma.appointment.findUnique({ where: { ref: a.ref }, select: { id: true } }))) continue;
+    try {
+      await prisma.appointment.upsert({
+        where: { ref: a.ref },
+        create: data,
+        update: data,
+      });
+    } catch (err) {
+      // Re-seeding a live database: a visitor may have booked this slot since.
+      if (!isUniqueViolation(err)) throw err;
+      console.warn(`  ! ${a.ref}: its slot is booked by a live appointment — left unchanged`);
+    }
+  }
+  console.log(`  appointments: ${APPOINTMENTS.length}`);
+
   if (addOnly) {
     await seedRegionalClaims({ patientIds, caseIds }, true);
     await seedCallHistory(SEED_CLOCK, caseIds, { onlyMissing: true });
@@ -189,31 +218,6 @@ async function main() {
   }
   console.log(`  claims: ${CLAIMS.length}`);
 
-  // --- Appointments -----------------------------------------------------------
-  for (const a of APPOINTMENTS) {
-    const { patientRef, providerRef, caseRef, daysFromNow, time, notes, ...rest } = a;
-    const when = slotAt(daysFromNow, time);
-    const data = {
-      ...rest,
-      notes: notes ?? null,
-      scheduledAt: when,
-      patientId: patientIds.get(patientRef)!,
-      providerId: providerIds.get(providerRef)!,
-      caseId: caseRef ? caseIds.get(caseRef) : undefined,
-    };
-    try {
-      await prisma.appointment.upsert({
-        where: { ref: a.ref },
-        create: data,
-        update: data,
-      });
-    } catch (err) {
-      // Re-seeding a live database: a visitor may have booked this slot since.
-      if (!isUniqueViolation(err)) throw err;
-      console.warn(`  ! ${a.ref}: its slot is booked by a live appointment — left unchanged`);
-    }
-  }
-  console.log(`  appointments: ${APPOINTMENTS.length}`);
 
   // --- Knowledge base ----------------------------------------------------------
   for (const k of KNOWLEDGE_DOCUMENTS) {

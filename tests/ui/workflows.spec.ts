@@ -236,3 +236,52 @@ test("the Call Center gives the presenter scripts to read on a hotline call", as
   await page.getByRole("button", { name: /Emergency/ }).click();
   await expect(page.getByText(/chest pain and he's struggling to breathe/)).toBeVisible();
 });
+
+test("an agent never starts on a case that doesn't fit it: the ready case is a click away", async ({ page }) => {
+  // CASE-1018 has no appointment to remind about; CASE-1016 is the reminder's demo case.
+  await page.request.post("/api/voice/prepare", { data: { agentId: "outbound-appointment-reminder" } });
+  const hits = (await (await page.request.get("/api/search?q=CASE-1018")).json()).hits as { ref?: string; href: string }[];
+  const caseId = hits.find((h) => h.ref === "CASE-1018")!.href.split("/cases/")[1];
+  await page.goto(`/voice?agent=outbound-appointment-reminder&caseId=${caseId}`);
+  await expect(page.getByTestId("agent-unfit")).toContainText("Not ready on CASE-1018");
+  await expect(page.getByRole("button", { name: "Start conversation" })).toBeDisabled();
+  await page.getByRole("button", { name: /Use CASE-1016/ }).click();
+  await expect(page.getByTestId("agent-fit")).toContainText("APT-2026-1009");
+  await expect(page.getByRole("button", { name: "Start conversation" })).toBeEnabled();
+  await expect(page.getByRole("link", { name: "CASE-1016" }).first()).toBeVisible();
+});
+
+test("from a case, only the agents it fits are offered", async ({ page }) => {
+  await page.request.post("/api/voice/prepare", { data: { agentId: "outbound-claim-missing-info" } });
+  await page.goto("/cases/CASE-1021");
+  await expect(page.getByText("AI calls about this case")).toBeVisible();
+  await expect(page.getByText(/Calls about CLM-10243/)).toBeVisible();
+  await page.getByText(/^Not for this case \(\d+\)/).click();
+  await expect(page.getByText(/^Appointment reminder:/)).toBeVisible();
+});
+
+test("a demo run loads each step into the picker with its cue card", async ({ page }) => {
+  await page.goto("/voice?run=assistance");
+  await expect(page.getByRole("button", { name: "Assistance company", pressed: true })).toBeVisible();
+  await expect(page.getByText(/Every step is ready\.|isn't ready|aren't ready/)).toBeVisible();
+  if (!(await page.getByText("Every step is ready.").isVisible())) {
+    await page.getByRole("button", { name: "Make all ready" }).click();
+    await expect(page.getByText("Every step is ready.")).toBeVisible({ timeout: 60_000 });
+  }
+  await page.getByRole("button", { name: /The reminder call/ }).click();
+  await expect(page.getByRole("combobox", { name: "Voice agent" })).toHaveValue("outbound-appointment-reminder");
+  await expect(page.getByTestId("cue-card")).toContainText("Siobhan Murphy");
+  await expect(page.getByRole("link", { name: "CASE-1016" }).first()).toBeVisible();
+  await expect(page).toHaveURL(/run=assistance/);
+  await expect(page).toHaveURL(/step=reminder/);
+});
+
+test("⌘K starts a demo run", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.press("ControlOrMeta+k");
+  const dialog = page.getByRole("dialog", { name: "Search and commands" });
+  await dialog.getByRole("combobox").fill("Demo run");
+  await dialog.getByRole("option", { name: /Demo run: Cost containment/ }).click();
+  await expect(page).toHaveURL(/\/voice\?run=cost-containment/);
+  await expect(page.getByRole("button", { name: "Cost containment", pressed: true })).toBeVisible();
+});

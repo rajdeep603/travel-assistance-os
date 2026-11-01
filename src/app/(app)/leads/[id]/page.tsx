@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CalendarPlus, Download, FileText, Printer, Smartphone, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Download, FileText, Mic, Printer, Smartphone, Trash2 } from "lucide-react";
 import { Button, Card, ErrorBanner, KeyValue, PageHeader, SectionTitle, SkeletonRows, StatusBadge, readApiError } from "@/components/ui";
 import { BeforeMeeting } from "@/components/leads/before-meeting";
 import { FollowUp } from "@/components/leads/follow-up";
@@ -15,6 +15,7 @@ import { printElement } from "@/lib/client/print";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import type { LeadSourceId } from "@/lib/lead-sources";
 import { painLabel, segmentLabel } from "@/lib/meeting-notes";
+import { demoTrack } from "@/lib/voice/demo-runs";
 
 // One lead: who it is, where it stands, and the quotation exactly as it was
 // submitted, to print or download again. A booked meeting opens on its brief.
@@ -221,6 +222,12 @@ export default function LeadPage() {
             }
           >
             <div className="flex flex-wrap items-center gap-2">
+              {demoTrack(lead.segment) ? (
+                <Button variant="secondary" onClick={() => router.push(`/voice?run=${encodeURIComponent(lead.segment!)}`)}>
+                  <Mic size={15} aria-hidden />
+                  Start demo run
+                </Button>
+              ) : null}
               {lead.meetingAt || lead.brief || planning ? null : (
                 <Button variant="secondary" onClick={() => setPlanning(true)}>
                   <CalendarPlus size={15} aria-hidden />

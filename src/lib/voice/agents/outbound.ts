@@ -1,9 +1,10 @@
+import type { ClaimStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { negotiationBrief, reviewToNegotiate } from "@/lib/services/bill-negotiation";
 import { checkCompleteness } from "@/lib/services/claims";
-import { utcToZoned } from "@/lib/time";
+import { formatPlainDate, utcToZoned } from "@/lib/time";
 import { COMPANY, SAFETY_GUARDRAILS, VOICE_STYLE, contextBlock } from "./prompt";
-import type { AgentContext, AgentProfile } from "./types";
+import type { AgentContext, AgentFit, AgentProfile } from "./types";
 
 // ---------------------------------------------------------------------------
 // Outbound agents. Each one calls about a case: the brief (built from the
@@ -34,6 +35,64 @@ async function caseProvider(caseId: string) {
   const kase = await caseWithPeople(caseId);
   return { kase, provider: kase.appointments[0]?.provider ?? null };
 }
+
+// ---------------------------------------------------------------------------
+// What each agent calls about is chosen once, by one selector, and used by
+// both its brief and its readiness check (`fit`): a presenter is never told
+// "ready" about one record while the agent is briefed on another.
+// ---------------------------------------------------------------------------
+
+const OPEN_CLAIM: ClaimStatus[] = ["SUBMITTED", "PROCESSING", "NEEDS_REVIEW", "INFO_REQUESTED"];
+const CAN_CHASE = ["SUBMITTED", "ACKNOWLEDGED"];
+
+/** The appointment to remind about: the soonest one still ahead and not cancelled. */
+async function upcomingAppointment(caseId: string) {
+  return prisma.appointment.findFirst({
+    where: { caseId, status: { in: ["PENDING", "CONFIRMED"] }, scheduledAt: { gte: new Date() } },
+    orderBy: { scheduledAt: "asc" },
+    include: { provider: true },
+  });
+}
+
+/** The visit to ask after: the latest completed one. */
+async function completedVisit(caseId: string) {
+  return prisma.appointment.findFirst({ where: { caseId, status: "COMPLETED" }, orderBy: { scheduledAt: "desc" }, include: { provider: true } });
+}
+
+/** The claim to complete: the latest one still open, and what its documents lack. */
+async function claimToComplete(caseId: string) {
+  const claim = await prisma.claim.findFirst({
+    where: { caseId, status: { in: OPEN_CLAIM } },
+    orderBy: { createdAt: "desc" },
+    include: { patient: true, documents: { include: { extraction: true } } },
+  });
+  const missing = claim ? checkCompleteness(claim).filter((i) => i.severity === "error").map((i) => i.message) : [];
+  return { claim, missing };
+}
+
+/** The guarantee letter whose receipt is checked: the latest one sent (or already acknowledged). */
+async function letterToCheck(caseId: string) {
+  return prisma.guaranteeLetter.findFirst({ where: { caseId, status: { in: ["SENT", "ACKNOWLEDGED"] } }, orderBy: { createdAt: "desc" } });
+}
+
+/** The diagnosis a document on the case states, for the transport assessment. */
+async function diagnosisOnFile(caseId: string) {
+  return prisma.documentExtraction.findFirst({
+    where: { diagnosis: { not: null }, document: { caseId } },
+    orderBy: { createdAt: "desc" },
+    select: { diagnosis: true, admissionDate: true, hospital: true },
+  });
+}
+
+/** "Tue 3 Nov 10:30", Istanbul time. */
+function whenLabel(instant: Date): string {
+  const z = utcToZoned(instant);
+  return `${formatPlainDate(z.date)} ${z.time}`;
+}
+
+const ready = (record: string): AgentFit => ({ ready: true, why: "", record });
+const notReady = (why: string, record: string | null = null): AgentFit => ({ ready: false, why, record });
+const spoken = (status: string) => status.toLowerCase().replace(/_/g, " ");
 
 export const hospitalCoordinationAgent: AgentProfile = {
   id: "outbound-hospital-coordination",
@@ -68,6 +127,12 @@ export const hospitalCoordinationAgent: AgentProfile = {
       doctor: provider?.name ?? "unknown",
       reportEmail: "medical@demo-assistance.example",
     };
+  },
+  async fit(caseId) {
+    const { provider } = await caseProvider(caseId);
+    return provider
+      ? ready(`${provider.facility} (${provider.district}) · ${provider.name}`)
+      : notReady("No hospital is booked on this case, so there is no admissions desk to call.");
   },
   async suggestNumber(caseId) {
     return (await caseProvider(caseId)).provider?.phone ?? null;
@@ -127,7 +192,7 @@ export const appointmentReminderAgent: AgentProfile = {
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const kase = await caseWithPeople(caseId);
-    const next = kase.appointments.find((a) => ["PENDING", "CONFIRMED"].includes(a.status) && a.scheduledAt > new Date());
+    const next = await upcomingAppointment(caseId);
     const slot = next ? utcToZoned(next.scheduledAt) : null;
     return {
       calling: `${kase.patient.firstName} ${kase.patient.lastName} (traveller)`,
@@ -137,6 +202,12 @@ export const appointmentReminderAgent: AgentProfile = {
         ? { ref: next.ref, date: slot.date, time: slot.time, doctor: next.provider.name, facility: next.provider.facility, address: `${next.provider.address}, ${next.provider.district}`, reason: next.reason }
         : "none upcoming",
     };
+  },
+  async fit(caseId) {
+    const next = await upcomingAppointment(caseId);
+    return next
+      ? ready(`${next.ref} · ${whenLabel(next.scheduledAt)} · ${next.provider.facility}`)
+      : notReady("No upcoming appointment on this case: the agent would have nothing to remind about.");
   },
   async suggestNumber(caseId) {
     const p = (await caseWithPeople(caseId)).patient.phone;
@@ -195,7 +266,7 @@ export const wellbeingFollowupAgent: AgentProfile = {
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const kase = await caseWithPeople(caseId);
-    const last = kase.appointments[0];
+    const last = (await completedVisit(caseId)) ?? kase.appointments[0];
     return {
       calling: `${kase.patient.firstName} ${kase.patient.lastName} (traveller)`,
       language: kase.patient.language,
@@ -203,6 +274,12 @@ export const wellbeingFollowupAgent: AgentProfile = {
       reason: kase.title,
       lastVisit: last ? `${last.provider.name}, ${last.provider.facility}, ${utcToZoned(last.scheduledAt).date} (${last.status.toLowerCase()})` : "none recorded",
     };
+  },
+  async fit(caseId) {
+    const last = await completedVisit(caseId);
+    return last
+      ? ready(`${last.ref} · ${whenLabel(last.scheduledAt)} · ${last.provider.facility}`)
+      : notReady("No completed visit on this case: there is nothing to follow up on yet.");
   },
   async suggestNumber(caseId) {
     const p = (await caseWithPeople(caseId)).patient.phone;
@@ -261,8 +338,7 @@ export const claimMissingInfoAgent: AgentProfile = {
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const kase = await caseWithPeople(caseId);
-    const claim = kase.claims[0];
-    const missing = claim ? checkCompleteness(claim).filter((i) => i.severity === "error").map((i) => i.message) : [];
+    const { claim, missing } = await claimToComplete(caseId);
     return {
       calling: `${kase.patient.firstName} ${kase.patient.lastName} (claimant)`,
       language: kase.patient.language,
@@ -271,6 +347,12 @@ export const claimMissingInfoAgent: AgentProfile = {
       missing: missing.length ? missing : ["nothing outstanding"],
       phoneOnFile: kase.patient.phone,
     };
+  },
+  async fit(caseId) {
+    const { claim, missing } = await claimToComplete(caseId);
+    if (!claim) return notReady("No open claim on this case: the agent would have nothing to ask for.");
+    if (!missing.length) return notReady(`${claim.ref} has nothing missing: the agent would have nothing to ask for.`, claim.ref);
+    return ready(`${claim.ref} · missing: ${missing.join(", ")}`);
   },
   async suggestNumber(caseId) {
     const p = (await caseWithPeople(caseId)).patient.phone;
@@ -331,7 +413,7 @@ export const logConfirmationAgent: AgentProfile = {
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const kase = await caseWithPeople(caseId);
-    const letter = await prisma.guaranteeLetter.findFirst({ where: { caseId, status: { in: ["SENT", "ACKNOWLEDGED"] } }, orderBy: { createdAt: "desc" } });
+    const letter = await letterToCheck(caseId);
     return {
       calling: letter ? `${letter.hospitalName} — billing / international patients office` : "the hospital's billing office",
       patient: `${kase.patient.firstName} ${kase.patient.lastName}, born ${kase.patient.dateOfBirth.toISOString().slice(0, 10)}`,
@@ -340,6 +422,15 @@ export const logConfirmationAgent: AgentProfile = {
         ? { ref: letter.ref, amount: `${Number(letter.guaranteedAmount).toLocaleString("en-GB")} ${letter.currency}`, sentBy: letter.sentVia?.toLowerCase(), sentTo: letter.sentTo, validUntil: letter.validUntil.toISOString().slice(0, 10) }
         : "no letter sent yet",
     };
+  },
+  async fit(caseId) {
+    const letter = await letterToCheck(caseId);
+    if (!letter) return notReady("No guarantee letter has been sent on this case yet.");
+    if (letter.status === "ACKNOWLEDGED") {
+      const on = letter.acknowledgedAt ? ` on ${formatPlainDate(utcToZoned(letter.acknowledgedAt).date)}` : "";
+      return notReady(`${letter.ref} was already acknowledged${on}: there is nothing left to confirm.`, letter.ref);
+    }
+    return ready(`${letter.ref} · ${Number(letter.guaranteedAmount).toLocaleString("en-GB")} ${letter.currency} · ${letter.hospitalName}`);
   },
   async suggestNumber(caseId) {
     const letter = await prisma.guaranteeLetter.findFirst({ where: { caseId }, orderBy: { createdAt: "desc" }, include: { provider: true } });
@@ -412,6 +503,15 @@ export const billNegotiationAgent: AgentProfile = {
       ...(await negotiationBrief(caseId)),
     };
   },
+  async fit(caseId) {
+    const r = await reviewToNegotiate(caseId);
+    if (!r) return notReady("No reviewed invoice with a saving on this case yet: receive the hospital's final invoice first.");
+    const invoice = r.document.extraction?.documentNumber ?? r.document.filename;
+    const agreement = r.agreement as { outcome?: string } | null;
+    if (agreement) return notReady(`${invoice} was already negotiated (${spoken(agreement.outcome ?? "agreed")}).`, invoice);
+    const money = (n: unknown) => `${Number(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${r.currency}`;
+    return ready(`${invoice} · billed ${money(r.billed)}, reviewed to ${money(r.recommended)}`);
+  },
   async suggestNumber(caseId) {
     const review = await reviewToNegotiate(caseId);
     const letter = review?.guaranteeLetterId
@@ -482,11 +582,7 @@ export const medicalTransportAgent: AgentProfile = {
   openingCue: OUTBOUND_OPENING,
   async buildBrief(caseId) {
     const { kase, provider } = await caseProvider(caseId);
-    const diagnosis = await prisma.documentExtraction.findFirst({
-      where: { diagnosis: { not: null }, document: { caseId } },
-      orderBy: { createdAt: "desc" },
-      select: { diagnosis: true, admissionDate: true, hospital: true },
-    });
+    const diagnosis = await diagnosisOnFile(caseId);
     return {
       calling: `the treating doctor at ${diagnosis?.hospital ?? provider?.facility ?? "the hospital"}`,
       patient: `${kase.patient.firstName} ${kase.patient.lastName}, born ${kase.patient.dateOfBirth.toISOString().slice(0, 10)}, ${kase.patient.nationality}`,
@@ -496,6 +592,12 @@ export const medicalTransportAgent: AgentProfile = {
       admitted: diagnosis?.admissionDate ?? "unknown",
       going_home_to: `${kase.patient.nationality}; the family confirms the city`,
     };
+  },
+  async fit(caseId) {
+    const [diagnosis, { provider }] = await Promise.all([diagnosisOnFile(caseId), caseProvider(caseId)]);
+    if (diagnosis?.diagnosis) return ready(`${diagnosis.diagnosis}${diagnosis.hospital ? ` · ${diagnosis.hospital}` : ""}`);
+    if (provider) return ready(`${provider.facility} · the diagnosis is asked on the call`);
+    return notReady("No hospital or diagnosis on file for this case: the agent wouldn't know which doctor to call.");
   },
   async suggestNumber(caseId) {
     return (await caseProvider(caseId)).provider?.phone ?? null;
@@ -580,6 +682,14 @@ export const paymentFollowupAgent: AgentProfile = {
       documents_sent: r.attachments.join(", ") || "itemised invoice",
       ...(answer?.expectedPaymentDate ? { last_promise: `They said payment by ${answer.expectedPaymentDate}` } : {}),
     };
+  },
+  async fitRecord(record) {
+    const { receivableToChase } = await import("@/lib/services/receivables");
+    const r = await receivableToChase(record);
+    if (!r) return notReady(record ? `${record.toUpperCase()} isn't an invoice on file.` : "No open invoice to chase.");
+    if (!CAN_CHASE.includes(r.status)) return notReady(`${r.ref} is ${spoken(r.status)}: there is nothing to chase.`, r.ref);
+    if (!r.payerPhone) return notReady(`${r.ref} has no phone number on file for ${r.payerName}.`, r.ref);
+    return ready(`${r.ref} · ${r.facility} → ${r.payerName}`);
   },
   instructions: (ctx) => `## Role & Persona
 You are Ada, an AI assistant calling on behalf of the international billing office named in the brief (a hospital or a local medical correspondent). You are calling the payer: a foreign assistance company or insurer. Say you are an AI assistant. You are courteous, brief and precise: payers' desks are busy.

@@ -9,6 +9,8 @@ import { ApiError, badRequest, notFound, unauthorized } from "@/lib/errors";
 import { withRef } from "@/lib/refs";
 import { createThread, voiceBrief } from "@/lib/services/assistant-history";
 import { DEFAULT_BROWSER_AGENT, getAgent } from "@/lib/voice/agents/registry";
+import type { AgentFit } from "@/lib/voice/agents/types";
+import { briefWithFit } from "@/lib/voice/fit-note";
 import { gatewayBase } from "@/lib/voice/gateway-url";
 import { voiceLanguage } from "@/lib/voice/languages";
 
@@ -51,15 +53,19 @@ export const POST = withErrorHandling(async (req: Request) => {
   const operator = await getOperator(req);
   let outcome: Record<string, unknown> | null = null;
   let thread: { id: string } | null = null;
+  let fit: AgentFit | null = null;
   if (profile.internal) {
     if (!operator) throw unauthorized();
     thread = { id: body.threadId ?? (await createThread(operator)).id };
     outcome = { assistantThreadId: thread.id, brief: await voiceBrief(thread.id, operator) };
   } else if (body.caseId && profile.buildBrief) {
-    // An outbound agent rehearsed in the browser gets the same brief as a phone call.
-    outcome = { brief: await profile.buildBrief(body.caseId) };
+    // An outbound agent rehearsed in the browser gets the same brief as a phone call,
+    // and the same check that the case gives it something to call about.
+    fit = profile.fit ? await profile.fit(body.caseId) : null;
+    outcome = { brief: briefWithFit(await profile.buildBrief(body.caseId), fit), ...(fit ? { fit } : {}) };
   } else if (profile.buildRecordBrief) {
-    outcome = { brief: await profile.buildRecordBrief(body.record ?? null) };
+    fit = profile.fitRecord ? await profile.fitRecord(body.record ?? null) : null;
+    outcome = { brief: briefWithFit(await profile.buildRecordBrief(body.record ?? null), fit), ...(fit ? { fit } : {}) };
   }
 
   const call = await withRef("call", (ref) =>
@@ -82,6 +88,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     {
       call: { id: call.id, ref: call.ref },
       agent: { id: profile.id, label: profile.label },
+      fit,
       url: `${gatewayBase(req)}/ws/voice?ticket=${encodeURIComponent(ticket)}`,
       ...(thread ? { thread } : {}),
     },

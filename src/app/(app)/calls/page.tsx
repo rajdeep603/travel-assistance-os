@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Globe, Headset, PhoneIncoming, PhoneOutgoing, Settings2 } from "lucide-react";
 import { CallScripts } from "@/components/calls/call-scripts";
+import { RingMe } from "@/components/calls/ring-me";
 import { LiveBoard } from "@/components/calls/live-board";
 import { Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatusBadge } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
@@ -121,6 +122,7 @@ export default function CallsPage() {
                 : "Loading…"}
             </p>
           )}
+          {config?.telephonyConfigured ? <RingMe /> : null}
           <CallScripts doctorOnCall={config?.transferTargets.doctor ?? true} rehearse={config?.voiceConfigured ?? false} />
         </Card>
 

@@ -6,7 +6,11 @@ import { listAgents } from "@/lib/voice/agents/registry";
 
 export const dynamic = "force-dynamic";
 
-/** What can be called for a case: outbound agents, suggested numbers, the allowlist. */
+/**
+ * What can be called for a case: the outbound agents, whether the case gives
+ * each one something to call about (`fit`), suggested numbers, the allowlist,
+ * and whether the browser rehearsal and the phone line are available.
+ */
 export const GET = withErrorHandling(async (req: Request) => {
   const caseId = new URL(req.url).searchParams.get("caseId");
   const agents = await Promise.all(
@@ -16,6 +20,7 @@ export const GET = withErrorHandling(async (req: Request) => {
       .map(async (a) => {
         const suggested = caseId && a.suggestNumber ? await a.suggestNumber(caseId).catch(() => null) : null;
         const normalized = suggested ? normalizeNumber(suggested) : null;
+        const fit = caseId ? (a.fit ? await a.fit(caseId).catch(() => null) : a.requiresCase ? null : { ready: false, why: "Calls about an invoice, not a case.", record: null }) : null;
         return {
           id: a.id,
           label: a.label,
@@ -23,11 +28,14 @@ export const GET = withErrorHandling(async (req: Request) => {
           audience: a.audience ?? null,
           suggestedNumber: normalized,
           suggestedAllowed: normalized ? isAllowedNumber(normalized) : false,
+          browser: a.channels.includes("BROWSER"),
+          fit,
         };
       })
   );
   return json({
     telephonyConfigured: getTelephony().configured && Boolean(env.publicBaseUrl),
+    voiceConfigured: Boolean(env.xaiApiKey),
     allowedNumbers: env.outboundAllowedNumbers,
     agents,
   });

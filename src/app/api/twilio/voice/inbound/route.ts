@@ -41,6 +41,10 @@ export const POST = withTwiml(async (req) => {
   const sipCase = sipCaseRef ? await prisma.case.findUnique({ where: { ref: sipCaseRef }, select: { id: true } }) : null;
   const sipLanguage = voiceLanguage(p["SipHeader_X-Language"] ?? null)?.name ?? null;
 
+  // "Ring my phone" (POST /api/calls/ring-me): the hotline dialled the caller, so
+  // Twilio's From is our number and To the person who answered; the record keeps
+  // the caller as the caller.
+  const rangThem = p.Direction === "outbound-api";
   // Twilio retries webhooks; one CallSid is one Call.
   const call =
     (await prisma.call.findUnique({ where: { twilioCallSid: p.CallSid } })) ??
@@ -53,10 +57,11 @@ export const POST = withTwiml(async (req) => {
           agentProfile: profile.id,
           status: "RINGING",
           twilioCallSid: p.CallSid,
-          fromNumber: callerNumber(p.From),
-          toNumber: callerNumber(p.To),
+          fromNumber: callerNumber(rangThem ? p.To : p.From),
+          toNumber: callerNumber(rangThem ? p.From : p.To),
           caseId: sipCase?.id ?? null,
           language: sipLanguage,
+          ...(rangThem ? { outcome: { rangThem: true } } : {}),
         },
       })
     ));

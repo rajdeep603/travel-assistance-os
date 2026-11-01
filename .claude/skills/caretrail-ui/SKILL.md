@@ -72,6 +72,10 @@ Money: savings and accepted amounts use `brand`, anything needing a decision or 
 | `Card`, `Button`, `PageHeader`, `SectionTitle`, `StatusBadge`, `KeyValue`, `ConfidenceBar`, `Timeline`, `Skeleton*`, `EmptyState`, `ErrorBanner`, `AISourceBadge` | `src/components/ui.tsx` | the shared primitives; reuse them before writing ad-hoc markup |
 | `VoiceOrb` | `src/components/voice/voice-orb.tsx` | canvas orb; `state` plus an optional `getLevels` from `useGrokVoice` |
 | `VoiceStage`, `StageButton` | `src/components/voice/voice-stage.tsx` | the dark voice stage: orb, status, live caption, booking moment, controls, agent steps |
+| `AgentPicker`, `blockedReason` | `src/components/voice/agent-picker.tsx` | agent + language, the case it calls about and whether it fits (`fit` from `/api/voice/agents`); an unfit case can't be started: **Use CASE-xxxx (ready)** or **Make it ready** (`POST /api/voice/prepare`) |
+| `DemoRunStrip` | `src/components/voice/demo-run-strip.tsx` | the 15-minute demo run above the stage: track chips (brand gradient when selected), numbered step chips with a ready dot (`brand` ready, `warn` not), **Make all ready**, the cue card (say / hear); data in `src/lib/voice/demo-runs.ts` |
+| `PlaceCallCard` | `src/components/calls/place-call-card.tsx` | on a case: the agents the case fits (rehearse in browser, call by phone), the rest under "Not for this case" with the reason |
+| `RingMe` | `src/components/calls/ring-me.tsx` | under the hotline number: the hotline rings an approved phone (`POST /api/calls/ring-me`) for places that can't dial it |
 | `Trail` | `src/components/trail.tsx` | AI steps as stops on a route whose line fills as each step completes (`tone="light"` or `"stage"`) |
 | `AIPipeline` + `usePipeline` | `src/components/ai-progress.tsx`, `src/lib/client/use-pipeline.ts` | staged progress for module AI actions; render results only when `pipeline.visible` is false, so the trail finishes first |
 | `CountUp` | `src/components/count-up.tsx` | numbers that count to a new value; pass `format` for currency and durations |

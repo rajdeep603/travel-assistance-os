@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Ban, Check, ChevronDown, Inbox, Languages, ShieldCheck, UserRound } from "lucide-react";
+import { Ban, Check, ChevronDown, Languages, RefreshCw, ShieldCheck, UserRound } from "lucide-react";
 import { Button, Card, readApiError } from "@/components/ui";
-import type { HowItWorks, ScenarioGroup, VoiceScenario } from "@/lib/voice/demo-scenarios";
+import type { DemoCase, HowItWorks, ScenarioGroup, VoiceScenario } from "@/lib/voice/demo-scenarios";
 import type { VoiceLanguage } from "@/lib/voice/languages";
 
 export interface VoiceCatalog {
@@ -16,10 +16,18 @@ export interface VoiceCatalog {
 const fieldClass =
   "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:opacity-60";
 
+/** Why an agent can't start on the case the catalogue gave it; null when it can. */
+export function blockedReason(scenario: VoiceScenario | null): string | null {
+  if (!scenario) return null;
+  if (scenario.requiresCase) return scenario.case && scenario.fit?.ready ? null : (scenario.fit?.why ?? "No demo case is ready for this agent.");
+  return scenario.fit && !scenario.fit.ready ? scenario.fit.why : null;
+}
+
 /**
  * Which voice agent to talk to and in what language. Outbound agents run in
  * the browser too: the presenter plays the hospital, doctor or traveller
- * being called, on a ready demo case.
+ * being called, on a demo case that fits the agent. One that doesn't fit is
+ * never started: the ready case is a click away, or the demo case is repaired.
  */
 export function AgentPicker({
   catalog,
@@ -28,36 +36,46 @@ export function AgentPicker({
   onAgent,
   onLanguage,
   onPrepared,
+  onUseCase,
   disabled,
-  caseOverride,
 }: {
   catalog: VoiceCatalog;
   agentId: string;
   language: string;
   onAgent: (id: string) => void;
   onLanguage: (name: string) => void;
-  /** A prerequisite (e.g. receiving an invoice) was just done: reload the catalog. */
+  /** The demo case was just repaired: reload the catalogue. */
   onPrepared: () => void;
+  /** Judge every agent on this case from now on. */
+  onUseCase: (kase: DemoCase) => void;
   disabled: boolean;
-  /** The case the page was opened for, which replaces the demo case. */
-  caseOverride: { id: string; ref: string } | null;
 }) {
   const scenario = catalog.scenarios.find((s) => s.agentId === agentId) ?? null;
   const groups = Object.entries(catalog.groups) as [ScenarioGroup, string][];
-  const kase = caseOverride ?? scenario?.case ?? null;
+  const kase = scenario?.case ?? null;
+  const fit = scenario?.fit ?? null;
+  const blocked = blockedReason(scenario);
+  const suggested = scenario?.suggested && scenario.suggested.id !== kase?.id && scenario.suggested.fit.ready ? scenario.suggested : null;
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function prepare(sample: string) {
+  async function prepare() {
+    if (!scenario) return;
     setPreparing(true);
     setError(null);
     try {
-      const res = await fetch("/api/inbox/simulate", {
+      const res = await fetch("/api/voice/prepare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "email", sample }),
+        body: JSON.stringify({ agentId: scenario.agentId }),
       });
-      if (!res.ok) setError(await readApiError(res, "The sample couldn't be received."));
+      if (!res.ok) {
+        setError(await readApiError(res, "The demo case couldn't be prepared."));
+        return;
+      }
+      const prepared = (await res.json()).prepared?.[0] as { case: DemoCase | null } | undefined;
+      // Prepared a different case than the one on screen: switch to it.
+      if (prepared?.case && prepared.case.id !== kase?.id) onUseCase(prepared.case);
       else onPrepared();
     } finally {
       setPreparing(false);
@@ -127,13 +145,32 @@ export function AgentPicker({
               </span>
             ) : null}
           </p>
-          {scenario.needs && !caseOverride ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-ink" role="status">
-              <span>{scenario.needs.label}</span>
-              {scenario.needs.emailSample ? (
-                <Button variant="secondary" busy={preparing} onClick={() => void prepare(scenario.needs!.emailSample!)}>
-                  <Inbox size={14} aria-hidden /> Receive it now
-                </Button>
+          {fit?.ready && fit.record ? (
+            <p className="flex items-start gap-1.5 text-xs text-muted" data-testid="agent-fit">
+              <Check size={13} className="mt-0.5 shrink-0 text-brand" aria-hidden />
+              <span>
+                <span className="font-semibold text-ink">Ready.</span> Calls about {fit.record}.
+              </span>
+            </p>
+          ) : null}
+          {blocked ? (
+            <div className="rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-ink" role="status" data-testid="agent-unfit">
+              <p>
+                <span className="font-semibold">Not ready on {kase ? kase.ref : "this record"}.</span> {blocked}
+              </p>
+              {suggested || scenario.canPrepare ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {suggested ? (
+                    <Button variant="secondary" disabled={disabled} onClick={() => onUseCase(suggested)}>
+                      <Check size={14} aria-hidden /> Use {suggested.ref} (ready)
+                    </Button>
+                  ) : null}
+                  {scenario.canPrepare ? (
+                    <Button variant="secondary" busy={preparing} disabled={disabled} onClick={() => void prepare()}>
+                      <RefreshCw size={14} aria-hidden /> Make it ready
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ) : null}
