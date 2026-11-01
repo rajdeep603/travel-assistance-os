@@ -44,6 +44,8 @@ services:
       OPERATOR_USERS: ${OPERATOR_USERS:-}
       SESSION_SECRET: ${SESSION_SECRET:-}
       GATEWAY_SECRET: ${GATEWAY_SECRET:-}
+      # Public API keys ("name:key,name:key"), see src/lib/auth/api-keys.ts.
+      API_KEYS: ${API_KEYS:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
       XAI_VOICE_MODEL: ${XAI_VOICE_MODEL:-grok-voice-3.0}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
