@@ -152,7 +152,7 @@ export default function TrustPage() {
             { text: "WhatsApp: messages to your WhatsApp number go through the same intake and are answered on WhatsApp. Works with the Twilio sandbox today; your own number once WhatsApp approves your business sender.", when: "pilot" },
             { text: "Hospitals and correspondents: a receivables desk that checks invoices before they go out and chases payers by e-mail and by phone." },
             { text: "Partners: hand a case to a correspondent with a secure link; their updates arrive on the case timeline." },
-            { text: "Letters and replies go out by e-mail or fax, as PDFs your team can file anywhere." },
+            { text: "Letters and replies go out by e-mail, and by fax through your fax provider (simulated in the demo), as PDFs your team can file anywhere.", when: "pilot" },
             { text: "Your rules are data, not code: policy benefits, the automatic approval limit, the tariff and the knowledge articles." },
             { text: "Sending from your own addresses, with your rules loaded per insurer client.", when: "pilot" },
             { text: "A documented API (v1, with API keys) and signed webhooks to your case system: case created, guarantee issued, claim settled, call completed, payment recorded. See Developers." },

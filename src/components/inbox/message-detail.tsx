@@ -306,9 +306,28 @@ export function MessageDetailPanel({ id, onChanged, onDeleted }: { id: string; o
               <Send size={14} aria-hidden /> Approve &amp; send
             </Button>
           </div>
+        ) : m.channel !== "FAX" && !m.replies.some((r) => r.status === "SENT") ? (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-slate-500">
+              {m.matchedCase
+                ? "No automatic reply: hospital correspondence is filed on the case. Answer by hand if you need to."
+                : "No case matched with enough confidence, so nothing was sent. File it on a case above, or answer by hand."}
+            </p>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={5}
+              aria-label="Reply"
+              placeholder={m.channel === "WHATSAPP" ? "Your WhatsApp reply…" : "Your reply…"}
+              className="w-full rounded-lg border border-slate-300 p-3 text-sm"
+            />
+            <Button busy={busy === "reply"} disabled={draft.trim().length < 10} onClick={() => void post(`/api/inbox/${m.id}/reply`, { body: draft }, "reply")}>
+              <Send size={14} aria-hidden /> Send reply
+            </Button>
+          </div>
         ) : m.replies.length === 0 ? (
           <p className="mt-2 text-xs text-slate-500">
-            {m.channel === "FAX" ? "Faxes are filed, not answered." : "No reply needed (hospital correspondence is filed on the case)."}
+            {m.replies.length === 0 && m.channel === "FAX" ? "A fax is filed on its case; a Letter of Guarantee answers a cost estimate from there." : null}
           </p>
         ) : null}
       </Card>

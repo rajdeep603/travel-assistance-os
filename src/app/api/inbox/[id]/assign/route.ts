@@ -29,7 +29,7 @@ export const POST = withErrorHandling(async (req: Request, { params }: { params:
   await prisma.caseEvent.create({
     data: {
       caseId: kase.id,
-      type: message.channel === "EMAIL" ? "EMAIL" : "FAX",
+      type: message.channel === "EMAIL" ? "EMAIL" : message.channel === "WHATSAPP" ? "WHATSAPP" : "FAX",
       title: `${message.ref} filed on this case by an operator`,
       body: message.summary,
       actor: operator ? `operator:${operator}` : "operator",

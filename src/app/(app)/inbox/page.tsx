@@ -42,6 +42,7 @@ export default function InboxPage() {
   }, [urlMessage]);
   const [sample, setSample] = useState("");
   const [busy, setBusy] = useState(false);
+  const [faxFrom, setFaxFrom] = useState("");
   const [error, setError] = useState<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const pipeline = usePipeline(busy, STAGES.length, { failed: !!error });
@@ -98,6 +99,8 @@ export default function InboxPage() {
     try {
       const form = new FormData();
       form.append("file", file);
+      // A fax PDF or photo: the sender's number lets a cost estimate find its hospital.
+      if (faxFrom.trim()) form.append("from", faxFrom.trim());
       const res = await fetch("/api/inbox/import", { method: "POST", body: form });
       if (!res.ok) {
         setError(await readApiError(res, `“${file.name}” could not be imported.`));
@@ -160,6 +163,15 @@ export default function InboxPage() {
             <Sparkles size={15} aria-hidden /> Receive it
           </Button>
           <span className="text-xs text-muted">or</span>
+          <input
+            type="tel"
+            inputMode="tel"
+            value={faxFrom}
+            onChange={(e) => setFaxFrom(e.target.value)}
+            placeholder="Sender's fax number (optional)"
+            aria-label="Sender's fax number"
+            className="w-56 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+          />
           <Button variant="secondary" onClick={() => importInput.current?.click()} disabled={busy}>
             <Upload size={15} aria-hidden /> Import .eml, fax or photo
           </Button>

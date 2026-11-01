@@ -123,6 +123,15 @@ and the server, so the booth's Wi-Fi only carries the click; it shows live
 under the demo run with its transcript and tool steps. Nothing on that screen
 is a note to you: the prospect watches it. What to point out is here instead.
 
+**Receive it again.** A bundled e-mail, fax or WhatsApp sample received a
+second time replaces its previous copy and everything that copy produced
+(its bill review, the claim it opened, the letter drafted from it), so a
+seeded case shows one of each however many meetings use it. **Delete
+message** in the Inbox does the same for a visitor's own file. Every e-mail
+or WhatsApp message without an answer has a reply box; a fax is answered by
+the Letter of Guarantee it produces. **Import** takes an optional sender's
+fax number, so a visitor's cost estimate finds its hospital.
+
 **A noisy hall.** Phone calls pass through an adaptive noise gate on the
 server: the chatter around the phone reaches the agent as silence, so it
 never starts a turn, cuts the agent off or makes it ask "sorry?". A voice

@@ -9,6 +9,7 @@ import { emailAddress } from "@/lib/services/email";
 import { reviewBillForDocument } from "@/lib/services/bill-review-service";
 import { draftFromCostEstimate, letterPdf } from "@/lib/services/guarantee-letter";
 import { sendEmail, sendWhatsApp } from "@/lib/services/outbox";
+import { isAllowedNumber } from "@/lib/services/approved-numbers";
 import { utcToZoned } from "@/lib/time";
 import { ALLOWED_UPLOAD_TYPES, processingErrorMessage, sniffType, storeUpload } from "@/lib/uploads";
 import { MATCH_THRESHOLD, matchCase, type CaseCandidate } from "./case-matching";
@@ -245,7 +246,15 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
       // The same reply as by e-mail, on WhatsApp: sent when it's safe, else drafted for a person.
       const draft = await draftReply(matched, claimId, processed.map((d) => d.filename), language);
       if (riskFlags.length === 0) {
-        await sendWhatsApp({ to: message.fromAddress, text: draft, caseId: matched.caseId, inReplyToId: message.id, automatic: true });
+        await sendWhatsApp({
+          to: message.fromAddress,
+          text: draft,
+          caseId: matched.caseId,
+          inReplyToId: message.id,
+          automatic: true,
+          // Only approved numbers are messaged for real; a fictional sender's reply is recorded as simulated.
+          simulate: !(await isAllowedNumber(message.fromAddress)),
+        });
         status = "REPLIED";
       } else {
         await prisma.outboundMessage.create({
