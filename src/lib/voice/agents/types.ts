@@ -74,6 +74,8 @@ export interface AgentProfile {
   audience?: "traveller" | "provider";
   /** Outbound only: needs a case to call about. */
   requiresCase?: boolean;
+  /** Its brief comes with the API call that places it (POST /api/v1/calls); not offered in the pickers. */
+  apiOnly?: boolean;
   /** Outbound only: facts for the agent, built from the case before dialling. */
   buildBrief?(caseId: string): Promise<Record<string, unknown>>;
   /** Outbound only: does this case give the agent something to call about? Uses the same selection as buildBrief. */

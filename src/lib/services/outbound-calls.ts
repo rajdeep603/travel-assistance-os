@@ -36,6 +36,10 @@ export interface PlaceCallInput {
   language?: string | null;
   /** For agents that call about a record rather than a case: which one (e.g. "RCV-1003"). */
   record?: string | null;
+  /** The brief, when the caller supplies it (the public API): used instead of one built from a case or record. */
+  brief?: Record<string, unknown> | null;
+  /** The caller's own reference for this call, kept on the outcome and sent back in webhooks. */
+  clientRef?: string | null;
 }
 
 export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
@@ -63,14 +67,20 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
 
   // Does the case (or record) give the agent something to call about? An unfit
   // one is still dialled when asked, but the agent is told why, not left to improvise.
-  const fit =
-    input.caseId && profile.fit ? await profile.fit(input.caseId) : !input.caseId && profile.fitRecord ? await profile.fitRecord(input.record ?? null) : null;
+  const fit = input.brief
+    ? null
+    : input.caseId && profile.fit
+      ? await profile.fit(input.caseId)
+      : !input.caseId && profile.fitRecord
+        ? await profile.fitRecord(input.record ?? null)
+        : null;
   const rawBrief =
-    input.caseId && profile.buildBrief
+    input.brief ??
+    (input.caseId && profile.buildBrief
       ? await profile.buildBrief(input.caseId)
       : profile.buildRecordBrief
         ? await profile.buildRecordBrief(input.record ?? null)
-        : null;
+        : null);
   const brief = rawBrief ? briefWithFit(rawBrief, fit) : null;
   const retries = input.retryOf
     ? (((await prisma.call.findUnique({ where: { id: input.retryOf } }))?.outcome as { retries?: number } | null)?.retries ?? 0) + 1
@@ -93,6 +103,7 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
         outcome: {
           brief,
           ...(fit ? { fit } : {}),
+          ...(input.clientRef ? { clientRef: input.clientRef } : {}),
           retries,
           ...(input.retryOf ? { retryOf: input.retryOf } : {}),
           ...(input.extraOutcome ?? {}),

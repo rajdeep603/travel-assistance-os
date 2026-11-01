@@ -23,6 +23,7 @@ import {
   sendUploadLinkTool,
 } from "./outbound";
 import { findGuaranteeTool, requestGuaranteeIncreaseTool, resendGuaranteeTool } from "./provider";
+import { recordProviderValidationTool, sendPriceListLinkTool } from "./provider-validation";
 import type { ToolContext, VoiceTool } from "./types";
 
 const ALL_TOOLS: VoiceTool[] = [
@@ -47,6 +48,8 @@ const ALL_TOOLS: VoiceTool[] = [
   recordBillAgreementTool,
   recordPaymentStatusTool,
   recordTransportAssessmentTool,
+  recordProviderValidationTool,
+  sendPriceListLinkTool,
   lookupCaseTool,
   searchRecordsTool,
   findProvidersTool,

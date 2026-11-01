@@ -31,6 +31,9 @@ const ENDPOINTS: { method: "GET" | "POST"; path: string; what: string; example: 
   { method: "GET", path: "/api/v1/guarantees/{ref}", what: "A Letter of Guarantee: status, amounts, validity, why it waits for a person.", example: "/api/v1/guarantees/LOG-0902" },
   { method: "GET", path: "/api/v1/claims/{ref}", what: "A claim: status, what's missing, and the settlement once approved.", example: "/api/v1/claims/CLM-10230" },
   { method: "POST", path: "/api/v1/documents", what: "Multipart file (and optional caseRef): what was read, plus the bill review for an invoice.", example: "/api/v1/documents" },
+  { method: "POST", path: "/api/v1/calls", what: 'Places an AI call ({"agent": "outbound-provider-validation", "to": "+1…", "brief": {…}, "clientRef": "…"}); the result comes back as a call.completed webhook.', example: "/api/v1/calls" },
+  { method: "GET", path: "/api/v1/calls/{ref}", what: "A call: status, duration, summary, what the agent recorded, and the transcript.", example: "/api/v1/calls/CALL-1078" },
+  { method: "POST", path: "/api/v1/approved-numbers", what: 'Approves a number AI agents may call ({"number": "+1…", "label": "…"}), on top of the configured list.', example: "/api/v1/approved-numbers" },
 ];
 
 const VERIFY = `// Node.js: check the signature before trusting a webhook
