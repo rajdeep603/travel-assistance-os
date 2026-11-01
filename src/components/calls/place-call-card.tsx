@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Check, ChevronDown, Mic, PhoneOutgoing } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle, readApiError } from "@/components/ui";
+import { NumberPicker, type NumberEntry } from "@/components/calls/number-picker";
 import { maskPhone } from "@/lib/format";
 import type { AgentFit } from "@/lib/voice/agents/types";
 import { VOICE_LANGUAGES } from "@/lib/voice/languages";
@@ -24,6 +25,7 @@ interface Options {
   telephonyConfigured: boolean;
   voiceConfigured: boolean;
   allowedNumbers: string[];
+  numbers: NumberEntry[];
   agents: AgentOption[];
 }
 
@@ -137,25 +139,14 @@ export function PlaceCallCard({ caseId }: { caseId: string }) {
 
       {agent && canPhone ? (
         <div className="mt-3 space-y-2 border-t border-line pt-3">
-          {options.allowedNumbers.length === 0 ? (
-            <p className="text-xs text-amber-700">No numbers are approved for AI calls yet, so nothing can be called.</p>
-          ) : (
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted">Number to call</span>
-              <select
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
-              >
-                {options.allowedNumbers.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                    {n === agent.suggestedNumber ? (agent.audience === "provider" ? " (hospital)" : " (patient)") : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <NumberPicker
+            value={to}
+            onChange={setTo}
+            numbers={options.numbers}
+            onNumbers={(numbers) => setOptions({ ...options, numbers, allowedNumbers: numbers.map((n) => n.number) })}
+            suggested={agent.suggestedNumber ? { number: agent.suggestedNumber, tag: agent.audience === "provider" ? "hospital" : "patient" } : null}
+            disabled={busy}
+          />
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-muted">Language</span>
             <select

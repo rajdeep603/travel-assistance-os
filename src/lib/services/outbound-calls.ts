@@ -7,22 +7,18 @@ import { withRef } from "@/lib/refs";
 import { getAgent } from "@/lib/voice/agents/registry";
 import { briefWithFit } from "@/lib/voice/fit-note";
 import { voiceLanguage } from "@/lib/voice/languages";
+import { isAllowedNumber, normalizeNumber } from "./approved-numbers";
 import { getTelephony } from "./telephony";
 
 // ---------------------------------------------------------------------------
 // OutboundCallService: places AI calls through the telephony provider with
 // the guards a real deployment needs — an allowlist of dialable numbers
-// (toll fraud, demo safety), a concurrency cap,
-// answering-machine detection, and one automatic retry when nobody answers.
+// (configured, plus the ones operators approve: src/lib/services/approved-numbers.ts),
+// a concurrency cap, answering-machine detection, and one automatic retry
+// when nobody answers.
 // ---------------------------------------------------------------------------
 
-export function normalizeNumber(n: string): string {
-  return n.replace(/[^\d+]/g, "");
-}
-
-export function isAllowedNumber(n: string): boolean {
-  return env.outboundAllowedNumbers.includes(normalizeNumber(n));
-}
+export { isAllowedNumber, normalizeNumber };
 
 export interface PlaceCallInput {
   profileId: string;
@@ -48,8 +44,8 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
   if (profile.requiresCase && !input.caseId) throw badRequest("This call needs a case to call about.");
   const to = normalizeNumber(input.to);
   if (!/^\+\d{8,15}$/.test(to)) throw badRequest("Enter the number in international format, e.g. +905321234567.");
-  if (!isAllowedNumber(to)) {
-    throw forbidden(`${maskPhone(to)} isn't on the list of numbers AI agents may call.`);
+  if (!(await isAllowedNumber(to))) {
+    throw forbidden(`${maskPhone(to)} isn't on the list of numbers AI agents may call. Approve it first (Add a number).`);
   }
   const telephony = getTelephony();
   if (!telephony.configured || !env.publicBaseUrl) {

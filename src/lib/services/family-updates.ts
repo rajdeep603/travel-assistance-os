@@ -103,7 +103,7 @@ export async function sendFamilyUpdate(caseId: string, text: string, opts: { aut
     caseId,
     automatic: opts.automatic ?? false,
     approvedBy: opts.automatic ? null : (opts.actor ?? null),
-    simulate: !isAllowedNumber(kase.familyContactPhone),
+    simulate: !(await isAllowedNumber(kase.familyContactPhone)),
   });
   const who = [kase.familyContactName, kase.familyContactRelation ? `(${kase.familyContactRelation.toLowerCase()})` : null].filter(Boolean).join(" ") || "the family";
   await prisma.caseEvent.create({

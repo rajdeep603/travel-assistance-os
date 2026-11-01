@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PhoneIncoming } from "lucide-react";
 import { Button, readApiError } from "@/components/ui";
+import { NumberPicker, type NumberEntry } from "@/components/calls/number-picker";
 
 /**
  * "Ring my phone": the hotline calls an approved number, and the hotline agent
@@ -10,7 +11,7 @@ import { Button, readApiError } from "@/components/ui";
  * (a toll-free number from abroad, roaming that blocks international calls).
  */
 export function RingMe() {
-  const [options, setOptions] = useState<{ telephonyConfigured: boolean; allowedNumbers: string[] } | null>(null);
+  const [options, setOptions] = useState<{ telephonyConfigured: boolean; numbers: NumberEntry[] } | null>(null);
   const [to, setTo] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -21,8 +22,8 @@ export function RingMe() {
       .then((r) => (r.ok ? r.json() : null))
       .then((body) => {
         if (!body) return;
-        setOptions(body);
-        setTo(body.allowedNumbers?.[0] ?? "");
+        setOptions({ telephonyConfigured: body.telephonyConfigured, numbers: body.numbers ?? [] });
+        setTo(body.numbers?.[0]?.number ?? "");
       })
       .catch(() => undefined);
   }, []);
@@ -43,31 +44,23 @@ export function RingMe() {
     }
   }
 
-  if (!options?.telephonyConfigured || !options.allowedNumbers.length) return null;
+  if (!options?.telephonyConfigured) return null;
 
   return (
     <div className="mt-3 rounded-xl border border-line bg-canvas/60 p-3 text-xs text-muted">
       <p>
-        <span className="font-semibold text-ink">Can&apos;t dial the number from here?</span> Let the hotline ring you: answer, and the agent greets you as on a dialled-in call.
+        <span className="font-semibold text-ink">Can&apos;t dial the number from here?</span> Let the hotline ring a phone: answer, and the agent greets as on a dialled-in call. A
+        visitor&apos;s own mobile works too: add it with its country code.
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <select
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          aria-label="Phone to ring"
-          className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink focus:border-brand focus:outline-none"
-        >
-          {options.allowedNumbers.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-        <Button variant="secondary" busy={busy} disabled={!to} onClick={() => void ring()}>
-          <PhoneIncoming size={14} aria-hidden /> Ring my phone
-        </Button>
-        {done ? <span className="text-ink">Ringing {done}: pick up.</span> : null}
-        {error ? <span className="text-red-700">{error}</span> : null}
+      <div className="mt-2 space-y-2">
+        <NumberPicker label="Phone to ring" value={to} onChange={setTo} numbers={options.numbers} onNumbers={(numbers) => setOptions({ ...options, numbers })} disabled={busy} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" busy={busy} disabled={!to} onClick={() => void ring()}>
+            <PhoneIncoming size={14} aria-hidden /> Ring this phone
+          </Button>
+          {done ? <span className="text-ink">Ringing {done}: pick up.</span> : null}
+          {error ? <span className="text-red-700">{error}</span> : null}
+        </div>
       </div>
     </div>
   );

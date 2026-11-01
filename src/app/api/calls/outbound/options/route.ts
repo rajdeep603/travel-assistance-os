@@ -1,7 +1,7 @@
 import { json, withErrorHandling } from "@/lib/api";
 import { env } from "@/lib/env";
 import { getTelephony } from "@/lib/services/telephony";
-import { isAllowedNumber, normalizeNumber } from "@/lib/services/outbound-calls";
+import { isAllowedNumber, listApprovedNumbers, normalizeNumber } from "@/lib/services/approved-numbers";
 import { listAgents } from "@/lib/voice/agents/registry";
 
 export const dynamic = "force-dynamic";
@@ -27,16 +27,18 @@ export const GET = withErrorHandling(async (req: Request) => {
           description: a.description,
           audience: a.audience ?? null,
           suggestedNumber: normalized,
-          suggestedAllowed: normalized ? isAllowedNumber(normalized) : false,
+          suggestedAllowed: normalized ? await isAllowedNumber(normalized) : false,
           browser: a.channels.includes("BROWSER"),
           fit,
         };
       })
   );
+  const numbers = await listApprovedNumbers();
   return json({
     telephonyConfigured: getTelephony().configured && Boolean(env.publicBaseUrl),
     voiceConfigured: Boolean(env.xaiApiKey),
-    allowedNumbers: env.outboundAllowedNumbers,
+    allowedNumbers: numbers.map((n) => n.number),
+    numbers,
     agents,
   });
 });

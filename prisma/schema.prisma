@@ -977,3 +977,14 @@ model WebhookDelivery {
 
   @@index([endpointId, createdAt])
 }
+
+/// A phone number AI agents may call, added by an operator while the app runs
+/// (a prospect's own mobile at the booth), on top of OUTBOUND_ALLOWED_NUMBERS.
+/// Removed as easily as added; the configured list never changes from here.
+model ApprovedNumber {
+  id        String   @id @default(cuid())
+  number    String   @unique // E.164, e.g. +905321234567
+  label     String?
+  addedBy   String?
+  createdAt DateTime @default(now())
+}

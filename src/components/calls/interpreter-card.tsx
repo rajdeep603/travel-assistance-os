@@ -5,6 +5,7 @@ import { Languages, PhoneOff } from "lucide-react";
 import { Button, Card, ErrorBanner, SectionTitle } from "@/components/ui";
 import { useInterpreterCall } from "@/lib/voice/client/use-interpreter-call";
 import { INTERPRETER_LANGUAGES } from "@/lib/voice/interpreter-prompt";
+import { NumberPicker, type NumberEntry } from "@/components/calls/number-picker";
 
 const HOSPITAL_LANGUAGES = Object.entries(INTERPRETER_LANGUAGES).filter(([code]) => code !== "en");
 
@@ -24,7 +25,7 @@ const STATUS_TEXT: Record<string, string> = {
  */
 export function InterpreterCard({ caseId }: { caseId: string }) {
   const { status, error, captions, languages, start, hangup } = useInterpreterCall();
-  const [allowed, setAllowed] = useState<string[]>([]);
+  const [numbers, setNumbers] = useState<NumberEntry[]>([]);
   const [suggested, setSuggested] = useState<string | null>(null);
   const [configured, setConfigured] = useState(false);
   const [number, setNumber] = useState("");
@@ -37,11 +38,11 @@ export function InterpreterCard({ caseId }: { caseId: string }) {
       .then((o) => {
         if (!o) return;
         setConfigured(o.telephonyConfigured);
-        setAllowed(o.allowedNumbers);
+        setNumbers(o.numbers ?? []);
         const hospital = o.agents.find((a: { id: string }) => a.id === "outbound-hospital-coordination");
         const s = hospital?.suggestedAllowed ? hospital.suggestedNumber : null;
         setSuggested(s);
-        setNumber(s ?? o.allowedNumbers[0] ?? "");
+        setNumber(s ?? o.numbers?.[0]?.number ?? "");
       })
       .catch(() => undefined);
   }, [caseId]);
@@ -59,25 +60,22 @@ export function InterpreterCard({ caseId }: { caseId: string }) {
       {!active ? (
         <div className="mt-3 space-y-2">
           <p className="text-xs text-slate-500">Call the hospital and talk in English — an AI interprets both ways in real time.</p>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              aria-label="Hospital number"
+          <div className="grid gap-2 sm:grid-cols-2 sm:items-start">
+            <NumberPicker
+              label="Hospital number"
               value={number}
-              onChange={(e) => setNumber(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700"
-            >
-              {allowed.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                  {n === suggested ? " (hospital)" : ""}
-                </option>
-              ))}
-            </select>
+              onChange={setNumber}
+              numbers={numbers}
+              onNumbers={setNumbers}
+              suggested={suggested ? { number: suggested, tag: "hospital" } : null}
+            />
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-muted">Hospital language</span>
             <select
               aria-label="Hospital language"
               value={lang}
               onChange={(e) => setLang(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700"
+              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none"
             >
               {HOSPITAL_LANGUAGES.map(([code, label]) => (
                 <option key={code} value={code}>
@@ -85,6 +83,7 @@ export function InterpreterCard({ caseId }: { caseId: string }) {
                 </option>
               ))}
             </select>
+            </label>
           </div>
           <Button onClick={() => void start({ caseId, hospitalNumber: number, hospitalLanguage: lang })} disabled={!number} className="w-full">
             <Languages size={15} aria-hidden /> Start interpreted call
