@@ -11,6 +11,8 @@ const Body = z.object({
   caseId: z.string().optional(),
   to: z.string().min(6).max(24),
   language: z.string().max(40).optional(),
+  /** Agents that call about a record rather than a case: which one (e.g. "RCV-1003"). */
+  record: z.string().max(40).optional(),
 });
 
 /** Places an outbound AI call (operator action; allowlisted numbers only). */
@@ -25,6 +27,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     caseId: body.caseId,
     to: body.to,
     language: body.language,
+    record: body.record,
     placedBy: await getOperator(req),
   });
   return json({ call: serialize({ id: call.id, ref: call.ref, status: call.status }) }, { status: 201 });

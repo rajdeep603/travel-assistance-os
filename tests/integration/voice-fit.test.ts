@@ -52,7 +52,8 @@ describe("voice agents and the cases that fit them", () => {
 
     const log = scenarios.find((s) => s.agentId === "outbound-log-confirmation")!;
     expect(log.case?.ref).toBe("CASE-1024");
-    expect(log.fit?.record).toContain("LOG-0903");
+    // LOG-0903 from the seed, or a newer letter a rehearsal issued on the case: either is a letter still awaiting confirmation.
+    expect(log.fit?.record).toMatch(/^LOG-\d{4} · /);
 
     const bill = scenarios.find((s) => s.agentId === "outbound-bill-negotiation")!;
     expect(bill.case?.ref).toBe("CASE-1022");
@@ -97,7 +98,8 @@ describe("voice agents and the cases that fit them", () => {
 
   it("undoes what a rehearsal consumed: an acknowledged letter is sent again, with the reset on the timeline", async () => {
     const admission = await caseByRef("CASE-1024");
-    await prisma.guaranteeLetter.update({ where: { ref: "LOG-0903" }, data: { status: "ACKNOWLEDGED", acknowledgedAt: new Date() } });
+    // Every letter on the case confirmed (a rehearsal may have issued more than the seeded LOG-0903).
+    await prisma.guaranteeLetter.updateMany({ where: { caseId: admission.id, status: "SENT" }, data: { status: "ACKNOWLEDGED", acknowledgedAt: new Date() } });
     const before = await getAgent("outbound-log-confirmation")!.fit!(admission.id);
     expect(before.ready).toBe(false);
     expect(before.why).toMatch(/already acknowledged/);

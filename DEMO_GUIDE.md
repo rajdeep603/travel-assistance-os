@@ -111,6 +111,13 @@ pinned cases in one click: press it before each meeting. The picker never
 starts an agent on a case that doesn't fit; it offers the ready case instead,
 and from a case page only the agents the case fits are offered.
 
+Each step runs either way: **Start conversation** for the browser (you play
+the other side), or **Call by phone** under the picker: pick the number (add
+the prospect's own mobile with its country code, **Add a number**) and the
+agent rings it about that case; for hotline steps the hotline rings it and
+greets. The call then shows live under the stage with its transcript and
+tool steps, so the prospect hears it on their phone while the room watches.
+
 | Who | Demo run | Steps |
 |---|---|---|
 | **Assistance company** | `/voice?run=assistance` | "Where is my case?" (their language) → a traveller needs a doctor → the reminder call (`CASE-1016`) → the follow-up call (`CASE-1015`) |

@@ -70,9 +70,16 @@ async function claimToComplete(caseId: string) {
   return { claim, missing };
 }
 
-/** The guarantee letter whose receipt is checked: the latest one sent (or already acknowledged). */
+/**
+ * The guarantee letter whose receipt is checked: the newest one still awaiting
+ * the hospital's confirmation; failing that, the newest acknowledged one (so
+ * the brief can say it was already confirmed).
+ */
 async function letterToCheck(caseId: string) {
-  return prisma.guaranteeLetter.findFirst({ where: { caseId, status: { in: ["SENT", "ACKNOWLEDGED"] } }, orderBy: { createdAt: "desc" } });
+  return (
+    (await prisma.guaranteeLetter.findFirst({ where: { caseId, status: "SENT" }, orderBy: { createdAt: "desc" } })) ??
+    (await prisma.guaranteeLetter.findFirst({ where: { caseId, status: "ACKNOWLEDGED" }, orderBy: { createdAt: "desc" } }))
+  );
 }
 
 /** The diagnosis a document on the case states, for the transport assessment. */

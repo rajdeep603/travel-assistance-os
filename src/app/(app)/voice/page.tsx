@@ -7,6 +7,8 @@ import { ErrorBanner, PageHeader } from "@/components/ui";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { AgentPicker, blockedReason, type VoiceCatalog } from "@/components/voice/agent-picker";
 import { DemoRunStrip, type ResolvedStep } from "@/components/voice/demo-run-strip";
+import { PhoneCallPanel } from "@/components/voice/phone-call-panel";
+import { LiveBoard } from "@/components/calls/live-board";
 import { BookingPanel, ProvidersPanel, ResultsPanel } from "@/components/voice/session-panels";
 import { TranscriptPanel } from "@/components/voice/transcript-panel";
 import { StageButton, VoiceStage } from "@/components/voice/voice-stage";
@@ -88,6 +90,8 @@ export default function VoicePage() {
   const [caseOverrideId, setCaseOverrideId] = useState<string | null>(null);
   const [recordRef, setRecordRef] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<VoiceCatalog | null>(null);
+  // A phone call placed from here shows live under the stage (the gateway's monitor feed).
+  const [liveMonitorUrl, setLiveMonitorUrl] = useState<string | null>(null);
   useEffect(() => {
     if (urlAgent) setAgentId(urlAgent);
   }, [urlAgent]);
@@ -188,22 +192,45 @@ export default function VoicePage() {
       <div className="grid gap-5 lg:grid-cols-5 lg:grid-rows-[auto_minmax(0,1fr)]">
         <div className="min-w-0 lg:col-span-2 lg:col-start-4 lg:row-start-1">
           {catalog ? (
-            <AgentPicker
-              catalog={catalog}
-              agentId={agentId}
-              language={language}
-              onAgent={(id) => {
-                setAgentId(id);
-                remember({ agent: id });
-              }}
-              onLanguage={(name) => {
-                setLanguage(name);
-                remember({ lang: name });
-              }}
-              onPrepared={loadCatalog}
-              onUseCase={pickCase}
-              disabled={live || busy}
-            />
+            <div className="space-y-5">
+              <AgentPicker
+                catalog={catalog}
+                agentId={agentId}
+                language={language}
+                onAgent={(id) => {
+                  setAgentId(id);
+                  remember({ agent: id });
+                }}
+                onLanguage={(name) => {
+                  setLanguage(name);
+                  remember({ lang: name });
+                }}
+                onPrepared={loadCatalog}
+                onUseCase={pickCase}
+                disabled={live || busy}
+              />
+              {scenario ? (
+                <PhoneCallPanel
+                  target={{
+                    agentId: scenario.agentId,
+                    agentLabel: scenario.label,
+                    direction: scenario.direction,
+                    caseId: scenario.case?.id ?? null,
+                    caseRef: scenario.case?.ref ?? null,
+                    record: recordRef ?? scenario.record?.ref ?? null,
+                    blocked,
+                  }}
+                  language={language}
+                  disabled={live || busy}
+                  onPlaced={() => {
+                    fetch("/api/calls/config")
+                      .then((r) => (r.ok ? r.json() : null))
+                      .then((c) => c && setLiveMonitorUrl(c.monitorUrl))
+                      .catch(() => undefined);
+                  }}
+                />
+              ) : null}
+            </div>
           ) : null}
         </div>
         <div className="min-w-0 lg:col-span-3 lg:col-start-1 lg:row-span-2 lg:row-start-1">
@@ -270,6 +297,12 @@ export default function VoicePage() {
           />
         </div>
       </div>
+
+      {liveMonitorUrl ? (
+        <div className="animate-fade-up mt-5">
+          <LiveBoard monitorUrl={liveMonitorUrl} />
+        </div>
+      ) : null}
 
       {state.booking || state.handoff ? (
         <div className="animate-fade-up mt-5 flex flex-wrap items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
