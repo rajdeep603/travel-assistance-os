@@ -5,7 +5,7 @@ import { matchSymptoms } from "@/lib/services/nlu";
 import { MODE_LABELS } from "@/lib/services/transport";
 import { utcToZoned } from "@/lib/time";
 import { spokenDate } from "./booking";
-import { nameMatches } from "./provider";
+import { nameMatches, surnameMatches } from "./provider";
 import { agentActor, createCaseRecord, resolvePatient } from "./records";
 import { defineTool, type ToolContext } from "./types";
 
@@ -172,7 +172,10 @@ export const findMyCaseTool = defineTool({
   async execute(args, ctx) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(args.date_of_birth)) return { found: false, message: "Give date_of_birth as YYYY-MM-DD." };
     const candidates = await prisma.patient.findMany({ where: { dateOfBirth: new Date(`${args.date_of_birth}T00:00:00Z`) } });
-    const patient = candidates.find((p) => nameMatches(args.full_name, p.firstName, p.lastName));
+    // The date of birth identifies them; the name, which a phone line garbles, is taken loosely when nothing matches it exactly.
+    const patient =
+      candidates.find((p) => nameMatches(args.full_name, p.firstName, p.lastName)) ??
+      candidates.find((p) => surnameMatches(args.full_name, p.lastName));
     // Their open case if they have one, else the latest.
     const kase = patient
       ? ((await prisma.case.findFirst({ where: { patientId: patient.id, status: { notIn: ["RESOLVED", "CLOSED"] } }, orderBy: { updatedAt: "desc" }, select: { id: true } })) ??

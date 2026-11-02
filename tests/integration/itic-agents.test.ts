@@ -157,6 +157,10 @@ describe("where is my case?", () => {
     const found = await t.run("find_my_case", { full_name: "james carter", date_of_birth: "1979-11-02" });
     expect(found).toMatchObject({ found: true, case_ref: "CASE-1017", status: "in progress" });
     expect(t.outcome).toEqual({ statusGiven: { caseRef: "CASE-1017" } });
+    // The phone line garbles the name; the date of birth still identifies the caller.
+    expect(await toolCtx("inbound-hotline").run("find_my_case", { full_name: "Jim Karter", date_of_birth: "1979-11-02" })).toMatchObject({ found: true, case_ref: "CASE-1017" });
+    expect(await toolCtx("inbound-hotline").run("find_my_case", { full_name: "Karlos Gracia", date_of_birth: "1973-04-30" })).toMatchObject({ found: true, case_ref: "CASE-1015" });
+    expect(await toolCtx("inbound-hotline").run("find_my_case", { full_name: "Lena Koch", date_of_birth: "1979-11-02" })).toMatchObject({ found: false });
   });
 });
 
