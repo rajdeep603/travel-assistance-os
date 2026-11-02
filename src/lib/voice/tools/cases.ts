@@ -81,7 +81,13 @@ export const addCaseNoteTool = defineTool({
   description: "Record a fact the case manager must see (e.g. allergies, hotel, a callback time) on this call's case.",
   schema: z.object({ note: z.string().max(1000) }),
   async execute(args, ctx) {
-    if (!ctx.caseId) return { error: "This call has no case yet. Create one first (create_case)." };
+    if (!ctx.caseId) {
+      // Kept on the call; copied onto the case the moment one is linked or created.
+      const call = await prisma.call.findUnique({ where: { id: ctx.callId }, select: { outcome: true } });
+      const notes = (call?.outcome as { notes?: string[] } | null)?.notes ?? [];
+      await ctx.setOutcome({ notes: [...notes, args.note] });
+      return { saved: true, say: "Noted on this call for the case manager. If the caller's situation needs a case, open one (create_case): the note goes with it." };
+    }
     await prisma.caseEvent.create({
       data: { caseId: ctx.caseId, type: "NOTE", title: `Note from ${ctx.callRef}`, body: args.note, actor: agentActor(ctx) },
     });

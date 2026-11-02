@@ -50,12 +50,27 @@ export function nameMatches(said: string, first: string, last: string): boolean 
   return [...fold(first).slice(0, 1), ...fold(last)].every((w) => words.some((s) => s === w || (w.length >= 4 && distance(s, w) <= 1)));
 }
 
-/** The caller's hospital and the letter's share a distinctive word ("Marmara"). */
+/**
+ * The surname on its own, loosely: a phone line turns "Koch" into "Coach" or
+ * "Kotch", and a name spelled letter by letter arrives as one word
+ * ("Lenakoch"). Only ever used beside the date of birth or the letter
+ * reference, which do the identifying.
+ */
+export function surnameMatches(said: string, last: string): boolean {
+  const ours = fold(last);
+  if (!ours.length) return false;
+  const words = fold(said);
+  const forms = [...words, words.join("")];
+  return ours.every((w) => forms.some((s) => s === w || (w.length >= 4 && (s.includes(w) || distance(s, w) <= 2))));
+}
+
+/** The caller's hospital and the letter's share a distinctive word ("Marmara"), allowing for a misheard one ("Malpara"). */
 const GENERIC = new Set(["demo", "hospital", "hastanesi", "hastane", "medical", "center", "centre", "clinic", "klinik", "private", "ozel", "international", "the", "of", "and", "heart", "health", "group", "tip", "merkezi"]);
 export function hospitalMatches(said: string, letterHospital: string): boolean {
   const theirs = fold(said).filter((w) => !GENERIC.has(w) && w.length > 2);
-  const ours = new Set(fold(letterHospital));
-  return theirs.length === 0 || theirs.some((w) => ours.has(w));
+  const ours = fold(letterHospital);
+  const distinctive = ours.filter((w) => !GENERIC.has(w) && w.length >= 5);
+  return theirs.length === 0 || theirs.some((w) => ours.includes(w) || (w.length >= 5 && distinctive.some((o) => distance(w, o) <= 2)));
 }
 
 function statusInWords(l: GuaranteeLetter): string {
@@ -123,14 +138,24 @@ export const findGuaranteeTool = defineTool({
       orderBy: { createdAt: "desc" },
       take: 50,
     });
-    const forPatient = letters.filter((l) =>
-      ref
-        ? fold(args.patient_name).some((w) => fold(l.case.patient.lastName).includes(w))
-        : nameMatches(args.patient_name, l.case.patient.firstName, l.case.patient.lastName)
-    );
+    // The reference or the date of birth identifies the patient; the name is
+    // the check that the caller knows them, taken loosely because the line
+    // garbles names (a letter found by its reference with the right date of
+    // birth needs no name at all).
+    const forPatient = letters.filter((l) => {
+      const { firstName, lastName, dateOfBirth } = l.case.patient;
+      if (ref && dob && dateOfBirth.getTime() === dob.getTime()) return true;
+      return nameMatches(args.patient_name, firstName, lastName) || surnameMatches(args.patient_name, lastName);
+    });
     const ours = forPatient.filter((l) => hospitalMatches(args.hospital, l.hospitalName));
     if (forPatient.length === 0) {
-      return { found: false, say: "No guarantee matches those details. Ask them to check the spelling, the date of birth or the reference; offer a case manager call-back." };
+      return {
+        found: false,
+        say:
+          letters.length > 0
+            ? `${ref ? "The reference exists, but" : "A patient with that date of birth exists, but"} the surname you heard doesn't match. Ask them to spell the patient's surname letter by letter, then search again with the same ${ref ? "reference" : "date of birth"}.`
+            : "No guarantee matches those details. Ask them to check the spelling, the date of birth or the reference; offer a case manager call-back.",
+      };
     }
     if (ours.length === 0) {
       return { found: false, say: "There is no guarantee on file for this patient at the caller's hospital. Don't say whether one exists elsewhere; offer to take their cost estimate so a case manager can issue one." };

@@ -5,7 +5,7 @@ import { negotiationLimits } from "@/lib/services/bill-negotiation";
 import { delayPayout, type Benefit } from "@/lib/services/policy";
 import { recommendTransport, type TransportAssessment } from "@/lib/services/transport";
 import { voiceLanguage } from "@/lib/voice/languages";
-import { hospitalMatches, nameMatches } from "@/lib/voice/tools/provider";
+import { hospitalMatches, nameMatches, surnameMatches } from "@/lib/voice/tools/provider";
 
 // The pure pieces behind the ITIC meeting demos: delay payouts the voice
 // agent quotes, medical transport rules, the negotiation's numbers, who a
@@ -118,8 +118,21 @@ describe("who a hospital caller may hear about", () => {
     expect(nameMatches("Anna Koch", "Lena", "Koch")).toBe(false);
   });
 
-  it("only shares a letter with the hospital it was issued to", () => {
+  it("takes the surname loosely beside the date of birth or the reference: a phone line garbles it", () => {
+    // Heard on live calls: "Lena Coach", a spelled-out "L E N A K O C H" joined into one word.
+    expect(surnameMatches("Lena Coach", "Koch")).toBe(true);
+    expect(surnameMatches("L E N A K O C H", "Koch")).toBe(true);
+    expect(surnameMatches("Lenakoch", "Koch")).toBe(true);
+    expect(surnameMatches("Kotch", "Koch")).toBe(true);
+    expect(surnameMatches("Dinakot", "Koch")).toBe(false);
+    expect(surnameMatches("Carter", "Koch")).toBe(false);
+    expect(surnameMatches("", "Koch")).toBe(false);
+  });
+
+  it("only shares a letter with the hospital it was issued to, allowing for a misheard name", () => {
     expect(hospitalMatches("Marmara Heart Center", "Marmara Demo Heart Center")).toBe(true);
+    expect(hospitalMatches("Marmana Heart Center", "Marmara Demo Heart Center")).toBe(true);
+    expect(hospitalMatches("State Malpara Health Center", "Marmara Demo Heart Center")).toBe(true);
     expect(hospitalMatches("Besiktas Sports Medicine", "Marmara Demo Heart Center")).toBe(false);
   });
 });

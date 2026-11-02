@@ -40,8 +40,10 @@ export const liveSessions = new Map<string, LiveSessionHandle>();
 export interface CallOpening {
   /** Stay silent until the caller speaks; a phone caller hears a short tone when the line is open. */
   wait: boolean;
-  /** A bracketed system cue in place of the agent's (who the caller plays, the exchange to expect). */
+  /** A bracketed system cue in place of the agent's. */
   cue?: string;
+  /** Who the caller plays and the exchange to expect: part of the agent's instructions. */
+  rehearsal?: string;
 }
 
 /** Phone-only actions, provided by the telephony layer. */
@@ -68,7 +70,8 @@ function agentContext(
   channel: "PHONE" | "BROWSER",
   linkedCase: AgentContext["linkedCase"],
   brief: Record<string, unknown> | null | undefined,
-  language: string | null
+  language: string | null,
+  rehearsal: string | null
 ): AgentContext {
   const now = utcToZoned(new Date());
   return {
@@ -80,6 +83,7 @@ function agentContext(
     linkedCase,
     brief: brief ?? null,
     language,
+    rehearsal,
   };
 }
 
@@ -111,6 +115,12 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   const brief = params.brief ?? (call.outcome as { brief?: Record<string, unknown> } | null)?.brief ?? null;
   const opening = (call.outcome as { opening?: CallOpening } | null)?.opening ?? null;
   const language = voiceLanguage(call.language);
+  // Names the recogniser should expect on this call: the demo step's, the linked case's patient.
+  const extraKeyterms = (call.outcome as { keyterms?: unknown } | null)?.keyterms;
+  const callKeyterms = [
+    ...(call.case ? [call.case.ref, call.case.patient.firstName, call.case.patient.lastName] : []),
+    ...(Array.isArray(extraKeyterms) ? extraKeyterms.filter((k): k is string => typeof k === "string") : []),
+  ];
 
   const conversation = await prisma.conversation.create({
     data: {
@@ -195,6 +205,15 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
         prisma.conversation.update({ where: { id: conversation.id }, data: { caseId } }),
       ]);
       if (updated.case) emit({ type: "case", case: updated.case });
+      // Notes taken before the call had a case go onto it now.
+      const notes = (outcome as { notes?: unknown }).notes;
+      if (Array.isArray(notes) && notes.length) {
+        await prisma.caseEvent
+          .createMany({
+            data: notes.filter((n): n is string => typeof n === "string").map((note) => ({ caseId, type: "NOTE" as const, title: `Note from ${call.ref}`, body: note, actor: `agent:${profile.id}` })),
+          })
+          .catch((err) => console.error(`[voice] ${call.ref} notes could not be filed on the case:`, err));
+      }
     },
     async setOutcome(patch) {
       outcome = { ...outcome, ...patch };
@@ -251,7 +270,8 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
               }
             : null,
           brief,
-          language?.name ?? null
+          language?.name ?? null,
+          opening?.rehearsal ?? null
         )
       ),
       voice: profile.voice,
@@ -259,7 +279,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
       output: leg.format,
       tools: realtimeTools(profile.tools),
       languageHint: language ? (language.hint === undefined ? language.code : language.hint ?? undefined) : profile.languageHint,
-      keyterms: [...DEFAULT_KEYTERMS, ...(profile.keyterms ?? []), ...(call.case ? [call.case.ref] : [])],
+      keyterms: [...DEFAULT_KEYTERMS, ...(profile.keyterms ?? []), ...callKeyterms],
       reasoningEffort: profile.reasoningEffort,
     },
   });

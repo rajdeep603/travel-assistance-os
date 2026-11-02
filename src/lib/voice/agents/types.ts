@@ -21,6 +21,8 @@ export interface AgentContext {
   brief?: Record<string, unknown> | null;
   /** Language the operator chose for this session (English name), if any. */
   language?: string | null;
+  /** A demo step on a real phone: who the presenter plays and the exchange they expect (inbound agents; outbound ones carry it in the brief). */
+  rehearsal?: string | null;
 }
 
 /**

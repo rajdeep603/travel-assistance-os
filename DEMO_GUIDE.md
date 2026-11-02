@@ -117,8 +117,13 @@ your own mobile by default (the first approved number; **Add a number** puts
 a visitor's in, with its country code), with the language beside it. For an
 inbound step the step's agent rings the phone, plays a short tone and stays
 quiet: read the first line and it answers, in the language chosen or the one
-you speak. For an outbound step the agent rings the phone and opens the call
-along the step's lines, so your answers fit. The call runs between the phone
+you speak. If you pick up with a hello, it answers in one line and waits for
+your first line. For an outbound step the agent rings the phone and opens the
+call along the step's lines, so your answers fit. Either way the agent is
+told the names in the step's lines (the hospital, the patient, the reference),
+so a "Koch" the line turns into "Coach" still finds LOG-0902, and the
+guarantee lookup takes a surname loosely beside the date of birth or the
+reference. The call runs between the phone
 and the server, so the booth's Wi-Fi only carries the click; it shows live
 under the demo run with its transcript and tool steps. Nothing on that screen
 is a note to you: the prospect watches it. What to point out is here instead.

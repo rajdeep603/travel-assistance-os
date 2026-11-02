@@ -336,6 +336,59 @@ export function stepCues(step: DemoStep): DemoCue[] {
   return step.cues ?? HOTLINE_SCRIPTS.find((s) => s.id === step.scriptId)?.turns ?? [];
 }
 
+/** Capitalised words that open a line or a sentence and aren't a name, plus record prefixes and dates. */
+const NOT_NAMES = new Set(
+  (
+    "hello hi hey good morning afternoon evening the this that these those is are was were has have had can could will would should may might do does did " +
+    "we i my our your you he she they it its his her their me us please yes no so ok okay thank thanks and or but if in on at to for of from with by about " +
+    "what when where how who why which there here not mr mrs ms dr sir madam one two three admissions international patient desk billing office " +
+    "january february march april may june july august september october november december monday tuesday wednesday thursday friday saturday sunday " +
+    "case clm log pol apt inv has msg call tr euro euros eur usd lira sorry excuse sure right fine great also now then just still again really yeah well oh um ah " +
+    "a an all much nothing something anything everything ten eleven twelve thirteen fourteen fifteen twenty thirty forty fifty hundred thousand"
+  ).split(" ")
+);
+const REF = /\b[A-Z]{2,5}-\d{3,6}\b/g;
+const CAPITALISED = /\p{Lu}[\p{L}'’]*(?:[ \u00a0](?:\p{Lu}[\p{L}'’]*|of|the|de|da|du|von|van|del|la|le))*/gu;
+
+/** A word of a capitalised run that isn't part of a name: a sentence opener, a contraction, a lowercase connector. */
+function nameWord(word: string): string | null {
+  const w = word.replace(/['’]s$/u, "");
+  if (/['’]/u.test(w) || !/^\p{Lu}/u.test(w) || NOT_NAMES.has(w.toLowerCase())) return null;
+  return w;
+}
+
+/**
+ * The proper names in a step's lines (hospitals, people, places) and the
+ * references in them: what the agent should expect to hear. A phone line
+ * garbles exactly these, so they also become the recogniser's key terms.
+ */
+export function stepNames(step: DemoStep): string[] {
+  const cues = stepCues(step);
+  const spoken = [step.youPlay, ...cues.map((c) => c.say)].join(". ");
+  const names = new Set<string>();
+  for (const m of spoken.matchAll(CAPITALISED)) {
+    const words = m[0].split(/\s+/);
+    while (words.length && !nameWord(words[0])) words.shift();
+    while (words.length && !nameWord(words[words.length - 1])) words.pop();
+    // A lone capitalised word opening a sentence is just that ("Accounts, good morning.").
+    const before = spoken.slice(0, m.index).trimEnd();
+    if (words.length === 1 && (before === "" || /[.!?:;"“]$/u.test(before))) continue;
+    if (words.length) names.add(words.map((w) => nameWord(w) ?? w).join(" "));
+  }
+  for (const ref of [spoken, ...cues.map((c) => c.hear)].join(" ").match(REF) ?? []) names.add(ref);
+  return [...names];
+}
+
+/** Key terms for the recogniser: every word of the step's names, and its references. */
+export function stepKeyterms(step: DemoStep): string[] {
+  const terms = new Set<string>();
+  for (const name of stepNames(step)) {
+    if (/^[A-Z]{2,5}-\d{3,6}$/.test(name)) terms.add(name);
+    else for (const w of name.split(/\s+/)) if (w.length >= 3 && nameWord(w)) terms.add(w);
+  }
+  return [...terms].slice(0, 40);
+}
+
 /**
  * What the agent is told when a demo step runs on a real phone: who the
  * presenter plays and the exchange they expect, turn by turn, so the agent
@@ -346,10 +399,14 @@ export function rehearsalNote(step: DemoStep): string {
   const turns = stepCues(step)
     .map((c, i) => `${i + 1}. They say: "${c.say}" You then: ${c.hear}`)
     .join(" ");
+  const names = stepNames(step);
   return (
     `This call is a demonstration rehearsal: the person on the line is a presenter playing ${step.youPlay}, showing you to a prospect. ` +
+    "They know it's a demonstration, so don't say so or warn about real medical details; still say you're an AI assistant where your flow does. " +
     `The exchange they expect, in order: ${turns} ` +
     "Keep to this order and keep each turn short, so their next line fits. Never say their lines or answer for them: wait for each. " +
+    "If they first only say hello or ask whether you're there, answer with one short line and wait for their first line. " +
+    (names.length ? `Names in this exchange: ${names.join(", ")}. The line garbles names: anything that sounds close is one of these, so use this spelling in your tool calls. ` : "") +
     "Every fact still comes from your tools, as usual."
   );
 }

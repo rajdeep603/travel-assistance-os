@@ -3,7 +3,7 @@ import { json, serialize, withErrorHandling } from "@/lib/api";
 import { getOperator } from "@/lib/auth/session";
 import { badRequest } from "@/lib/errors";
 import { placeOutboundCall } from "@/lib/services/outbound-calls";
-import { demoStep, rehearsalNote } from "@/lib/voice/demo-runs";
+import { demoStep, rehearsalNote, stepKeyterms } from "@/lib/voice/demo-runs";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     record: body.record,
     placedBy: await getOperator(req),
     rehearsal: demo ? rehearsalNote(demo.step) : null,
-    extraOutcome: demo ? { demo: { run: demo.track.id, step: demo.step.id } } : undefined,
+    extraOutcome: demo ? { demo: { run: demo.track.id, step: demo.step.id }, keyterms: stepKeyterms(demo.step) } : undefined,
   });
   return json({ call: serialize({ id: call.id, ref: call.ref, status: call.status }) }, { status: 201 });
 });

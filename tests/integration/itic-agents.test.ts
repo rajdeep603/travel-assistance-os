@@ -123,6 +123,31 @@ describe("hospital & provider line", () => {
     expect(event.title).toContain("11,850 → 15,500 EUR");
     expect(t.outcome).toMatchObject({ guaranteeEnquiry: { letters: ["LOG-0902"] }, guaranteeResent: { ref: "LOG-0902", via: "FAX" } });
   });
+
+  it("finds the guarantee through what the phone line made of the names", async () => {
+    // As heard on live calls: "Lena Coach" at "Marmana Heart Center"; then the reference with a spelled-out "Lenakoch".
+    const byDob = toolCtx("inbound-provider-line");
+    expect(await byDob.run("find_guarantee", { hospital: "Marmana Heart Center", patient_name: "Lena Coach", date_of_birth: "1964-07-29" })).toMatchObject({ found: true, case_ref: "CASE-1022" });
+    const byRef = toolCtx("inbound-provider-line");
+    expect(await byRef.run("find_guarantee", { hospital: "State Malpara Health Center", patient_name: "Lenakoch", letter_ref: "LOG 0902" })).toMatchObject({ found: true, case_ref: "CASE-1022" });
+    // The reference with the right date of birth needs no name; without it, a wrong surname earns a hint to have it spelled.
+    const noName = toolCtx("inbound-provider-line");
+    expect(await noName.run("find_guarantee", { hospital: "Marmara Heart Center", patient_name: "Dinakot", date_of_birth: "1964-07-29", letter_ref: "LOG-0902" })).toMatchObject({ found: true });
+    const wrong = toolCtx("inbound-provider-line");
+    expect(await wrong.run("find_guarantee", { hospital: "Marmara Heart Center", patient_name: "Dinakot", letter_ref: "LOG-0902" })).toMatchObject({
+      found: false,
+      say: expect.stringContaining("spell the patient's surname"),
+    });
+    expect(wrong.ctx.caseId).toBeNull();
+    // Another hospital still hears nothing.
+    expect(await toolCtx("inbound-provider-line").run("find_guarantee", { hospital: "Besiktas Sports Medicine", patient_name: "Lena Coach", date_of_birth: "1964-07-29" })).toMatchObject({ found: false });
+  });
+
+  it("keeps a note taken before the call has a case", async () => {
+    const t = toolCtx("inbound-provider-line");
+    expect(await t.run("add_case_note", { note: "Hospital asks for a call-back about LOG-0902." })).toMatchObject({ saved: true });
+    expect(t.outcome).toMatchObject({ notes: ["Hospital asks for a call-back about LOG-0902."] });
+  });
 });
 
 describe("where is my case?", () => {

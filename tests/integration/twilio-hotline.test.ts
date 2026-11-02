@@ -78,10 +78,14 @@ afterAll(async () => {
   setTelephony(null);
   delete process.env.CASE_MANAGER_NUMBER;
   const calls = await prisma.call.findMany({ where: { twilioCallSid: { in: createdCallSids } } });
-  const caseIds = calls.map((c) => c.caseId).filter((id): id is string => Boolean(id));
-  const cases = await prisma.case.findMany({ where: { id: { in: caseIds } } });
+  // Only cases the tests opened: a call may have been filed on a seeded case (CASE-1022).
+  const cases = await prisma.case.findMany({
+    where: { id: { in: calls.map((c) => c.caseId).filter((id): id is string => Boolean(id)) }, createdAt: { gte: testStart } },
+  });
+  const caseIds = cases.map((c) => c.id);
   await prisma.call.deleteMany({ where: { id: { in: calls.map((c) => c.id) } } });
   await prisma.conversation.deleteMany({ where: { id: { in: calls.map((c) => c.conversationId!).filter(Boolean) } } });
+  await prisma.caseEvent.deleteMany({ where: { createdAt: { gte: testStart }, data: { path: ["callRef"], string_starts_with: "CALL-" }, caseId: { notIn: caseIds } } });
   await prisma.case.deleteMany({ where: { id: { in: caseIds } } });
   await prisma.patient.deleteMany({ where: { id: { in: cases.map((c) => c.patientId) }, createdAt: { gte: testStart } } });
   await prisma.$disconnect();
@@ -131,11 +135,13 @@ describe("Ring my phone from a demo step", () => {
     createdCallSids.push(call.twilioCallSid!);
     // The record exists before the phone rings: the step's own agent, the chosen language, the caller as the caller.
     expect(call).toMatchObject({ direction: "INBOUND", channel: "PHONE", agentProfile: "inbound-provider-line", status: "RINGING", language: "Turkish", fromNumber: "+447700900009" });
-    const outcome = call.outcome as { rangThem: boolean; opening: { wait: boolean; cue: string }; demo: { run: string; step: string } };
+    const outcome = call.outcome as { rangThem: boolean; opening: { wait: boolean; cue: string; rehearsal: string }; demo: { run: string; step: string }; keyterms: string[] };
     expect(outcome.rangThem).toBe(true);
     expect(outcome.opening.wait).toBe(true);
-    expect(outcome.opening.cue).toContain("Marmara Heart Center");
+    expect(outcome.opening.cue).toContain("stay silent until they do");
+    expect(outcome.opening.rehearsal).toContain("Marmara Heart Center");
     expect(outcome.demo).toEqual({ run: "insurer", step: "hospital-line" });
+    expect(outcome.keyterms).toEqual(expect.arrayContaining(["Lena", "Koch", "LOG-0902"]));
 
     // Answered: Twilio reaches the inbound webhook with the call's id, which is the call (no second record).
     const { POST: inbound } = await import("@/app/api/twilio/voice/inbound/route");
@@ -162,9 +168,14 @@ describe("Ring my phone from a demo step", () => {
     const update = await model.waitFor((e) => e.type === "session.update");
     expect(update.session.instructions).toContain("hospitals, clinics and other medical providers");
     expect(update.session.instructions).toContain("Language for this call: Turkish");
+    // The rehearsal is in the instructions, the step's names among the recogniser's key terms.
+    expect(update.session.instructions).toContain("Rehearsal: This call is a demonstration rehearsal");
+    expect(update.session.instructions).toMatch(/Names in this exchange: .*Marmara Heart Center, Lena Koch, LOG-0902\./);
+    expect(update.session.audio.input.transcription.keyterms).toEqual(expect.arrayContaining(["Marmara", "Koch", "LOG-0902"]));
     model.send({ type: "session.updated" });
     const cue = await model.waitFor((e) => e.type === "conversation.item.create");
     expect(JSON.stringify(cue)).toContain("stay silent until they do");
+    expect(JSON.stringify(cue)).not.toContain("They say:");
     await new Promise((r) => setTimeout(r, 400));
     expect(model.received.some((e) => e.type === "response.create")).toBe(false);
     // The phone hears the ready tone from the bridge itself (20 ms μ-law frames), not the model.
@@ -180,6 +191,17 @@ describe("Ring my phone from a demo step", () => {
     const deadline = Date.now() + 3000;
     while (!fromGateway.some((m) => m.event === "media" && m.media.payload === spoken) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
     expect(fromGateway.some((m) => m.event === "media" && m.media.payload === spoken)).toBe(true);
+
+    // A note taken before the lookup stays on the call, then lands on the case the lookup finds.
+    model.callFunction("add_case_note", { note: "Desk says the letter never arrived." });
+    const noted = JSON.parse((await model.waitFor((e) => e.item?.type === "function_call_output")).item.output);
+    expect(noted.saved).toBe(true);
+    model.callFunction("find_guarantee", { hospital: "Marmana Heart Center", patient_name: "Lena Coach", date_of_birth: "1964-07-29" });
+    const found = JSON.parse((await model.waitFor((e) => e.item?.type === "function_call_output" && JSON.parse(e.item.output).case_ref)).item.output);
+    expect(found).toMatchObject({ found: true, case_ref: "CASE-1022" });
+    const filed = await prisma.caseEvent.findFirst({ where: { case: { ref: "CASE-1022" }, type: "NOTE", title: `Note from ${call.ref}` } });
+    expect(filed?.body).toBe("Desk says the letter never arrived.");
+    await prisma.caseEvent.deleteMany({ where: { title: `Note from ${call.ref}` } });
 
     twilio.send(JSON.stringify({ event: "stop", streamSid: "MZ9", stop: { accountSid: "AC1", callSid: call.twilioCallSid } }));
     let final = call;

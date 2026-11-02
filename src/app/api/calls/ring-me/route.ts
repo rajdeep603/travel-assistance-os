@@ -11,7 +11,7 @@ import { isAllowedNumber, normalizeNumber } from "@/lib/services/outbound-calls"
 import { getTelephony } from "@/lib/services/telephony";
 import { getAgent } from "@/lib/voice/agents/registry";
 import type { CallOpening } from "@/lib/voice/bridge";
-import { demoStep, rehearsalNote } from "@/lib/voice/demo-runs";
+import { demoStep, rehearsalNote, stepKeyterms } from "@/lib/voice/demo-runs";
 import { voiceLanguage } from "@/lib/voice/languages";
 
 export const dynamic = "force-dynamic";
@@ -48,10 +48,12 @@ export const POST = withErrorHandling(async (req: Request) => {
   if (body.demo && !demo) throw badRequest("Unknown demo step.");
   const profile = getAgent(demo ? demo.step.agentId : env.hotlineAgent);
   if (!profile || profile.direction !== "inbound") throw badRequest("This step isn't an inbound call; place it as an outbound call instead.");
+  // The rehearsal is part of the agent's instructions; the cue only opens the line.
   const opening: CallOpening | null = demo
     ? {
         wait: true,
-        cue: `[The call has connected. ${rehearsalNote(demo.step)} They speak first: stay silent until they do, then answer as you would on a dialled-in call. Don't greet first.]`,
+        cue: "[The call has connected. The presenter speaks first: stay silent until they do, then answer as you would on a dialled-in call. Don't greet first.]",
+        rehearsal: rehearsalNote(demo.step),
       }
     : null;
 
@@ -72,7 +74,7 @@ export const POST = withErrorHandling(async (req: Request) => {
         outcome: {
           rangThem: true,
           ...(opening ? { opening } : {}),
-          ...(demo ? { demo: { run: demo.track.id, step: demo.step.id } } : {}),
+          ...(demo ? { demo: { run: demo.track.id, step: demo.step.id }, keyterms: stepKeyterms(demo.step) } : {}),
         } as unknown as Prisma.InputJsonValue,
       },
     })

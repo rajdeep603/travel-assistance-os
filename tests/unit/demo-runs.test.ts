@@ -3,7 +3,7 @@ import { CASES } from "../../prisma/seed-data";
 import { LEAD_SEGMENTS } from "@/lib/meeting-notes";
 import { getAgent } from "@/lib/voice/agents/registry";
 import { HOTLINE_SCRIPTS } from "@/lib/voice/call-scripts";
-import { DEMO_TRACKS, demoStep, demoTrack, rehearsalNote, stepCues, trackAgents } from "@/lib/voice/demo-runs";
+import { DEMO_TRACKS, demoStep, demoTrack, rehearsalNote, stepCues, stepKeyterms, stepNames, trackAgents } from "@/lib/voice/demo-runs";
 import { VOICE_LANGUAGES } from "@/lib/voice/languages";
 
 // The 15-minute demo runs: one per kind of prospect, each step on a seeded case
@@ -62,8 +62,28 @@ describe("demo runs", () => {
     expect(note.indexOf("1. They say")).toBeLessThan(note.indexOf("2. They say"));
     expect(note).toContain("Never say their lines");
     expect(note).toContain("Every fact still comes from your tools");
+    // The presenter knows it's a demonstration, and may pick up with a plain hello.
+    expect(note).toContain("don't say so or warn about real medical details");
+    expect(note).toContain("only say hello");
     // A hotline step's note reads the script's turns.
     expect(rehearsalNote(demoStep("insurer", "flight-delay")!.step)).toContain("POL-TR-100945");
+    // The names the line will garble are spelled out for it.
+    expect(rehearsalNote(demoStep("hospital", "hospital-line")!.step)).toContain("Names in this exchange: Marmara Heart Center, Lena Koch, LOG-0902.");
+  });
+
+  it("knows the names a step's lines carry, for the agent and the recogniser", () => {
+    expect(stepNames(demoStep("hospital", "hospital-line")!.step)).toEqual(["Marmara Heart Center", "Lena Koch", "LOG-0902"]);
+    expect(stepKeyterms(demoStep("hospital", "hospital-line")!.step)).toEqual(["Marmara", "Heart", "Center", "Lena", "Koch", "LOG-0902"]);
+    const carlos = stepNames(demoStep("assistance", "where-is-my-case")!.step);
+    expect(carlos).toContain("Carlos Garcia");
+    expect(carlos).toContain("CASE-1015");
+    // Sentence openers, contractions and dates aren't names.
+    for (const track of DEMO_TRACKS) {
+      for (const step of track.steps) {
+        for (const name of stepNames(step)) expect(name).not.toMatch(/^(Hello|The|Hi|I'm|I've|He's|She's|What's|July|Much|Nothing|Accounts|Payment|A)$/);
+      }
+    }
+    expect(stepNames(demoStep("hospital", "payer")!.step)).toEqual([]);
   });
 
   it("knows which agents a run needs prepared: the ones calling about a case or an invoice", () => {
