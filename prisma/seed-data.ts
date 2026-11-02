@@ -122,14 +122,31 @@ export interface ProviderProfile {
   kind?: "CLINIC" | "HOSPITAL" | "TELEMEDICINE" | "AIR_AMBULANCE" | "GROUND_AMBULANCE";
   accreditations?: string[];
   rateCard?: { name: string; multiplier?: number; perCode?: Record<string, number> };
+  /** What the network team established (src/lib/services/provider-validation.ts): hours as stated, direct billing, a past validation, prices quoted. */
+  hours?: string;
+  acceptsDirectBilling?: boolean;
+  /** Verified this many days ago by an AI call (VERIFIED), or flagged. */
+  verified?: { daysAgo: number; status?: "VERIFIED" | "CLOSED" | "MOVED" | "UNREACHABLE"; note?: string };
+  prices?: { item: "CONSULTATION" | "SPECIALIST_VISIT" | "URGENT_CARE_VISIT" | "ER_VISIT" | "XRAY" | "CT_SCAN" | "MRI" | "BLOOD_PANEL" | "DENTAL_EXAM" | "OVERNIGHT_STAY"; amount: number; currency?: string; source?: "CALL" | "FORM" | "UPLOAD" | "TEAM" }[];
 }
 
 export const PROVIDER_PROFILES: Record<string, ProviderProfile> = {
-  "PRV-2001": { accreditations: ["ISO 9001"] },
-  "PRV-2003": { kind: "HOSPITAL", accreditations: ["JCI", "ISO 9001"] },
-  "PRV-2005": { kind: "HOSPITAL", accreditations: ["JCI"] },
-  "PRV-2009": { kind: "HOSPITAL" },
-  "PRV-2011": { kind: "HOSPITAL", accreditations: ["ISO 9001"] },
+  "PRV-2001": {
+    accreditations: ["ISO 9001"],
+    hours: "Mon–Sat 8:00–22:00",
+    acceptsDirectBilling: true,
+    verified: { daysAgo: 12, note: "Spoke to Ayse (front desk). Confirmed: General practice consultations, Blood tests, Vaccinations. Walk-ins seen; English and Turkish." },
+    prices: [{ item: "CONSULTATION", amount: 1800, currency: "TRY", source: "CALL" }, { item: "BLOOD_PANEL", amount: 2400, currency: "TRY", source: "CALL" }],
+  },
+  "PRV-2002": { hours: "Mon–Fri 9:00–19:00, Sat 9:00–14:00", acceptsDirectBilling: false, verified: { daysAgo: 40, note: "Spoke to Dr Sahin. Patients pay at the desk; invoices for reimbursement." }, prices: [{ item: "CONSULTATION", amount: 55, source: "FORM" }] },
+  "PRV-2003": { kind: "HOSPITAL", accreditations: ["JCI", "ISO 9001"], hours: "24/7", acceptsDirectBilling: true, verified: { daysAgo: 5, note: "Spoke to the international patients office. Emergency department 24/7; CT and MRI on site; bills against a guarantee of payment." }, prices: [{ item: "ER_VISIT", amount: 220, source: "CALL" }, { item: "SPECIALIST_VISIT", amount: 95, source: "CALL" }, { item: "OVERNIGHT_STAY", amount: 380, source: "CALL" }, { item: "XRAY", amount: 60, source: "UPLOAD" }] },
+  "PRV-2004": { hours: "Mon–Fri 9:00–18:00", acceptsDirectBilling: true, verified: { daysAgo: 3, note: "Spoke to Selin Kaya (clinic manager). Sports injuries seen same day; X-ray on site." }, prices: [{ item: "SPECIALIST_VISIT", amount: 110, source: "CALL" }, { item: "XRAY", amount: 70, source: "CALL" }] },
+  "PRV-2005": { kind: "HOSPITAL", accreditations: ["JCI"], hours: "24/7", acceptsDirectBilling: true, prices: [{ item: "SPECIALIST_VISIT", amount: 120, source: "FORM" }, { item: "ER_VISIT", amount: 260, source: "FORM" }] },
+  "PRV-2007": { hours: "Mon–Sat 9:00–20:00", acceptsDirectBilling: false, verified: { daysAgo: 20, note: "Spoke to Volkan Demir. Emergency dental care in the evening; patients pay and claim back." }, prices: [{ item: "DENTAL_EXAM", amount: 65, source: "CALL" }] },
+  "PRV-2008": { verified: { daysAgo: 1, status: "UNREACHABLE", note: "No answer on two calls; number rings out." } },
+  "PRV-2009": { kind: "HOSPITAL", hours: "24/7" },
+  "PRV-2011": { kind: "HOSPITAL", accreditations: ["ISO 9001"], hours: "24/7", acceptsDirectBilling: true, verified: { daysAgo: 410, note: "Verified by phone last year; due for a fresh check." } },
+  "PRV-2015": { verified: { daysAgo: 2, status: "MOVED", note: "Spoke to the front desk. The practice moved to Istiklal Cd. 200, Beyoglu, in October." } },
   "PRV-2016": { kind: "HOSPITAL" },
   "PRV-2020": { kind: "HOSPITAL", accreditations: ["JCI"] },
   "PRV-2021": { kind: "HOSPITAL", accreditations: ["JCI"] },

@@ -31,6 +31,8 @@ const PUBLIC_PREFIXES = [
   "/meet",
   // A partner's view of a case handed to it (the token in the link is the credential).
   "/partner/",
+  // A practice's price-list link (the token is the credential).
+  "/p/",
   // The public API authenticates with API keys itself (or the operator's session).
   "/api/v1/",
 ];

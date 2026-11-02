@@ -13,6 +13,7 @@ import type {
   ConversationSummaryContext,
   DocumentFile,
   MedicalExtractionResult,
+  PriceListReading,
 } from "../types";
 import { MockAIService } from "./mock";
 import { AnthropicAIService } from "./anthropic";
@@ -105,6 +106,9 @@ class ResilientAIService implements AIService {
   }
   readBusinessCard(file: DocumentFile): Promise<BusinessCard> {
     return this.run("readBusinessCard", (s) => s.readBusinessCard(file));
+  }
+  readPriceList(file: DocumentFile, items: string[]): Promise<PriceListReading> {
+    return this.run("readPriceList", (s) => s.readPriceList(file, items));
   }
 }
 

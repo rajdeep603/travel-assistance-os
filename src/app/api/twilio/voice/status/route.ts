@@ -1,5 +1,6 @@
 import type { CallStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { markValidationUnreachable } from "@/lib/services/provider-validation";
 import { readTwilioRequest, withTwiml } from "@/lib/twilio-webhook";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,10 @@ export const POST = withTwiml(async (req) => {
         ...(final && p.CallDuration ? { durationSec: Number(p.CallDuration) } : {}),
       },
     });
+    // A provider validation nobody answered: the record is unreachable until someone checks the number.
+    if (["BUSY", "FAILED", "NO_ANSWER"].includes(status) && !SETTLED.includes(call.status) && call.agentProfile === "outbound-provider-validation") {
+      await markValidationUnreachable(call.id).catch((err) => console.error(`[twilio] ${call.ref} provider update failed:`, err));
+    }
   }
   return new Response(null, { status: 204 });
 });

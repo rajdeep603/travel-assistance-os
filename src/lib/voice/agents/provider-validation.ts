@@ -2,11 +2,12 @@ import { SAFETY_GUARDRAILS, VOICE_STYLE, contextBlock } from "./prompt";
 import type { AgentContext, AgentProfile } from "./types";
 
 // ---------------------------------------------------------------------------
-// Provider validation: a client's provider-network tool asks us (through the
-// public API) to phone a clinic or hospital and check that it exists, still
-// operates at the address, what it offers, whether it takes direct billing,
-// and what a few things cost; then to send it a link for its price list.
-// The brief comes with the API call; nothing is read from a case.
+// Provider validation: Ada phones a clinic or hospital on behalf of a
+// provider network team and checks that it exists, still operates at the
+// address, what it offers, whether it takes direct billing, and what a few
+// things cost; then sends it a link for its price list. Placed from our own
+// provider pages (the brief is built from the record: CareTrail's network
+// team) or through the public API by a client's tool, which sends the brief.
 // ---------------------------------------------------------------------------
 
 const briefBlock = (ctx: AgentContext) =>
@@ -22,6 +23,14 @@ export const providerValidationAgent: AgentProfile = {
   audience: "provider",
   apiOnly: true,
   voice: "ara",
+  async fitRecord(record) {
+    const { validationFit } = await import("@/lib/services/provider-validation");
+    return validationFit(record);
+  },
+  async buildRecordBrief(record) {
+    const { validationRecordBrief } = await import("@/lib/services/provider-validation");
+    return validationRecordBrief(record);
+  },
   tools: ["record_provider_validation", "send_price_list_link", "end_call"],
   maxSeconds: 7 * 60,
   guardrails: {

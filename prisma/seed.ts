@@ -118,7 +118,9 @@ async function main() {
   const providerIds = new Map<string, string>();
   for (const p of PROVIDERS) {
     const profile = PROVIDER_PROFILES[p.ref] ?? {};
-    const data = { ...p, ...profile, rateCard: profile.rateCard ? json(profile.rateCard) : undefined };
+    // What the network team established is applied below, onto untouched records only; it never rides the upsert.
+    const { hours: _hours, acceptsDirectBilling: _billing, verified: _verified, prices: _prices, ...base } = profile;
+    const data = { ...p, ...base, rateCard: profile.rateCard ? json(profile.rateCard) : undefined };
     const row = await prisma.provider.upsert({
       where: { ref: p.ref },
       create: data,
@@ -129,6 +131,35 @@ async function main() {
       await prisma.provider.update({
         where: { id: row.id },
         data: { kind: profile.kind, accreditations: profile.accreditations, rateCard: profile.rateCard ? json(profile.rateCard) : undefined },
+      });
+    }
+    // What the network team established: only onto records nothing has touched yet (a deploy never overwrites a real validation).
+    if ((profile.hours || profile.acceptsDirectBilling != null || profile.verified) && row.status === "UNVERIFIED" && row.hours == null && row.lastVerifiedAt == null) {
+      const verifiedAt = profile.verified ? new Date(Date.now() - profile.verified.daysAgo * 86400000) : null;
+      await prisma.provider.update({
+        where: { id: row.id },
+        data: {
+          hours: profile.hours ?? undefined,
+          acceptsDirectBilling: profile.acceptsDirectBilling ?? undefined,
+          ...(profile.verified
+            ? { status: profile.verified.status ?? "VERIFIED", lastVerifiedAt: profile.verified.status && profile.verified.status !== "VERIFIED" ? undefined : verifiedAt, verificationNote: profile.verified.note ?? null }
+            : {}),
+          ...(profile.prices?.length ? { priceListStatus: profile.prices.some((q) => q.source === "FORM" || q.source === "UPLOAD") ? "RECEIVED" : "NONE" } : {}),
+        },
+      });
+      if (profile.verified) {
+        await prisma.providerChange.createMany({
+          data: [
+            { providerId: row.id, field: "status", before: "UNVERIFIED", after: profile.verified.status ?? "VERIFIED", source: "CALL", actor: "AI validation call", createdAt: verifiedAt ?? new Date() },
+            ...(profile.hours ? [{ providerId: row.id, field: "hours", before: null, after: profile.hours, source: "CALL" as const, actor: "AI validation call", createdAt: verifiedAt ?? new Date() }] : []),
+          ],
+        });
+      }
+    }
+    if (profile.prices?.length && (await prisma.providerPrice.count({ where: { providerId: row.id } })) === 0) {
+      const collectedAt = profile.verified ? new Date(Date.now() - profile.verified.daysAgo * 86400000) : new Date();
+      await prisma.providerPrice.createMany({
+        data: profile.prices.map((q) => ({ providerId: row.id, item: q.item, amount: q.amount, currency: q.currency ?? "EUR", source: q.source ?? "TEAM", note: q.source === "UPLOAD" ? "read from the uploaded price list" : null, collectedAt })),
       });
     }
     providerIds.set(p.ref, row.id);

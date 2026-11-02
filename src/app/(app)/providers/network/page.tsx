@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Building2, CheckCircle2, CopyCheck, GitMerge, HandCoins, Handshake, Mail, MapPin, Phone, Undo2 } from "lucide-react";
+import { Activity, BadgeCheck, Building2, CheckCircle2, CopyCheck, GitMerge, HandCoins, Handshake, Mail, MapPin, Phone, PhoneOutgoing, Undo2 } from "lucide-react";
 import { AccreditationBadge } from "@/components/providers/accreditation-badge";
+import { ProviderStatusBadge } from "@/components/providers/care-result-card";
 import { Button, Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, SkeletonRows, StatTile, readApiError } from "@/components/ui";
 import { formatDateTime, formatEnum } from "@/lib/format";
 import { useT } from "@/components/i18n";
@@ -48,11 +49,26 @@ interface Overview {
   providers: ProviderRow[];
 }
 
+interface Health {
+  score: number;
+  total: number;
+  clean: number;
+  verified: number;
+  counts: { code: string; label: string; severity: "high" | "medium" | "low"; count: number }[];
+  queue: { id: string; ref: string; name: string; facility: string; city: string; status: string; weight: number; issues: { code: string; severity: "high" | "medium" | "low"; text: string }[] }[];
+}
+
 const pct = (n: number) => `${Math.round(n * 100)}%`;
+const SEVERITY_CHIP: Record<string, string> = {
+  high: "border-red-200 bg-red-50 text-red-700",
+  medium: "border-amber-200 bg-amber-50 text-amber-700",
+  low: "border-line bg-canvas text-muted",
+};
 
 export default function ProviderNetworkPage() {
   const t = useT();
   const [data, setData] = useState<Overview | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [keep, setKeep] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -60,9 +76,10 @@ export default function ProviderNetworkPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/providers/network", { cache: "no-store" });
+      const [res, healthRes] = await Promise.all([fetch("/api/providers/network", { cache: "no-store" }), fetch("/api/providers/health", { cache: "no-store" })]);
       if (!res.ok) throw new Error(await readApiError(res, "Could not load the provider network."));
       setData(await res.json());
+      if (healthRes.ok) setHealth(await healthRes.json());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load the provider network.");
     }
@@ -109,7 +126,7 @@ export default function ProviderNetworkPage() {
     <div className="mx-auto max-w-7xl">
       <PageHeader
         title="Provider network"
-        subtitle="One record per provider: duplicates found by name, phone, e-mail and location, merged with their history. Accreditations and negotiated rates live on the provider."
+        subtitle="One record per provider, and how healthy each one is: what is wrong, how often, and in what order it is worth fixing. Duplicates found by name, phone, e-mail and location, merged with their history; accreditations and negotiated rates live on the provider."
       >
         <Link href="/providers" className="text-sm font-medium text-brand hover:underline">
           {t("Back to Provider Search")}
@@ -123,12 +140,76 @@ export default function ProviderNetworkPage() {
         </div>
       ) : null}
 
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatTile icon={Activity} tone={health && health.score < 70 ? "amber" : "emerald"} label={t("Network health")} value={health ? String(health.score) : "—"} note={health ? `${health.clean} of ${health.total} records clean · ${health.verified} verified by phone` : ""} warn={!!health && health.score < 70} />
         <StatTile icon={Building2} tone="blue" label={t("Providers in the network")} value={data ? String(data.active) : "—"} note={data ? `${data.countries} ${t("countries")}` : ""} />
         <StatTile icon={CopyCheck} tone="amber" label={t("Likely duplicates")} value={data ? String(data.duplicates.length) : "—"} note={data ? `${data.merged} ${t("merged so far")}` : ""} warn={!!data?.duplicates.length} />
         <StatTile icon={BadgeCheck} tone="emerald" label={t("Accredited")} value={data ? String(data.accredited) : "—"} note={data && data.active ? `${pct(data.accredited / data.active)} ${t("of the network")}` : ""} />
         <StatTile icon={HandCoins} tone="violet" label={t("With negotiated rates")} value={data ? String(data.withRates) : "—"} note={t("Used by bill review")} />
       </div>
+
+      <section className="mb-6">
+        <SectionTitle className="mb-3">Cleanup queue</SectionTitle>
+        {!health ? (
+          <Card><SkeletonRows rows={3} /></Card>
+        ) : (
+          <Card className="p-0">
+            <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
+              {health.counts.map((c) => (
+                <span key={c.code} className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${SEVERITY_CHIP[c.severity]}`}>
+                  {c.label}: <span className="tabular-nums">{c.count}</span>
+                </span>
+              ))}
+              {!health.counts.length ? <span className="text-sm text-muted">Every record is clean.</span> : null}
+            </div>
+            {health.queue.length ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-start text-xs font-medium text-muted">
+                    <th className="px-5 py-2.5 text-start">{t("Provider")}</th>
+                    <th className="px-3 py-2.5 text-start">{t("Where")}</th>
+                    <th className="px-3 py-2.5 text-start">Status</th>
+                    <th className="px-3 py-2.5 text-start">What&apos;s wrong</th>
+                    <th className="px-5 py-2.5 text-end"> </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line/60">
+                  {health.queue.map((q) => (
+                    <tr key={q.id}>
+                      <td className="px-5 py-2.5">
+                        <Link href={`/providers/${q.ref}`} className="font-medium text-ink hover:text-brand">
+                          {q.facility}
+                        </Link>
+                        <p className="text-xs text-muted">
+                          <span className="tabular-nums">{q.ref}</span> · {q.name}
+                        </p>
+                      </td>
+                      <td className="px-3 py-2.5 text-muted">{q.city}</td>
+                      <td className="px-3 py-2.5">
+                        <ProviderStatusBadge status={q.status} />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap gap-1">
+                          {q.issues.map((i) => (
+                            <span key={i.code} className={`rounded-full border px-2 py-0.5 text-[11px] ${SEVERITY_CHIP[i.severity]}`}>
+                              {i.text}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-5 py-2.5 text-end">
+                        <Link href={`/providers/${q.ref}?validate=1`} className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand hover:underline">
+                          <PhoneOutgoing size={12} aria-hidden /> Validate
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+          </Card>
+        )}
+      </section>
 
       <section className="mb-6">
         <SectionTitle className="mb-3">Likely duplicates</SectionTitle>

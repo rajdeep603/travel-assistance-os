@@ -449,6 +449,10 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
 
     publish({ type: "call_ended", status, durationSec, summary, reason });
     if (!profile.internal) emitWebhook("call.completed", { ref: call.ref, agent: profile.id, channel, status, durationSec, summary, caseId: ctx.caseId ?? null, outcome });
+    if (profile.id === "outbound-provider-validation") {
+      const { applyValidationCall } = await import("@/lib/services/provider-validation");
+      await applyValidationCall(call.id).catch((err) => console.error(`[voice] ${call.ref} provider update failed:`, err));
+    }
   }
 
   // Phone legs pass through the noise gate: a noisy room around the phone

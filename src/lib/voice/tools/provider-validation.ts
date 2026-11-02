@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { getEmailService } from "@/lib/services/email";
 import { getTelephony } from "@/lib/services/telephony";
@@ -59,7 +60,7 @@ export const sendPriceListLinkTool = defineTool({
     const brief = (call?.outcome as { brief?: { price_list_link?: string; client?: string } } | null)?.brief;
     const link = brief?.price_list_link;
     if (!link) return { sent: false, reason: "No price-list link is on this call; tell them the network team will e-mail it." };
-    const client = brief?.client ?? "the assistance company";
+    const client = brief?.client ?? BRAND.name;
     const text = `${client}: thank you for your time on the phone. Please confirm your practice details and share your prices here: ${link}`;
     let sent = false;
     let reason: string | null = null;

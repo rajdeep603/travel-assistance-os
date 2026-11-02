@@ -1,5 +1,6 @@
 import type { DocumentKind } from "@prisma/client";
 import type {
+  PriceListReading,
   AIService,
   BusinessCard,
   CaseIntakeAnalysis,
@@ -326,6 +327,24 @@ export class MockAIService implements AIService {
   /** Offline rules can't read a photo: an empty card, for the presenter to type in. */
   async readBusinessCard(): Promise<BusinessCard> {
     return { name: null, company: null, jobTitle: null, email: null, phone: null, website: null };
+  }
+
+  /** Offline: a price list in plain text ("Consultation 450 TRY") is read line by line; a scan is kept for the team. */
+  async readPriceList(file: DocumentFile, items: string[]): Promise<PriceListReading> {
+    if (!/^text\/|csv$/.test(file.mimeType) && !/\.(txt|csv)$/i.test(file.filename)) {
+      return { prices: [], note: "Offline demo: the file is kept for the network team to read." };
+    }
+    const prices: PriceListReading["prices"] = [];
+    for (const line of file.buffer.toString("utf8").split(/\r?\n/)) {
+      const m = line.match(/^(.+?)[\s,;:]+(?:([A-Z]{3})\s*)?(\d+(?:[.,]\d{1,2})?)\s*([A-Z]{3}|€|\$|₺)?\s*$/);
+      if (!m) continue;
+      const label = m[1].trim().toLowerCase();
+      const item = items.find((i) => i.toLowerCase() === label || i.toLowerCase().includes(label) || label.includes(i.toLowerCase().split(" ")[0]));
+      if (!item) continue;
+      const symbol = m[4] === "€" ? "EUR" : m[4] === "$" ? "USD" : m[4] === "₺" ? "TRY" : (m[4] ?? m[2] ?? "EUR");
+      prices.push({ item, amount: Number(m[3].replace(",", ".")), currency: symbol });
+    }
+    return { prices, note: prices.length ? null : "No prices could be read from the file; it is kept for the network team." };
   }
 }
 

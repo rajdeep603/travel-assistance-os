@@ -1,48 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, GitMerge, Handshake, MapPin, Phone, Search, Star, Video } from "lucide-react";
-import { AccreditationBadge } from "@/components/providers/accreditation-badge";
-import {
-  Button,
-  Card,
-  EmptyState,
-  ErrorBanner,
-  PageHeader,
-  SectionTitle,
-  readApiError,
-} from "@/components/ui";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, ChevronDown, GitMerge, LocateFixed, Search } from "lucide-react";
 import { AIPipeline, usePipeline } from "@/components/ai-progress";
 import { CaseContextBanner, useCaseContext } from "@/components/case-context";
+import { useT } from "@/components/i18n";
 import { ProviderMap } from "@/components/provider-map";
+import { CareResultCard, type CareResultView } from "@/components/providers/care-result-card";
+import { LocationInput, type PickedLocation } from "@/components/providers/location-input";
+import { NeedPicker } from "@/components/providers/need-picker";
+import { PriceLinkDialog } from "@/components/providers/price-link-dialog";
+import { ValidateDialog } from "@/components/providers/validate-dialog";
+import { Button, Card, EmptyState, ErrorBanner, PageHeader, SectionTitle, readApiError } from "@/components/ui";
 import { useQueryParam } from "@/lib/client/use-query-param";
 import { formatSlotDate } from "@/lib/format";
-import { ISTANBUL_DISTRICTS } from "@/lib/services/nlu";
+import { CARE_LOCATIONS } from "@/lib/services/provider-needs";
 import { zonedToday } from "@/lib/time";
 
-interface ProviderResult {
-  provider: {
-    id: string;
-    name: string;
-    facility: string;
-    specialty: string;
-    district: string;
-    city: string;
-    languages: string[];
-    phone: string;
-    email: string;
-    rating: number;
-    latitude: number;
-    longitude: number;
-    kind?: string;
-    accreditations?: string[];
-    rateCard?: { name: string } | null;
-  };
-  distanceKm: number | null;
-  slots: { date: string; time: string }[];
-  reasons: string[];
-  score: number;
+// ---------------------------------------------------------------------------
+// Find care for a patient: where they are and what they need; providers
+// within 2 km first, widening to 5, 10 and 25 km until there is a choice;
+// open now, direct billing and language if asked; each with distance and
+// driving minutes, rating, an estimate and why it is here; closed practices
+// left out and every exclusion explained. Book a slot, validate the practice
+// by phone (Ada rings it), or send it the price-list link.
+// ---------------------------------------------------------------------------
+
+interface SearchView {
+  at: { lat: number; lng: number; label: string };
+  need: { id: string; label: string; item: string | null };
+  date: string;
+  steps: { radiusKm: number; found: number }[];
+  radiusKm: number;
+  results: CareResultView[];
+  excluded: { id: string; ref: string; name: string; facility: string; distanceKm: number; reason: string }[];
 }
 
 interface PatientOption {
@@ -52,71 +44,96 @@ interface PatientOption {
   lastName: string;
 }
 
-const SPECIALTIES = [
-  "General Medicine", "Internal Medicine", "Cardiology", "Gastroenterology", "Orthopedics",
-  "Dentistry", "Dermatology", "Neurology", "Emergency Medicine", "General Surgery", "Urology",
-  "Obstetrics & Gynecology", "Ophthalmology", "Ear, Nose & Throat", "Pediatrics",
-];
-const DISTRICTS = [
-  "Taksim", "Beyoglu", "Sisli", "Besiktas", "Kadikoy", "Uskudar",
-  "Fatih", "Sultanahmet", "Levent", "Bakirkoy", "Nisantasi", "Atasehir",
-];
-const LANGUAGES = ["English", "German", "French", "Russian", "Arabic", "Spanish", "Portuguese", "Italian", "Albanian", "Turkish", "Mandarin", "Malay", "Thai"];
-const CITIES = [
-  "Istanbul", "Ankara", "Antalya", "Singapore", "Kuala Lumpur", "Bangkok", "Shanghai",
-  "Hurghada", "Sousse", "Dubai", "Punta Cana", "Cancun", "Rio de Janeiro", "Fort Lauderdale", "Saranda", "Geneva",
-];
+const LANGUAGES = ["", "English", "Turkish", "German", "French", "Arabic", "Russian", "Spanish", "Portuguese", "Italian", "Mandarin"];
+const TRY_LOCATIONS = ["taksim", "four-seasons-sultanahmet", "wyndham-kalamis", "ist-airport", "marina-bay-sands"];
+const SEARCH_STAGES = ["Placing the patient on the map", "Filtering the network for the need", "Checking who is open and reachable", "Ranking by distance, rating and price"];
 
-/** Theoretical maximum of the ranking score — used to show a match %. */
-const MAX_SCORE = 110;
+const fieldClass = "rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-ink focus:border-brand focus:outline-none";
+const chip = (on: boolean) => `rounded-full border px-3 py-1 text-xs font-semibold transition-colors duration-150 ${on ? "border-brand bg-brand text-white" : "border-line text-ink hover:border-brand/40"}`;
 
-/** Tomorrow in Istanbul, the operational timezone of the demo. */
-const tomorrow = () => zonedToday(1);
-
-const SEARCH_STAGES = [
-  "Filtering the provider network",
-  "Checking live availability",
-  "Scoring distance, language and rating",
-  "Ranking the best matches",
-];
-
-export default function ProvidersPage() {
-  const [form, setForm] = useState({
-    city: "Istanbul",
-    district: "Taksim",
-    specialty: "General Medicine",
-    date: tomorrow(),
-    timeOfDay: "afternoon",
-    language: "English",
-    includeTelemedicine: false,
-  });
-  const [results, setResults] = useState<ProviderResult[] | null>(null);
-  const [searchedDistrict, setSearchedDistrict] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export default function FindCarePage() {
+  const t = useT();
+  const defaultLocation = CARE_LOCATIONS[0];
+  const [location, setLocation] = useState<PickedLocation>({ label: defaultLocation.label, lat: defaultLocation.lat, lng: defaultLocation.lng });
+  const [need, setNeed] = useState("gp");
+  const [openNow, setOpenNow] = useState(false);
+  const [directBilling, setDirectBilling] = useState(false);
+  const [language, setLanguage] = useState("");
+  const [date, setDate] = useState(() => zonedToday(1));
+  const [timeOfDay, setTimeOfDay] = useState("");
+  const [data, setData] = useState<SearchView | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Only a fresh search shows the pipeline; a refresh after booking keeps the results.
-  const pipeline = usePipeline(searching && results == null, SEARCH_STAGES.length, { stepMs: 400, failed: !!error });
-  const [patients, setPatients] = useState<PatientOption[]>([]);
-  const [booking, setBooking] = useState<{
-    result: ProviderResult;
-    slot: { date: string; time: string };
-  } | null>(null);
-  const [bookingPatient, setBookingPatient] = useState("");
-  const [bookingBusy, setBookingBusy] = useState(false);
-  const [bookingError, setBookingError] = useState<string | null>(null);
-  // Opened from a case (?caseId=): book for that case's patient and link it.
+  const [focus, setFocus] = useState<string | null>(null);
+  const [validate, setValidate] = useState<CareResultView | null>(null);
+  const [link, setLink] = useState<CareResultView | null>(null);
+  const pipeline = usePipeline(searching && data == null, SEARCH_STAGES.length, { stepMs: 350, failed: !!error });
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Opened from a case (?caseId=): start where its patient is, book for that patient and link the appointment.
   const [detached, setDetached] = useState(false);
   const linkedCase = useCaseContext(useQueryParam("caseId"));
   const forCase = detached ? null : linkedCase;
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [booking, setBooking] = useState<{ result: CareResultView; slot: { date: string; time: string } } | null>(null);
+  const [bookingPatient, setBookingPatient] = useState("");
+  const [bookingBusy, setBookingBusy] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<{ text: string; caseRef: string | null } | null>(null);
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Open with results: the form starts on a typical request (Istanbul, tomorrow afternoon).
+  const runSearch = useCallback(
+    async (opts: { refresh?: boolean; loc?: PickedLocation; need?: string } = {}) => {
+      const loc = opts.loc ?? location;
+      setSearching(true);
+      setError(null);
+      if (!opts.refresh) {
+        setData(null);
+        setConfirmation(null);
+        setFocus(null);
+      }
+      try {
+        const res = await fetch("/api/providers/find", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...(loc.fromCase && forCase ? { caseId: forCase.id } : loc.lat != null && loc.lng != null ? { at: { lat: loc.lat, lng: loc.lng, label: loc.label } } : { location: loc.label }),
+            need: opts.need ?? need,
+            openNow,
+            directBilling,
+            language: language || undefined,
+            date,
+            timeOfDay: timeOfDay || undefined,
+          }),
+        });
+        if (!res.ok) {
+          setError(await readApiError(res, "The search failed."));
+          return;
+        }
+        const view = (await res.json()) as SearchView;
+        setData(view);
+        if (!opts.refresh) setFocus(view.results[0]?.provider.id ?? null);
+      } catch {
+        setError("The search failed — please check your connection.");
+      } finally {
+        setSearching(false);
+      }
+    },
+    [location, need, openNow, directBilling, language, date, timeOfDay, forCase]
+  );
+
+  // Open with results; from a case, start where its patient is once the case is known.
+  const started = useRef(false);
   useEffect(() => {
-    void search();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, with the initial filters
-  }, []);
+    if (started.current) return;
+    if (linkedCase === null && hasCaseIdParam()) return;
+    started.current = true;
+    if (linkedCase) {
+      const loc = { label: `${linkedCase.ref} · ${linkedCase.title}`, fromCase: true };
+      setLocation(loc);
+      void runSearch({ loc });
+    } else void runSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the case (if any) is known
+  }, [linkedCase]);
 
   useEffect(() => {
     fetch("/api/patients")
@@ -125,7 +142,6 @@ export default function ProvidersPage() {
       .catch(() => setPatients([]));
   }, []);
 
-  // Close the booking dialog with Escape.
   useEffect(() => {
     if (!booking) return;
     const onKey = (e: KeyboardEvent) => {
@@ -135,38 +151,8 @@ export default function ProvidersPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [booking]);
 
-  /** `refresh`: re-check availability in place (after a booking) without clearing the results and map. */
-  async function search({ refresh = false } = {}) {
-    setSearching(true);
-    setError(null);
-    if (!refresh) {
-      setResults(null);
-      setConfirmation(null);
-      setSelectedId(null);
-    }
-    try {
-      const res = await fetch("/api/providers/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, limit: 5 }),
-      });
-      if (!res.ok) {
-        setError(await readApiError(res, "The provider search failed."));
-        return;
-      }
-      const list: ProviderResult[] = (await res.json()).results ?? [];
-      setResults(list);
-      setSearchedDistrict(form.city === "Istanbul" ? form.district || null : null);
-      if (!refresh) setSelectedId(list[0]?.provider.id ?? null);
-    } catch {
-      setError("The provider search failed — please check your connection.");
-    } finally {
-      setSearching(false);
-    }
-  }
-
   function selectProvider(id: string) {
-    setSelectedId(id);
+    setFocus(id);
     cardRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
@@ -185,24 +171,22 @@ export default function ProvidersPage() {
           providerId: booking.result.provider.id,
           date: booking.slot.date,
           time: booking.slot.time,
-          reason: `${form.specialty} appointment via Provider Search`,
+          reason: `${data?.need.label ?? booking.result.provider.specialty} via Find care`,
           ...(forCase ? { caseId: forCase.id } : {}),
         }),
       });
       if (!res.ok) {
-        // Shown inside the dialog, where the operator is looking.
         setBookingError(await readApiError(res, "The appointment could not be booked."));
         return;
       }
       const body = await res.json();
       setConfirmation({
-        text: `Appointment ${body.appointment.ref} confirmed with ${booking.result.provider.name} on ${formatSlotDate(booking.slot.date)} at ${booking.slot.time}.`,
+        text: `Appointment ${body.appointment.ref} confirmed with ${booking.result.provider.name} at ${booking.result.provider.facility} on ${formatSlotDate(booking.slot.date)} at ${booking.slot.time}.`,
         caseRef: forCase?.ref ?? null,
       });
       setBooking(null);
       setBookingPatient("");
-      // The booked slot is no longer free; refresh availability in place.
-      void search({ refresh: true });
+      void runSearch({ refresh: true });
     } catch {
       setBookingError("The appointment could not be booked — please try again.");
     } finally {
@@ -210,40 +194,23 @@ export default function ProvidersPage() {
     }
   }
 
-  const set = (k: string) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  const selectCls =
-    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition-shadow focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100";
-
-  const originCoords =
-    searchedDistrict != null
-      ? ISTANBUL_DISTRICTS[searchedDistrict.toLowerCase()] ?? null
-      : null;
-  const origin =
-    originCoords && searchedDistrict
-      ? { ...originCoords, label: searchedDistrict }
-      : null;
+  const origin = data ? { lat: data.at.lat, lng: data.at.lng, label: data.at.label.replace(/ \(from the case\)$/, "") } : null;
 
   return (
     <div className="mx-auto max-w-7xl">
-      <PageHeader
-        title="Provider Search"
-        subtitle="Find the right healthcare provider, matched on specialty, language, availability and distance."
-      >
-        <Link
-          href="/providers/network"
-          className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-canvas"
-        >
-          <GitMerge size={15} aria-hidden /> Provider network
+      <PageHeader title="Find care for a patient" subtitle="Where the patient is and what they need. Providers within 2 km first, widening to 5, 10 and 25 km until there is a choice; closed practices left out and every exclusion explained; each with distance, driving minutes, rating, an estimate and free slots.">
+        <Link href="/providers/network" className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-canvas">
+          <GitMerge size={15} aria-hidden /> {t("Provider network")}
         </Link>
       </PageHeader>
-      {forCase ? (
-        <CaseContextBanner kase={forCase} action="Booking" onClear={() => setDetached(true)} />
+      {forCase ? <CaseContextBanner kase={forCase} action="Booking" onClear={() => setDetached(true)} /> : null}
+      {error ? (
+        <div className="mb-4">
+          <ErrorBanner message={error} />
+        </div>
       ) : null}
-      {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
       {confirmation ? (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700" role="status">
           <CheckCircle2 size={16} aria-hidden />
           <span>
             {confirmation.text}
@@ -262,277 +229,174 @@ export default function ProvidersPage() {
       ) : null}
 
       <Card className="mb-5">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">City</span>
-            <select
-              value={form.city}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  city: e.target.value,
-                  district: e.target.value === "Istanbul" ? f.district : "",
-                }))
-              }
-              className={selectCls}
-            >
-              {CITIES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">District</span>
-            <select
-              value={form.district}
-              onChange={set("district")}
-              className={selectCls}
-              disabled={form.city !== "Istanbul"}
-            >
-              <option value="">Any</option>
-              {form.city === "Istanbul"
-                ? DISTRICTS.map((d) => <option key={d}>{d}</option>)
-                : null}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Specialty</span>
-            <select value={form.specialty} onChange={set("specialty")} className={selectCls}>
-              {SPECIALTIES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Date</span>
-            <input type="date" value={form.date} onChange={set("date")} className={selectCls} />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Time</span>
-            <select value={form.timeOfDay} onChange={set("timeOfDay")} className={selectCls}>
-              <option value="">Any</option>
-              <option value="morning">Morning</option>
-              <option value="afternoon">Afternoon</option>
-              <option value="evening">Evening</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-muted">Language</span>
-            <select value={form.language} onChange={set("language")} className={selectCls}>
-              <option value="">Any</option>
-              {LANGUAGES.map((l) => (
-                <option key={l}>{l}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button onClick={() => search()} busy={searching}>
-            <Search size={15} aria-hidden />
-            Search providers
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void runSearch();
+          }}
+          className="grid gap-3 md:grid-cols-[minmax(0,2fr)_auto] md:items-end"
+        >
+          <div className="block">
+            <span className="mb-1 block text-xs font-medium text-muted">Where the patient is</span>
+            <LocationInput value={location.label} onChange={setLocation} fromCase={forCase ? { label: `${forCase.ref} · ${forCase.title}` } : null} disabled={searching} />
+          </div>
+          <Button type="submit" busy={searching} className="md:h-[38px]">
+            <Search size={15} aria-hidden /> Search
           </Button>
-          <label className="inline-flex items-center gap-2 text-sm text-ink/80">
-            <input
-              type="checkbox"
-              checked={form.includeTelemedicine}
-              onChange={(e) => setForm((f) => ({ ...f, includeTelemedicine: e.target.checked }))}
-              className="accent-brand"
-            />
-            <Video size={15} className="text-muted" aria-hidden /> Include video consultations
-          </label>
-          {form.city !== "Istanbul" ? (
-            <p className="text-xs text-slate-400">
-              The demo network is largest in Istanbul; other cities have a few providers.
-            </p>
-          ) : null}
+        </form>
+        <div className="mt-3">
+          <span className="mb-1 block text-xs font-medium text-muted">What they need</span>
+          <NeedPicker value={need} onChange={setNeed} disabled={searching} />
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-medium text-muted">Only:</span>
+          <button type="button" onClick={() => setOpenNow(!openNow)} aria-pressed={openNow} className={chip(openNow)}>
+            Open now
+          </button>
+          <button type="button" onClick={() => setDirectBilling(!directBilling)} aria-pressed={directBilling} className={chip(directBilling)}>
+            Direct billing
+          </button>
+          <select value={language} onChange={(e) => setLanguage(e.target.value)} className={fieldClass} aria-label="Language spoken">
+            {LANGUAGES.map((l) => (
+              <option key={l} value={l}>
+                {l || "Any language"}
+              </option>
+            ))}
+          </select>
+          <span className="ms-2 font-medium text-muted">Book on:</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} aria-label="Day to book" />
+          <select value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)} className={fieldClass} aria-label="Time of day">
+            <option value="">Any time</option>
+            <option value="morning">Morning</option>
+            <option value="afternoon">Afternoon</option>
+            <option value="evening">Evening</option>
+          </select>
+          <span className="text-muted">The practice&apos;s own local time decides &ldquo;open now&rdquo;.</span>
+        </div>
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <LocateFixed size={12} aria-hidden /> Try:
+          {TRY_LOCATIONS.map((id) => CARE_LOCATIONS.find((l) => l.id === id)).map((l) =>
+            l ? (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => {
+                  const loc = { label: l.label, lat: l.lat, lng: l.lng };
+                  setLocation(loc);
+                  void runSearch({ loc });
+                }}
+                className="font-medium text-brand hover:underline"
+              >
+                {l.label}
+              </button>
+            ) : null
+          )}
+        </p>
       </Card>
 
       {pipeline.visible ? (
         <Card>
           <AIPipeline stages={SEARCH_STAGES} active={pipeline.active} />
         </Card>
-      ) : results == null ? (
-        <Card>
-          <EmptyState
-            title="Search the provider network"
-            hint="Istanbul, General Medicine, tomorrow afternoon, English-speaking: change any filter and search."
-          />
-        </Card>
-      ) : results.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="No providers match this search"
-            hint="Try another day, district or specialty — or remove the language filter."
-          />
-        </Card>
-      ) : (
+      ) : data ? (
         <div className="grid gap-5 lg:grid-cols-5">
-          <div className="lg:col-span-2">
-            {/* On wide screens the map fills the visible height and stays beside the list. */}
-            <Card className="lg:sticky lg:top-20 lg:flex lg:h-[calc(100dvh-6rem)] lg:max-h-[52rem] lg:flex-col">
-              <SectionTitle>Network map</SectionTitle>
-              <div className="mt-3 flex min-h-0 flex-1 flex-col">
-                <ProviderMap
-                  className="lg:aspect-auto lg:flex-1"
-                  providers={results.filter((r) => r.provider.kind !== "TELEMEDICINE").map((r) => ({
-                    id: r.provider.id,
-                    name: r.provider.name,
-                    facility: r.provider.facility,
-                    latitude: r.provider.latitude,
-                    longitude: r.provider.longitude,
-                  }))}
-                  origin={origin}
-                  selectedId={selectedId}
-                  onSelect={selectProvider}
-                />
-              </div>
-              <p className="mt-2 text-xs text-slate-400">
-                Pins are ranked matches{origin ? ` around ${origin.label}` : ""} —
-                click a pin to highlight the provider.
-              </p>
-            </Card>
-          </div>
-
-          <div className="space-y-4 lg:col-span-3">
-            {results.map((r, i) => {
-              const selected = r.provider.id === selectedId;
-              const matchPct = Math.min(99, Math.round((r.score / MAX_SCORE) * 100));
-              return (
+          <div className="space-y-3 lg:col-span-3">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-semibold text-ink">
+                {data.results.length} provider{data.results.length === 1 ? "" : "s"} for {data.need.label.toLowerCase()}
+              </span>
+              <span className="text-muted">near {data.at.label}</span>
+            </div>
+            {data.steps.length ? (
+              <ol className="flex flex-wrap items-center gap-2 text-xs" aria-label="Search radius">
+                {data.steps.map((s, i) => (
+                  <li key={s.radiusKm} className={`rounded-full border px-2.5 py-1 ${i === data.steps.length - 1 ? "border-brand bg-brand/10 font-semibold text-brand" : "border-line text-muted"}`}>
+                    {s.radiusKm} km: {s.found === 0 ? "none" : s.found}
+                    {i < data.steps.length - 1 ? " → widened" : ""}
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            {data.results.length ? (
+              data.results.map((r, i) => (
                 <div
                   key={r.provider.id}
                   ref={(el) => {
                     cardRefs.current[r.provider.id] = el;
                   }}
+                  className="animate-fade-up"
+                  style={{ animationDelay: `${i * 60}ms` }}
                 >
-                  <Card
-                    className={`animate-fade-up cursor-pointer transition-all ${
-                      selected ? "border-blue-400 ring-2 ring-blue-100" : "hover:-translate-y-0.5"
-                    }`}
-                    style={{ animationDelay: `${i * 70}ms` }}
-                  >
-                    <div onClick={() => setSelectedId(r.provider.id)}>
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-                            {i + 1}
-                          </span>
-                          <div className="min-w-0">
-                            <h3 className="text-base font-semibold text-slate-900">
-                              {r.provider.name}
-                              <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-amber-500">
-                                <Star size={12} fill="currentColor" aria-hidden /> {r.provider.rating.toFixed(1)}
-                              </span>
-                            </h3>
-                            <p className="text-sm text-slate-500">
-                              {r.provider.facility} · {r.provider.specialty}
-                            </p>
-                            {r.provider.accreditations?.length || r.provider.rateCard || r.provider.kind === "TELEMEDICINE" ? (
-                              <div className="mt-1.5 flex flex-wrap gap-1">
-                                {r.provider.kind === "TELEMEDICINE" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full border border-live/30 bg-live/10 px-2 py-0.5 text-[11px] font-medium text-live">
-                                    <Video size={12} aria-hidden /> Video consultation
-                                  </span>
-                                ) : null}
-                                {r.provider.accreditations?.map((a) => <AccreditationBadge key={a} name={a} />)}
-                                {r.provider.rateCard ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full border border-line bg-canvas px-2 py-0.5 text-[11px] font-medium text-muted">
-                                    <Handshake size={12} aria-hidden /> Network rates
-                                  </span>
-                                ) : null}
-                              </div>
-                            ) : null}
-                            <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-                              <span className="inline-flex items-center gap-1">
-                                <MapPin size={12} aria-hidden />
-                                {r.provider.district}, {r.provider.city}
-                                {r.distanceKm != null ? ` · ${r.distanceKm} km` : ""}
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <Phone size={12} aria-hidden /> <bdi dir="ltr">{r.provider.phone}</bdi>
-                              </span>
-                              <span>Languages: {r.provider.languages.join(", ")}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span
-                            className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"
-                            title="AI match score against this search"
-                          >
-                            {matchPct}% match
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="mb-1.5 text-xs font-medium text-muted">
-                            Available slots · {formatSlotDate(form.date)}
-                          </p>
-                          {r.slots.length === 0 ? (
-                            <p className="text-xs text-slate-400">No slots on this date</p>
-                          ) : (
-                            <div className="flex flex-wrap gap-1.5">
-                              {r.slots.slice(0, 4).map((s) => (
-                                <button
-                                  key={`${s.date}-${s.time}`}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setBookingError(null);
-                                    setBooking({ result: r, slot: s });
-                                    setConfirmation(null);
-                                  }}
-                                  className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                                >
-                                  {s.time}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 rounded-lg bg-slate-50 p-3">
-                        <p className="text-xs font-medium text-muted">
-                          Why this provider?
-                        </p>
-                        <ul className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
-                          {r.reasons.map((reason) => (
-                            <li
-                              key={reason}
-                              className="flex items-center gap-1.5 text-xs text-slate-600"
-                            >
-                              <CheckCircle2 size={13} className="text-emerald-500" aria-hidden />
-                              {reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </Card>
+                  <CareResultCard
+                    r={r}
+                    rank={i + 1}
+                    selected={focus === r.provider.id}
+                    onFocus={() => setFocus(r.provider.id)}
+                    onBook={(slot) => {
+                      setBookingError(null);
+                      setBooking({ result: r, slot });
+                      setConfirmation(null);
+                    }}
+                    onValidate={() => setValidate(r)}
+                    onLink={() => setLink(r)}
+                  />
                 </div>
-              );
-            })}
+              ))
+            ) : (
+              <Card>
+                <EmptyState title="Nothing within 25 km answers this need" hint="Loosen a filter, try a broader need, or start from another place." />
+              </Card>
+            )}
+            {data.excluded.length ? (
+              <details className="group rounded-xl border border-line bg-canvas/60 text-xs">
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                  {data.excluded.length} left out within {data.radiusKm} km, and why <ChevronDown size={14} className="ms-auto text-muted transition-transform duration-150 group-open:rotate-180" aria-hidden />
+                </summary>
+                <ul className="space-y-1 border-t border-line px-3 py-2 text-muted">
+                  {data.excluded.map((e) => (
+                    <li key={e.id}>
+                      <Link href={`/providers/${e.ref}`} className="font-medium text-ink hover:text-brand">
+                        {e.facility}
+                      </Link>{" "}
+                      · {e.distanceKm} km · {e.reason}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
+          <div className="lg:col-span-2">
+            <Card className="lg:sticky lg:top-20 lg:flex lg:h-[calc(100dvh-6rem)] lg:max-h-[46rem] lg:flex-col">
+              <SectionTitle>Network map</SectionTitle>
+              <div className="mt-3 flex min-h-0 flex-1 flex-col">
+                <ProviderMap
+                  className="lg:aspect-auto lg:flex-1"
+                  providers={data.results
+                    .filter((r) => r.provider.kind !== "TELEMEDICINE")
+                    .map((r) => ({ id: r.provider.id, name: r.provider.name, facility: r.provider.facility, latitude: r.provider.latitude, longitude: r.provider.longitude }))}
+                  origin={origin}
+                  selectedId={focus}
+                  onSelect={selectProvider}
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted">Pins are the ranked matches{origin ? ` around ${origin.label}` : ""}; rings are real distances. Click a pin to highlight the provider.</p>
+            </Card>
           </div>
         </div>
+      ) : (
+        <Card>
+          <EmptyState title="Find care for a patient" hint="Pick where the patient is and what they need, then search." />
+        </Card>
       )}
 
+      {validate ? <ValidateDialog providerRef={validate.provider.ref} providerName={validate.provider.facility} phone={validate.provider.phone} onClose={() => setValidate(null)} onDone={() => void runSearch({ refresh: true })} /> : null}
+      {link ? <PriceLinkDialog providerRef={link.provider.ref} providerName={link.provider.facility} phone={link.provider.phone} email={link.provider.email} onClose={() => setLink(null)} onDone={() => void runSearch({ refresh: true })} /> : null}
+
       {booking ? (
-        <div
-          className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]"
-          onClick={() => setBooking(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Book appointment"
-            className="animate-modal-in w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]" onClick={() => setBooking(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Book appointment" className="animate-modal-in w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <SectionTitle>Book appointment</SectionTitle>
-            <p className="mt-2 text-sm text-slate-700">
+            <p className="mt-2 text-sm text-ink">
               {booking.result.provider.name} · {booking.result.provider.facility}
               <br />
               <span className="font-semibold">
@@ -540,20 +404,17 @@ export default function ProvidersPage() {
               </span>
             </p>
             {forCase ? (
-              <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                Patient: <span className="font-medium">{forCase.patient.firstName} {forCase.patient.lastName}</span>{" "}
+              <p className="mt-4 rounded-lg bg-canvas px-3 py-2 text-sm text-ink">
+                Patient:{" "}
+                <span className="font-medium">
+                  {forCase.patient.firstName} {forCase.patient.lastName}
+                </span>{" "}
                 ({forCase.patient.ref}) · case {forCase.ref}
               </p>
             ) : (
               <label className="mt-4 block">
-                <span className="mb-1 block text-xs font-medium text-muted">
-                  Patient
-                </span>
-                <select
-                  value={bookingPatient}
-                  onChange={(e) => setBookingPatient(e.target.value)}
-                  className={selectCls}
-                >
+                <span className="mb-1 block text-xs font-medium text-muted">Patient</span>
+                <select value={bookingPatient} onChange={(e) => setBookingPatient(e.target.value)} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none">
                   <option value="">Select patient…</option>
                   {patients.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -572,7 +433,7 @@ export default function ProvidersPage() {
               <Button variant="secondary" onClick={() => setBooking(null)}>
                 Cancel
               </Button>
-              <Button onClick={book} busy={bookingBusy} disabled={!patientForBooking}>
+              <Button onClick={() => void book()} busy={bookingBusy} disabled={!patientForBooking}>
                 Confirm booking
               </Button>
             </div>
@@ -581,4 +442,10 @@ export default function ProvidersPage() {
       ) : null}
     </div>
   );
+}
+
+/** Whether the page was opened with ?caseId= (the case context then arrives a moment later). */
+function hasCaseIdParam(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).has("caseId");
 }

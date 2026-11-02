@@ -147,6 +147,14 @@ export interface AIService {
   translateText(text: string, targetLanguage: string): Promise<string>;
   /** Reads a photographed business card, field by field. */
   readBusinessCard(file: DocumentFile): Promise<BusinessCard>;
+  /** Reads a provider's uploaded price list (PDF, photo or text) into the network's priced items, by their labels. */
+  readPriceList(file: DocumentFile, items: string[]): Promise<PriceListReading>;
+}
+
+/** What a price list says about the items the network prices; `note` explains an empty answer. */
+export interface PriceListReading {
+  prices: { item: string; amount: number; currency: string; note?: string }[];
+  note: string | null;
 }
 
 export interface DocumentFile {
