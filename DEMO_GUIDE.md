@@ -254,7 +254,7 @@ and air ambulance people. One demo serves them all:
 | **Caribbean / Latin America** | Inbox → WhatsApp: *Traveller sends the clinic's bill on WhatsApp (Punta Cana)*: filed on `CASE-1002`, answered on WhatsApp | Inbox → *Brazilian hospital asks in Portuguese about its guarantee*: answered in Portuguese with `LOG-0906`; interface in Spanish or Portuguese (language picker) | Their language, on their channel |
 | **Insurer that outsources assistance** | **Claims** → `CLM-10230`: a US hospital's USD 34,655 bill, CPT codes, settled at USD 9,214.67 with the **EOB** | **Partner oversight**: the assistance companies handling its travellers, scored side by side; export the scorecard | One scorecard for every vendor |
 | **Air ambulance / medical transport** | `CASE-1008` (Geneva → Dubai): **Receive the operators' quotes**: accredited vs. the cheaper unaccredited one, flagged | **Book** the best value and step the **mission** to handover; for a stretcher seat, the pre-filled **MEDIF** | "Accredited, bed to bed, the crew the doctor asked for" |
-| **Network or federation** (independent members, correspondents) | **Provider network**: two duplicates found and merged, with **Undo**; accreditation badges; network rates change bill review (`CASE-1008`'s Geneva invoice) | `CASE-1005` → **Network partners**: the hand-off already accepted with an update; open the **Partner's view** link on a phone | One case, many companies, one timeline |
+| **Network or federation** (independent members, correspondents) | **Find care** (`/providers`): *Four Seasons Sultanahmet*, Urgent care, **Open now**: 2 km → widened, driving minutes, "why here", who was left out and why; **Validate by phone** on a result: Ada rings the practice (your phone plays the front desk) and the record updates itself; **Price-list link** as a QR code the practice scans | **Provider network**: the health score and cleanup queue, two duplicates found and merged, with **Undo**; accreditation badges; network rates change bill review (`CASE-1008`'s Geneva invoice); `CASE-1005` → **Network partners**: the hand-off accepted with an update | A network that cleans itself while you search it |
 | **CTO / build-vs-buy** | **Developers**: API v1 *Try it* on `CASE-1024`; add a webhook endpoint and press **Test** | **Trust & Integration**: where data can live by country and law, and the product grid (time to go live, pricing model, security) | A pilot plugs into what they run |
 
 Regional samples (Sample files → *Hospitals around the world*) are in USD,
@@ -383,7 +383,20 @@ The original modules, unchanged:
   document*, *Start a claim* — all linked back to the case.
 - **Claims Automation** (`/claims`) — `CLM-10245`, completeness, *Request
   Information*.
-- **Provider Search** (`/providers`) — *Why this provider?*, book a slot.
+- **Find care** (`/providers`) — where the patient is (district, hotel,
+  airport or the case's own location) and what they need; 2 km first,
+  widening to 5, 10 and 25 km; **Open now**, **Direct billing**, language;
+  driving minutes, an estimate, *Why here*, who was left out and why; book a
+  slot. **Validate by phone**: Ada rings the practice on CareTrail's behalf
+  (pick your own phone and play the front desk) and the record updates
+  itself; **Price-list link**: a QR code or a text/e-mail to the practice,
+  which confirms its details and sends prices (typed, or a price list the
+  AI reads) on a page under the CareTrail logo. Each provider has a page
+  (`/providers/PRV-2001`): what we know and who established it, prices,
+  validation calls, the change log, "how did the referral go?".
+- **Provider network** (`/providers/network`) — the health score, what is
+  wrong and how often, the cleanup queue (Validate from the row), duplicates
+  merged with Undo, accreditations and network rates.
 - **Internal AI Assistant** (the round button bottom right, on every page,
   or `/assistant`) — procedures with sources, live case status; follow-ups
   ("who is it assigned to?") stay on the case. Press the microphone for
