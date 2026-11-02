@@ -35,6 +35,8 @@ export const POST = withErrorHandling(async (req: Request) => {
     record: body.record,
     placedBy: await getOperator(req),
     rehearsal: demo ? rehearsalNote(demo.step) : null,
+    // The presenter answers a demo step in person; AMD took one for a machine once.
+    ...(demo ? { amd: false } : {}),
     extraOutcome: demo ? { demo: { run: demo.track.id, step: demo.step.id }, keyterms: stepKeyterms(demo.step) } : undefined,
   });
   return json({ call: serialize({ id: call.id, ref: call.ref, status: call.status }) }, { status: 201 });

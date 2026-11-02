@@ -47,12 +47,12 @@ export interface DemoTrack {
 const ADMISSIONS_CUES: DemoCue[] = [
   { say: "Admissions, good morning.", hear: "Says it's an AI calling for the assistance company and identifies Oliver Bennett by name and date of birth." },
   { say: "He's admitted in the coronary care unit. Dr Aylin Kaya is treating him.", hear: "Asks one thing at a time: the ward, the doctor, the estimated total cost and its currency, when the medical report will be ready." },
-  { say: "The estimate is 85,000 lira. The report is ready tomorrow.", hear: "Repeats the figure and the date back, asks for the report by e-mail and spells the address, then records the hospital update on the case." },
+  { say: "The estimate is 85,000 lira. The report is ready tomorrow.", hear: "Repeats the figure and the date back, records the hospital update on the case, then asks for the report by e-mail and spells the address." },
 ];
 
 const TRANSPORT_CUES: DemoCue[] = [
-  { say: "Dr Kaya, cardiology.", hear: "Asks for the treating doctor of Lena Koch and confirms her name and date of birth." },
-  { say: "She's stable after a stent. Fit to fly from Monday, seated with a wheelchair, two litres of oxygen a minute, and a nurse escort.", hear: "Repeats every answer back and records the assessment; the rules pick the safest option that isn't more than she needs and request quotes." },
+  { say: "Dr Kaya, cardiology.", hear: "Asks for the treating doctor of Oliver Bennett and confirms his name and date of birth." },
+  { say: "He's stable after a stent. Fit to fly from Monday, seated with a wheelchair, two litres of oxygen a minute, and a nurse escort.", hear: "Repeats every answer back and records the assessment; the rules pick the safest option that isn't more than he needs and request quotes." },
 ];
 
 const BILL_CUES: DemoCue[] = [

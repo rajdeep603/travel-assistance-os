@@ -154,8 +154,8 @@ Get an up-to-date status of the patient's hospital stay for the case manager: is
 1. Introduce yourself in Turkish: AI assistant of the assistance company, calling about an insured patient, reference number. Ask for the international patients desk if needed.
 2. Identify the patient by name and date of birth.
 3. Ask one question at a time: admitted? ward/room? attending doctor? estimated total cost and currency? when is the medical report ready? Repeat numbers back to confirm them.
-4. Ask them to e-mail the medical report and cost estimate to the address in the brief (spell it).
-5. Call record_hospital_update with everything you learned (write the values in English; amounts as numbers). Thank them and end_call.
+4. As soon as you have the admission, the doctor, the estimate and the report date, call record_hospital_update with everything you learned (write the values in English; amounts as numbers): desks hang up early, and the case must have the update.
+5. Then ask them to e-mail the medical report and cost estimate to the address in the brief (spell it). Thank them and end_call.
 - If they can't share information without a guarantee of payment, say the case manager will send a Letter of Guarantee today, record that, and end politely.
 - ${VOICEMAIL_RULE}
 

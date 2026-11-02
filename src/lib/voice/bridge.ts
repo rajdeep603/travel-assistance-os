@@ -177,6 +177,11 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   // message per utterance, updated in place; `line` lets UIs do the same.
   const callerLines = new Map<string, ChatMessage>();
   const recordCaller = (text: string, line: string) => {
+    // A person answering after the "machine" verdict: AMD was wrong (it took a presenter for one).
+    if (status === "VOICEMAIL" && machineVerdictAt && Date.now() - machineVerdictAt > 1500) {
+      status = "COMPLETED";
+      outcome = { ...outcome, answeredByCorrected: "a person spoke after the verdict" };
+    }
     let message = callerLines.get(line);
     if (message) message.text = text;
     else {
@@ -293,6 +298,11 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   let idleNudges = 0;
   /** Whether the agent has said anything yet (a quiet opening waits for the caller). */
   let agentSpoke = false;
+  /** Whether the agent is being heard right now (generating or still playing out). */
+  let agentSpeaking = false;
+  let speakingSeq = 0;
+  /** When answering-machine detection called the callee a machine, if it did. */
+  let machineVerdictAt: number | null = null;
   const disarmIdle = () => {
     idleSeq += 1;
     if (idleTimer) clearTimeout(idleTimer);
@@ -475,6 +485,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   liveSessions.set(call.id, {
     answeredBy(result) {
       if (!result.startsWith("machine")) return;
+      machineVerdictAt = Date.now();
       status = "VOICEMAIL";
       outcome = { ...outcome, answeredBy: result };
       session.sendText(
@@ -517,17 +528,28 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     leg.clearPlayback();
     // The caller got through while the agent spoke: the agent has stopped, so the gate relaxes.
     gate?.setStrict(false);
+    if (agentSpeaking) {
+      // The model otherwise picks its cut-off sentence back up instead of answering.
+      agentSpeaking = false;
+      session.sendText("[The caller interrupted you and you stopped. Don't finish that sentence: answer what they say now.]", { respond: false });
+    }
     emit({ type: "user_speaking" });
   });
   session.on("response_started", () => {
     agentSpoke = true;
+    agentSpeaking = true;
+    speakingSeq += 1;
     disarmIdle();
     gate?.setStrict(true);
   });
   session.on("response_done", () => {
     armIdle();
+    const seq = speakingSeq;
     // Strict until the caller has actually heard the end of the answer.
-    void leg.awaitPlayback(90_000).then(() => gate?.setStrict(false));
+    void leg.awaitPlayback(90_000).then(() => {
+      gate?.setStrict(false);
+      if (seq === speakingSeq) agentSpeaking = false;
+    });
   });
   // The caller has finished: the model is working out its answer.
   session.on("speech_stopped", () => emit({ type: "agent_thinking" }));

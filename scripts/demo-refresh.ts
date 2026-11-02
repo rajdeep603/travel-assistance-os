@@ -239,6 +239,16 @@ async function fixes(tx: Tx, report: RefreshReport): Promise<void> {
   // CALL-0918 marks CASE-1023 urgent; servers seeded before the fix still show Medium.
   const n = await tx.case.updateMany({ where: { ref: "CASE-1023", priority: "MEDIUM" }, data: { priority: "HIGH" } });
   if (n.count) report.fixes.push("CASE-1023 priority Medium → High");
+  // A seeded guarantee must still be valid when the hospital line is asked about it
+  // (LOG-0902 had lapsed by ITIC day two): a lapsed letter is extended three weeks out.
+  const lapsed = await tx.guaranteeLetter.findMany({
+    where: { validUntil: { lt: new Date() }, status: { in: ["DRAFT", "APPROVED", "SENT", "ACKNOWLEDGED"] } },
+    select: { id: true, ref: true },
+  });
+  for (const letter of lapsed) {
+    await tx.guaranteeLetter.update({ where: { id: letter.id }, data: { validUntil: new Date(Date.now() + 21 * 86_400_000) } });
+  }
+  if (lapsed.length) report.fixes.push(`${lapsed.map((l) => l.ref).join(", ")} extended to stay valid`);
 }
 
 export async function refreshDemo(prisma: PrismaClient, opts: RefreshOptions = {}): Promise<RefreshReport> {
