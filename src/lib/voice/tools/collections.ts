@@ -97,8 +97,9 @@ async function briefOf(ctx: ToolContext): Promise<{ brief: CollectionBrief; outc
 /** The debt facts the agent may state once identity is confirmed. */
 function debtFacts(brief: CollectionBrief, c?: CaseFacts | null): Record<string, unknown> {
   if (c) {
-    const { dob: _dob, ...rest } = c;
-    return rest;
+    const facts: Record<string, unknown> = { ...c };
+    delete facts.dob;
+    return facts;
   }
   return brief._debt ?? {};
 }
