@@ -121,6 +121,7 @@ services:
       CALL_DATA_RETENTION_DAYS: ${CALL_DATA_RETENTION_DAYS:-30}
       HOTLINE_AGENT: ${HOTLINE_AGENT:-inbound-hotline}
       VOICE_GATEWAY_PORT: "8080"
+      VOICE_ALLOWED_ORIGINS: ${VOICE_ALLOWED_ORIGINS:-}
       # Work the gateway hands to the app (re-sending a letter renders its PDF).
       APP_INTERNAL_URL: http://app:3000
     depends_on:

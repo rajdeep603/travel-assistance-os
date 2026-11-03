@@ -3,13 +3,13 @@ import { json, withErrorHandling } from "@/lib/api";
 import { requireApiCaller } from "@/lib/auth/api-keys";
 import { prisma } from "@/lib/db";
 import { badRequest, notFound } from "@/lib/errors";
-import { placeOutboundCall } from "@/lib/services/outbound-calls";
+import { placeOutboundCall, ringInboundCall } from "@/lib/services/outbound-calls";
 import { getAgent } from "@/lib/voice/agents/registry";
 
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
-  /** An outbound agent, e.g. "outbound-provider-validation". */
+  /** An outbound agent (e.g. "outbound-provider-validation"), or an API-only inbound one ("inbound-debtor-line"): then the line rings the number and answers when it is picked up. */
   agent: z.string().min(1).max(60),
   /** E.164; must be approved for AI calls (POST /api/v1/approved-numbers). */
   to: z.string().min(6).max(24),
@@ -28,8 +28,20 @@ export const POST = withErrorHandling(async (req: Request) => {
   const caller = await requireApiCaller(req);
   const body = Body.parse(await req.json().catch(() => ({})));
   const profile = getAgent(body.agent);
-  if (!profile || profile.direction !== "outbound" || profile.internal || profile.id === "interpreter") throw badRequest("Unknown outbound agent.");
+  if (!profile || profile.internal || profile.id === "interpreter" || (profile.direction === "inbound" && !profile.apiOnly)) throw badRequest("Unknown outbound agent.");
   if (profile.apiOnly && !body.brief) throw badRequest(`${profile.label} needs a brief: who to call and what to find out.`);
+  if (profile.direction === "inbound") {
+    const call = await ringInboundCall({
+      profileId: profile.id,
+      to: body.to,
+      language: body.language,
+      brief: body.brief ?? null,
+      clientRef: body.clientRef ?? null,
+      keyterms: briefKeyterms(body.brief),
+      placedBy: `api:${caller.name}`,
+    });
+    return json({ call: { id: call.id, ref: call.ref, status: call.status, agent: profile.id } }, { status: 201 });
+  }
   const kase = body.caseRef ? await prisma.case.findUnique({ where: { ref: body.caseRef.toUpperCase() }, select: { id: true } }) : null;
   if (body.caseRef && !kase) throw notFound("Case");
   const call = await placeOutboundCall({
@@ -40,6 +52,29 @@ export const POST = withErrorHandling(async (req: Request) => {
     brief: body.brief ?? null,
     clientRef: body.clientRef ?? null,
     placedBy: `api:${caller.name}`,
+    ...(briefKeyterms(body.brief).length ? { extraOutcome: { keyterms: briefKeyterms(body.brief) } } : {}),
   });
   return json({ call: { id: call.id, ref: call.ref, status: call.status, agent: profile.id } }, { status: 201 });
 });
+
+/** Names and references in the brief the recogniser should expect (who is called, the case, the hospital, the insurer). */
+function briefKeyterms(brief: Record<string, unknown> | undefined): string[] {
+  if (!brief) return [];
+  const out = new Set<string>();
+  for (const key of ["calling", "case_ref", "patient_ref", "hospital", "patient", "client", "insurer"]) {
+    const v = brief[key];
+    if (typeof v === "string" && v.trim()) out.add(v.trim().slice(0, 60));
+  }
+  const cases = brief._cases;
+  if (Array.isArray(cases)) {
+    for (const c of cases.slice(0, 20)) {
+      if (c && typeof c === "object") {
+        for (const key of ["ref", "debtor", "hospital"]) {
+          const v = (c as Record<string, unknown>)[key];
+          if (typeof v === "string" && v.trim()) out.add(v.trim().slice(0, 60));
+        }
+      }
+    }
+  }
+  return [...out].slice(0, 40);
+}

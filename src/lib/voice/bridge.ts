@@ -48,7 +48,7 @@ export interface CallOpening {
 
 /** Phone-only actions, provided by the telephony layer. */
 export interface CallControls {
-  transfer(target: "doctor" | "case_manager", summary: string): Promise<{ ok: boolean; message: string }>;
+  transfer(target: "doctor" | "case_manager" | "collector", summary: string): Promise<{ ok: boolean; message: string }>;
   /** The AI can't carry on: apologise on the line, then a case manager if one can be dialled, else hang up. */
   fallback(): Promise<{ transferredTo: "case_manager" | null }>;
   hangup(): Promise<void>;

@@ -1,4 +1,6 @@
+import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
+import { isAllowedNumber, normalizeNumber } from "@/lib/services/approved-numbers";
 import { getTelephony, sayAndHangupTwiml, transferTwiml } from "@/lib/services/telephony";
 import type { CallControls } from "./bridge";
 
@@ -9,7 +11,17 @@ import type { CallControls } from "./bridge";
 const ANNOUNCEMENTS = {
   doctor: "Connecting you to the on-call doctor now. Please stay on the line.",
   case_manager: "Connecting you to a case manager now. Please stay on the line.",
+  collector: "Connecting you to a colleague now. Please stay on the line.",
 };
+
+/** A collection call's brief may name the collector to hand over to (approved numbers only). */
+async function collectorNumber(callId: string): Promise<string> {
+  const call = await prisma.call.findUnique({ where: { id: callId }, select: { outcome: true } });
+  const raw = (call?.outcome as { brief?: { _collector_number?: string } } | null)?.brief?._collector_number;
+  if (!raw) return "";
+  const number = normalizeNumber(raw);
+  return (await isAllowedNumber(number)) ? number : "";
+}
 
 const UNAVAILABLE = {
   connecting: "We're sorry, our assistant is unavailable right now. Connecting you to a case manager. Please stay on the line.",
@@ -21,7 +33,7 @@ export function twilioCallControls(callId: string, callSid: string): CallControl
   const telephony = getTelephony();
   return {
     async transfer(target) {
-      const number = target === "doctor" ? env.onCallDoctorNumber : env.caseManagerNumber;
+      const number = target === "doctor" ? env.onCallDoctorNumber : target === "collector" ? await collectorNumber(callId) : env.caseManagerNumber;
       if (!number || !telephony.configured || !env.publicBaseUrl) {
         return {
           ok: false,

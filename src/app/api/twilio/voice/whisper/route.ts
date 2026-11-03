@@ -11,9 +11,9 @@ export const POST = withTwiml(async (req) => {
   await readTwilioRequest(req);
   const callId = new URL(req.url).searchParams.get("callId") ?? "";
   const call = await prisma.call.findUnique({ where: { id: callId }, include: { case: true } });
-  const handoff = (call?.outcome as { handoff?: { summary?: string; reason?: string } } | null)?.handoff;
+  const handoff = (call?.outcome as { handoff?: { summary?: string; reason?: string; target?: string } } | null)?.handoff;
   const parts = [
-    "Transfer from the AI assistance line.",
+    handoff?.target === "collector" ? "Transfer from the AI assistant." : "Transfer from the AI assistance line.",
     handoff?.reason ? `Reason: ${handoff.reason}.` : "",
     handoff?.summary ?? "",
     call?.case ? `Case ${call.case.ref.replace("-", " ")}.` : "",

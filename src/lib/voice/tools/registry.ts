@@ -12,6 +12,7 @@ import {
   getClaimStatusTool,
   searchKnowledgeTool,
 } from "./cases";
+import { COLLECTION_TOOLS } from "./collections";
 import { checkCoverageTool } from "./coverage";
 import { recordBillAgreementTool, recordPaymentStatusTool, recordTransportAssessmentTool } from "./money";
 import {
@@ -50,6 +51,7 @@ const ALL_TOOLS: VoiceTool[] = [
   recordTransportAssessmentTool,
   recordProviderValidationTool,
   sendPriceListLinkTool,
+  ...COLLECTION_TOOLS,
   lookupCaseTool,
   searchRecordsTool,
   findProvidersTool,

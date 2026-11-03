@@ -30,6 +30,8 @@ export interface EmailMessage {
   inReplyTo?: string;
   /** Where replies should go, when not to the sender. */
   replyTo?: string;
+  /** The display name on this message when it isn't the platform's (a client's assistant writing through the API). */
+  fromName?: string;
 }
 
 export interface EmailService {
@@ -83,7 +85,7 @@ class SesSmtpEmail implements EmailService {
 
   async send(message: EmailMessage) {
     const info = await this.transporter.sendMail({
-      from: { name: this.settings.fromName || BRAND.name, address: this.settings.from },
+      from: { name: message.fromName || this.settings.fromName || BRAND.name, address: this.settings.from },
       to: emailAddress(message.to),
       subject: message.subject,
       text: message.text,
@@ -109,7 +111,7 @@ class SendGridEmail implements EmailService {
       headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: emailAddress(message.to) }] }],
-        from: { email: emailAddress(env.emailFrom), name: `${BRAND.name} (demo)` },
+        from: { email: emailAddress(env.emailFrom), name: message.fromName || `${BRAND.name} (demo)` },
         subject: message.subject,
         ...(message.replyTo ? { reply_to: { email: emailAddress(message.replyTo) } } : {}),
         // Plain text first, as SendGrid requires.

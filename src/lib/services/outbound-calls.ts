@@ -142,6 +142,75 @@ export async function placeOutboundCall(input: PlaceCallInput): Promise<Call> {
   }
 }
 
+export interface RingInboundInput {
+  profileId: string;
+  to: string;
+  placedBy: string | null;
+  language?: string | null;
+  /** The agent's brief (API-only inbound agents: the cases the line may serve). */
+  brief?: Record<string, unknown> | null;
+  clientRef?: string | null;
+  keyterms?: string[];
+}
+
+/**
+ * "Ring me" for an inbound agent placed through the public API: the line
+ * calls the number and, when it is answered, the inbound agent greets exactly
+ * as it would on a dialled-in call (the inbound webhook picks the agent from
+ * the record). For client apps whose line has no number of its own yet, and
+ * for demos where the prospect plays the caller.
+ */
+export async function ringInboundCall(input: RingInboundInput): Promise<Call> {
+  const profile = getAgent(input.profileId);
+  if (!profile || profile.direction !== "inbound") throw badRequest("Unknown inbound agent.");
+  const to = normalizeNumber(input.to);
+  if (!/^\+\d{8,15}$/.test(to)) throw badRequest("Enter the number in international format, e.g. +905321234567.");
+  if (!(await isAllowedNumber(to))) {
+    throw forbidden(`${maskPhone(to)} isn't on the list of numbers AI agents may call. Approve it first (Add a number).`);
+  }
+  const telephony = getTelephony();
+  const base = env.publicBaseUrl;
+  if (!telephony.configured || !base) throw new ApiError("Telephony is not configured on this server.", 503, "TELEPHONY_NOT_CONFIGURED");
+  const active = await prisma.call.count({
+    where: { channel: "PHONE", status: { in: ["QUEUED", "RINGING", "IN_PROGRESS"] }, startedAt: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) } },
+  });
+  if (active >= env.maxConcurrentCalls) throw new ApiError("All AI lines are busy. Try again in a few minutes.", 429, "LINES_BUSY");
+
+  const call = await withRef("call", (ref) =>
+    prisma.call.create({
+      data: {
+        ref,
+        direction: "INBOUND",
+        channel: "PHONE",
+        agentProfile: profile.id,
+        status: "QUEUED",
+        fromNumber: to,
+        toNumber: telephony.fromNumber,
+        placedBy: input.placedBy,
+        language: voiceLanguage(input.language)?.name ?? null,
+        outcome: {
+          rangThem: true,
+          ...(input.brief ? { brief: input.brief } : {}),
+          ...(input.clientRef ? { clientRef: input.clientRef } : {}),
+          ...(input.keyterms?.length ? { keyterms: input.keyterms } : {}),
+        } as unknown as Prisma.InputJsonValue,
+      },
+    })
+  );
+  try {
+    const { sid } = await telephony.placeCall({
+      to,
+      url: `${base}/api/twilio/voice/inbound?callId=${encodeURIComponent(call.id)}`,
+      statusCallback: `${base}/api/twilio/voice/status`,
+    });
+    return prisma.call.update({ where: { id: call.id }, data: { twilioCallSid: sid, status: "RINGING" } });
+  } catch (err) {
+    console.error(`[ring-inbound] placing ${call.ref} failed:`, err);
+    await prisma.call.update({ where: { id: call.id }, data: { status: "FAILED", endedAt: new Date() } });
+    throw new ApiError("The call could not be placed. Check the number and the telephony configuration.", 502, "CALL_FAILED");
+  }
+}
+
 /** Retries each unanswered/busy outbound call once, after OUTBOUND_RETRY_MINUTES. */
 export async function retryUnansweredCalls(now = new Date()): Promise<number> {
   const due = await prisma.call.findMany({

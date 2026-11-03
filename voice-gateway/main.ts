@@ -13,9 +13,15 @@ if (process.env.NODE_ENV !== "production") {
 
 const port = Number(process.env.VOICE_GATEWAY_PORT ?? 8080);
 const gateway = createGateway({
-  allowedOrigins: [process.env.PUBLIC_BASE_URL ?? "", process.env.NEXT_PUBLIC_APP_URL ?? ""].map((u) =>
-    u ? new URL(u).origin : ""
-  ),
+  // Browser sockets may come from the app itself and from client apps that run
+  // the interpreter through the public API (VOICE_ALLOWED_ORIGINS, comma-separated).
+  allowedOrigins: [process.env.PUBLIC_BASE_URL ?? "", process.env.NEXT_PUBLIC_APP_URL ?? "", ...(process.env.VOICE_ALLOWED_ORIGINS ?? "").split(",")].map((u) => {
+    try {
+      return u.trim() ? new URL(u.trim()).origin : "";
+    } catch {
+      return "";
+    }
+  }),
 });
 
 gateway.server.listen(port, () => {

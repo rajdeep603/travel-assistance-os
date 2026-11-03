@@ -20,7 +20,7 @@ export interface ToolContext {
     /** Ends the call once the agent's last words have played. */
     hangup(reason: string): Promise<void>;
     /** Hands the caller to a person; resolves with what the agent should say. */
-    transfer(target: "doctor" | "case_manager", summary: string): Promise<{ ok: boolean; message: string }>;
+    transfer(target: "doctor" | "case_manager" | "collector", summary: string): Promise<{ ok: boolean; message: string }>;
   };
 }
 

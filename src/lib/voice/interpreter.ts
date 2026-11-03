@@ -3,6 +3,7 @@ import { BRAND } from "@/lib/brand";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { runAI } from "@/lib/services/ai";
+import { emit as emitWebhook } from "@/lib/services/webhooks";
 import type { ChatMessage, ConversationSummaryContext } from "@/lib/services/types";
 import type { CallControls } from "./bridge";
 import type { VoiceLeg } from "./legs/types";
@@ -27,6 +28,8 @@ interface PendingBridge {
   caseId: string | null;
   managerLanguage: string;
   hospitalLanguage: string;
+  /** What the conversation is, when the API caller said (else a hospital call). */
+  context: string | null;
   manager?: VoiceLeg;
   hospital?: { leg: VoiceLeg; controls: CallControls };
   started: boolean;
@@ -48,7 +51,8 @@ async function load(bridgeId: string): Promise<PendingBridge | null> {
   const manager = calls.find((c) => c.channel === "BROWSER");
   const hospital = calls.find((c) => c.channel === "PHONE");
   if (!manager || !hospital) return null;
-  const langs = (hospital.outcome as { languages?: { manager?: string; hospital?: string } } | null)?.languages ?? {};
+  const outcome = (hospital.outcome as { languages?: { manager?: string; hospital?: string }; context?: string } | null) ?? {};
+  const langs = outcome.languages ?? {};
   const bridge: PendingBridge = {
     bridgeId,
     managerCallId: manager.id,
@@ -56,6 +60,7 @@ async function load(bridgeId: string): Promise<PendingBridge | null> {
     caseId: hospital.caseId,
     managerLanguage: langs.manager ?? "en",
     hospitalLanguage: langs.hospital ?? "tr",
+    context: typeof outcome.context === "string" ? outcome.context : null,
     started: false,
   };
   bridges.set(bridgeId, bridge);
@@ -120,7 +125,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
   const ab = new XaiRealtimeSession({
     ...common,
     config: {
-      instructions: interpreterPrompt(managerLang, hospitalLang),
+      instructions: interpreterPrompt(managerLang, hospitalLang, bridge.context),
       voice: "ara",
       input: manager.format,
       output: hospital.format,
@@ -131,7 +136,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
   const ba = new XaiRealtimeSession({
     ...common,
     config: {
-      instructions: interpreterPrompt(hospitalLang, managerLang),
+      instructions: interpreterPrompt(hospitalLang, managerLang, bridge.context),
       voice: "eve",
       input: hospital.format,
       output: manager.format,
@@ -288,4 +293,10 @@ async function finish(bridge: PendingBridge, reason: string): Promise<void> {
       : []),
   ]).catch((err) => console.error(`[interpreter] ${bridge.bridgeId} finalisation failed:`, err));
   monitorBus.publish({ callId: bridge.hospitalCallId, callRef: bridge.bridgeId, type: "call_ended", status, reason });
+  // API callers hold the phone leg: its outcome keeps their reference, and the bilingual transcript travels with the event.
+  const phone = await prisma.call.findUnique({ where: { id: bridge.hospitalCallId }, select: { ref: true, outcome: true } }).catch(() => null);
+  if (phone) {
+    const outcome = { ...((phone.outcome as Record<string, unknown> | null) ?? {}), interpreted: true, endReason: reason, transcript };
+    emitWebhook("call.completed", { ref: phone.ref, agent: "interpreter", channel: "PHONE", status, durationSec, summary, caseId: bridge.caseId, outcome });
+  }
 }

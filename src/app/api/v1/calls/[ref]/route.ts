@@ -17,6 +17,11 @@ export const GET = withErrorHandling(async (req: Request, { params }: { params: 
   });
   if (!call) throw notFound("Call");
   const outcome = (call.outcome as Record<string, unknown> | null) ?? {};
+  // An interpreted call keeps its bilingual transcript on the browser leg; the phone leg is what the API caller holds.
+  const sibling =
+    !call.conversation && call.bridgeId
+      ? await prisma.call.findFirst({ where: { bridgeId: call.bridgeId, id: { not: call.id } }, select: { conversation: { select: { messages: true } } } })
+      : null;
   return json({
     call: {
       ref: call.ref,
@@ -36,7 +41,7 @@ export const GET = withErrorHandling(async (req: Request, { params }: { params: 
       durationSec: call.durationSec,
       summary: call.summary,
       outcome,
-      transcript: (call.conversation?.messages as { role: string; text: string; at: string }[] | null) ?? [],
+      transcript: ((call.conversation ?? sibling?.conversation)?.messages as { role: string; text: string; at: string }[] | null) ?? [],
     },
   });
 });
