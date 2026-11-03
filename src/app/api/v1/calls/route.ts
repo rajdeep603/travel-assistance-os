@@ -21,6 +21,8 @@ const Body = z.object({
   clientRef: z.string().max(80).optional(),
   /** For agents that call about a case: its reference (CASE-1024). */
   caseRef: z.string().max(20).optional(),
+  /** Answering-machine detection (on by default). Off for calls a person is expected to answer: the detector sometimes takes a live person for a machine. */
+  amd: z.boolean().optional(),
 });
 
 /** POST /api/v1/calls: places an AI call; the outcome arrives as a call.completed webhook (or GET /api/v1/calls/{ref}). */
@@ -52,6 +54,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     brief: body.brief ?? null,
     clientRef: body.clientRef ?? null,
     placedBy: `api:${caller.name}`,
+    ...(body.amd === false ? { amd: false } : {}),
     ...(briefKeyterms(body.brief).length ? { extraOutcome: { keyterms: briefKeyterms(body.brief) } } : {}),
   });
   return json({ call: { id: call.id, ref: call.ref, status: call.status, agent: profile.id } }, { status: 201 });
