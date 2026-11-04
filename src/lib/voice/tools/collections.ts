@@ -166,7 +166,7 @@ export const recordCollectionOutcomeTool = defineTool({
     policy_number: z.string().optional(),
     dispute_reason: z.string().optional().describe("In their words, briefly"),
     callback_time: z.string().optional(),
-    next_action: z.string().optional().describe("What GRA should do next, e.g. 'check payment on 2026-11-16'"),
+    next_action: z.string().optional().describe("What GRA should do next, with its date: e.g. 'check payment on 2026-11-16' (the day after the promise or the first instalment)"),
     notes: z.string().optional(),
   }),
   async execute(args, ctx) {
