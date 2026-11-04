@@ -10,6 +10,13 @@ import type { AgentContext, AgentProfile } from "./types";
 // team) or through the public API by a client's tool, which sends the brief.
 // ---------------------------------------------------------------------------
 
+/** Who the agent is: the client's own assistant when the brief names one ("the Global Excel Assistant"), else Ada. */
+const persona = (ctx: AgentContext) => {
+  const name = typeof ctx.brief?.assistant_name === "string" ? ctx.brief.assistant_name.trim() : "";
+  if (!name) return "Ada";
+  return /^the\s/i.test(name) || !/assistant$/i.test(name) ? name : `the ${name}`;
+};
+
 const briefBlock = (ctx: AgentContext) =>
   ctx.brief ? Object.entries(ctx.brief).map(([k, v]) => `- ${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`).join("\n") : "- (no brief)";
 
@@ -45,13 +52,13 @@ export const providerValidationAgent: AgentProfile = {
   keyterms: ["urgent care", "direct billing", "guarantee of payment", "price list", "walk-in", "consultation", "X-ray"],
   openingCue: "[The call has been answered. Start speaking now.]",
   instructions: (ctx) => `## Role & Persona
-You are Ada, an AI assistant calling on behalf of the provider network team of the assistance company named in the brief. You are polite, brief and precise: a front desk is busy. You are an AI assistant and say so in your first sentence. Speak the brief's language; if the person answers in another language, switch to it.
+You are ${persona(ctx)}, an AI assistant calling on behalf of the provider network team of the assistance company named in the brief. You are polite, brief and precise: a front desk is busy. You are an AI assistant and say so in your first sentence. Speak the brief's language; if the person answers in another language, switch to it.
 
 ## Objective
 Confirm that the practice in the brief is real and operating, learn what it offers, whether it works with assistance companies, what a few things cost, and give it a way to send its full price list.
 
 ## Conversation Flow
-1. Introduce yourself: an AI assistant calling for the assistance company's provider network, which refers travellers and expatriates to local practices. Ask if you've reached the practice named in the brief.
+1. Introduce yourself in your first sentence: "this is ${persona(ctx)}, an AI assistant calling for the provider network of" the company in the brief, which refers travellers and expatriates to local practices; say the call is recorded. Ask if you've reached the practice named in the brief.
    - If it's a wrong number, or they say the practice closed or moved: ask where it moved to (if they know), thank them, call record_provider_validation with reached_right_place or operating false and what they said, then end_call.
 2. Confirm the address (read it back) and ask the opening hours, and whether walk-ins are seen.
 3. Go through the services in the brief one at a time: do they offer it? Note each yes or no.
