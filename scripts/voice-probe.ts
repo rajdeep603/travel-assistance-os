@@ -9,7 +9,7 @@
 // streamed in real time like a phone or browser would. --text sends typed
 // turns instead. The fake leg plays the agent's audio in real time, so
 // barge-in, idle timers and playback waits behave as on a real call.
-// Options: --hold 40000 (stay silent after the last turn), --case CASE-1024 (outbound agents and case-linked sessions),
+// Options: --hold 40000 (stay silent after the last turn), --case CASE-1024 (outbound agents and case-linked sessions), --brief brief.json (API-only agents),
 // --language "Spanish" (the session's opening language), --debug (model
 // events), --save agent.wav (the agent's audio, to listen to). Prints the
 // transcript, what the recogniser heard the caller say, tool activity and the
@@ -40,7 +40,7 @@ const VOICES: Record<string, string> = {
 
 function args() {
   const a = process.argv.slice(2);
-  const out = { agent: "inbound-hotline", channel: "PHONE" as "PHONE" | "BROWSER", lang: "en", language: "", caseRef: "", turns: [] as { text: string; typed: boolean }[], debug: false, gapMs: 1200, holdMs: 0, save: "" };
+  const out = { agent: "inbound-hotline", channel: "PHONE" as "PHONE" | "BROWSER", lang: "en", language: "", caseRef: "", briefFile: "", turns: [] as { text: string; typed: boolean }[], debug: false, gapMs: 1200, holdMs: 0, save: "" };
   for (let i = 0; i < a.length; i++) {
     const v = a[i + 1];
     switch (a[i]) {
@@ -49,6 +49,7 @@ function args() {
       case "--lang": out.lang = v; i++; break;
       case "--language": out.language = v; i++; break;
       case "--case": out.caseRef = v; i++; break;
+      case "--brief": out.briefFile = v; i++; break;
       case "--say": out.turns.push({ text: v, typed: false }); i++; break;
       case "--text": out.turns.push({ text: v, typed: true }); i++; break;
       case "--gap": out.gapMs = Number(v); i++; break;
@@ -208,7 +209,8 @@ async function main() {
   const profile = getAgent(opts.agent);
   if (!profile) throw new Error(`Unknown agent ${opts.agent}`);
   const kase = opts.caseRef ? await prisma.case.findUniqueOrThrow({ where: { ref: opts.caseRef } }) : null;
-  const brief = kase && profile.buildBrief ? await profile.buildBrief(kase.id) : null;
+  // API-only agents get their brief from the caller: --brief brief.json stands in for it.
+  const brief = opts.briefFile ? (JSON.parse(readFileSync(opts.briefFile, "utf8")) as Record<string, unknown>) : kase && profile.buildBrief ? await profile.buildBrief(kase.id) : null;
   const call = await prisma.call.create({
     data: {
       ref: await nextRef("call"),
