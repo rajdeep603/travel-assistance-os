@@ -140,7 +140,7 @@ export const recordDocumentRequestTool = defineTool({
   description:
     "Save what the provider said about the documents: which were requested, whether they will send them, how and by when (a date they confirmed), who you spoke to, and any condition (for example a signed authorisation). Call it once, before ending.",
   schema: z.object({
-    outcome: z.enum(["documents_promised", "documents_refused", "already_sent", "no_answer"]),
+    outcome: z.enum(["documents_promised", "documents_refused", "already_sent", "wrong_number", "no_answer"]).describe("wrong_number when it isn't the hospital in the brief"),
     documents_requested: z.array(z.string()).describe("The documents you asked for, as named in the brief"),
     will_send_by: z.string().optional().describe("upload link, e-mail or fax"),
     expected_by: z.string().optional().describe("YYYY-MM-DD, the date they confirmed"),
@@ -188,7 +188,7 @@ export const recordInvoiceFollowupTool = defineTool({
   description:
     "Save what the payer said about the invoice: its status, the payment date, the remittance reference if paid, what is missing, the reason if rejected, and who you spoke to. Call it once, before ending.",
   schema: z.object({
-    status: z.enum(["received", "in_review", "approved", "scheduled", "paid", "rejected", "missing_info", "not_found"]),
+    status: z.enum(["received", "in_review", "approved", "scheduled", "paid", "rejected", "missing_info", "not_found", "wrong_number"]).describe("wrong_number when it isn't the payer in the brief"),
     payment_date: z.string().optional().describe("YYYY-MM-DD, scheduled or actual"),
     amount: z.number().optional(),
     currency: z.string().optional(),
