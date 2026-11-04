@@ -37,6 +37,12 @@ const LABELS: Record<string, [activity: string, chip: string]> = {
   record_emergency_intake: ["Recording the emergency intake", "Emergency intake"],
   record_bed_acceptance: ["Recording the receiving hospital's answer", "Bed acceptance"],
   record_callback_outcome: ["Recording how the call-back went", "Call-back"],
+  verify_member: ["Checking the member's identity", "Identity check"],
+  record_member_call: ["Recording the member call", "Member call"],
+  record_document_request: ["Recording the provider's answer on the documents", "Documents requested"],
+  send_provider_upload_link: ["Sending the provider the secure upload link", "Upload link sent"],
+  record_invoice_followup: ["Recording the payer's answer on the invoice", "Invoice status"],
+  hand_to_case_manager: ["Handing over to a case manager", "Handover"],
   transfer_to_human: ["Handing over to a person", "Handover"],
   end_call: ["Ending the call", "Call ended"],
 };
