@@ -88,7 +88,7 @@ describe("demo runs", () => {
 
   it("knows which agents a run needs prepared: the ones calling about a case or an invoice", () => {
     const hospital = demoTrack("hospital")!;
-    expect(trackAgents(hospital)).toEqual(["outbound-payment-followup", "outbound-hospital-coordination", "outbound-medical-transport"]);
+    expect(trackAgents(hospital)).toEqual(["outbound-payment-followup", "outbound-hospital-coordination", "outbound-benefit-verification"]);
     expect(trackAgents(demoTrack("assistance")!)).not.toContain("inbound-hotline");
   });
 });

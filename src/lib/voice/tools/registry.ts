@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ApiError } from "@/lib/errors";
 import type { RealtimeFunctionTool } from "../realtime/xai-session";
+import { ASSISTANCE_TOOLS } from "./assistance";
 import { findProvidersTool, lookupCaseTool, openRecordTool, searchRecordsTool } from "./assistant";
 import { bookAppointmentTool, searchProvidersTool } from "./booking";
 import { endCallTool, transferToHumanTool } from "./call-control";
@@ -52,6 +53,7 @@ const ALL_TOOLS: VoiceTool[] = [
   recordProviderValidationTool,
   sendPriceListLinkTool,
   ...COLLECTION_TOOLS,
+  ...ASSISTANCE_TOOLS,
   lookupCaseTool,
   searchRecordsTool,
   findProvidersTool,

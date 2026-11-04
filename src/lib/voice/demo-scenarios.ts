@@ -21,12 +21,13 @@ import { toolAbilityLabel } from "./tool-labels";
 // pinned case back the way the agent needs it.
 // ---------------------------------------------------------------------------
 
-export type ScenarioGroup = "travellers-call" | "providers-call" | "we-call-providers" | "we-call-travellers" | "hospital-calls-payers";
+export type ScenarioGroup = "travellers-call" | "providers-call" | "we-call-providers" | "we-call-payers" | "we-call-travellers" | "hospital-calls-payers";
 
 export const SCENARIO_GROUPS: Record<ScenarioGroup, string> = {
   "travellers-call": "Travellers call us",
   "providers-call": "Hospitals call us",
   "we-call-providers": "We call hospitals",
+  "we-call-payers": "We call insurers",
   "we-call-travellers": "We call travellers",
   "hospital-calls-payers": "For hospitals: we call payers",
 };
@@ -169,6 +170,34 @@ async function prepareLenaKoch(kase: DemoCase | null): Promise<void> {
 }
 
 const DEFS: ScenarioDef[] = [
+  {
+    agentId: "inbound-emergency-intake",
+    group: "travellers-call",
+    youPlay: "A trek leader in Nepal: a client has a bad headache and is vomiting at 4,200 m",
+    tryLine: "Hello, I'm leading a group near Dingboche. One of my clients has a severe headache and is vomiting. We're at about 4,200 metres.",
+  },
+  {
+    agentId: "outbound-missed-call-return",
+    group: "we-call-travellers",
+    youPlay: "A traveller who rang the line about a dentist and hung up in the queue",
+    tryLine: "Oh yes, I called. I need a dentist in Istanbul today, I've broken a tooth.",
+  },
+  {
+    agentId: "outbound-benefit-verification",
+    group: "we-call-payers",
+    youPlay: "The insurer's provider desk",
+    tryLine: "Provider services, good morning. Which patient is this about?",
+    pinnedRef: "CASE-1024",
+    findCase: () => prisma.case.findFirst({ where: { ...OPEN_CASE, assistanceType: "HOSPITALIZATION" }, orderBy: { updatedAt: "desc" }, select: { id: true, ref: true } }),
+  },
+  {
+    agentId: "outbound-bed-acceptance",
+    group: "we-call-providers",
+    youPlay: "Bed management at the receiving hospital at home",
+    tryLine: "Bed management. Who is the patient and what do they need?",
+    pinnedRef: "CASE-1022",
+    findCase: () => prisma.case.findFirst({ where: { ...OPEN_CASE, assistanceType: { in: ["HOSPITALIZATION", "REPATRIATION", "EVACUATION"] } }, orderBy: { updatedAt: "desc" }, select: { id: true, ref: true } }),
+  },
   {
     agentId: "inbound-hotline",
     group: "travellers-call",

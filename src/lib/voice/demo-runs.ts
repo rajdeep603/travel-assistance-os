@@ -88,6 +88,18 @@ const WELLBEING_CUES: DemoCue[] = [
   { say: "Much better, thanks. I fly home on Saturday.", hear: "Records the follow-up, wishes a good trip and mentions the 24/7 line. (Say you feel worse instead: the on-call doctor takes over.)" },
 ];
 
+const BENEFIT_CUES: DemoCue[] = [
+  { say: "Provider services, good morning. Which patient is this about?", hear: "Says it's an AI calling for the hospital's international desk, gives Oliver Bennett, his date of birth and the policy number, and asks whether the policy is active." },
+  { say: "Yes, the policy is active. What's the treatment?", hear: "Names the admission on the case and asks whether an in-patient cardiac admission is covered, the limit and any excess." },
+  { say: "Covered up to 100,000 euros, no excess, but we need to issue a guarantee first. The reference is GOP 7 7 4 1 2, within two hours.", hear: "Repeats the limit and the reference back, asks where the medical report and the request should go, and records the cover on the case." },
+];
+
+const BED_CUES: DemoCue[] = [
+  { say: "Bed management. Who is the patient and what do they need?", hear: "Says it's an AI calling for the transport team, gives Lena Koch, her date of birth and the diagnosis, and asks whether they accept her and which bed." },
+  { say: "We can take her on the cardiology ward from Monday morning. Dr Weber is the accepting physician.", hear: "Repeats the day and the physician back and asks which documents they need before arrival and where the ambulance hands over." },
+  { say: "Medical report and the guarantee before she lands. The ambulance comes to the emergency entrance; the crew calls 0 8 9 1 2 3 4 5 on arrival.", hear: "Reads the number back, records the acceptance on the case, and says the transport team will confirm the arrival time." },
+];
+
 export const DEMO_TRACKS: DemoTrack[] = [
   {
     id: "assistance",
@@ -236,12 +248,12 @@ export const DEMO_TRACKS: DemoTrack[] = [
         minutes: 4,
       },
       {
-        id: "transport",
-        title: "Planning the journey home",
-        agentId: "outbound-medical-transport",
-        caseRef: "CASE-1022",
-        cues: TRANSPORT_CUES,
-        youPlay: "The treating cardiologist",
+        id: "benefit-check",
+        title: "Checking cover with the insurer before treatment",
+        agentId: "outbound-benefit-verification",
+        caseRef: "CASE-1024",
+        cues: BENEFIT_CUES,
+        youPlay: "The insurer's provider desk",
         minutes: 3,
       },
     ],
@@ -268,6 +280,15 @@ export const DEMO_TRACKS: DemoTrack[] = [
         cues: ADMISSIONS_CUES,
         youPlay: "The admissions desk",
         minutes: 4,
+      },
+      {
+        id: "bed-acceptance",
+        title: "The receiving hospital accepts",
+        agentId: "outbound-bed-acceptance",
+        caseRef: "CASE-1022",
+        cues: BED_CUES,
+        youPlay: "Bed management at the hospital at home",
+        minutes: 3,
       },
       {
         id: "wellbeing",

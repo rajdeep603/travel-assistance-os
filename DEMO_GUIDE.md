@@ -301,6 +301,38 @@ calls** on the lead proposes another call (the quotation can be attached),
 moves or cancels one; Outlook tells everyone invited. Placeholder addresses
 (`example.com`) are refused, as with e-mail.
 
+## Four agents from the ITIC conversations (added 4 Nov)
+
+What assistance companies, brokers, hospital desks and air-ambulance operators
+asked for at the booth on 2 and 3 November, now on the Voice Agents page:
+
+- **Coverage check with the insurer** (`outbound-benefit-verification`, group
+  "We call insurers", CASE-1024). The hospital's or the assistance desk's call
+  that eats hours on hold: policy active, treatment covered, limit and excess,
+  guarantee or pre-authorisation and its reference, where to send documents.
+  Asked for by Clinic International, Daria's hospital international desks, the
+  hospital with the insurance-audit problem, and Sura as a TPA. Point out: it
+  never claims cover the desk did not confirm, and the answer lands on the
+  case timeline. In the hospital run it replaces the transport step.
+- **Field emergency intake (24/7)** (`inbound-emergency-intake`, "Travellers
+  call us"). For brokers and adventure assistance (the India/Nepal broker,
+  the Dubai call centre): danger first, then the exact location, who, what,
+  what help; opens the case, records the intake, hands over to the doctor with
+  the intake read out. Try the trek-leader line at 4,200 m; then say "he's
+  unconscious" and watch it go straight to the hand-over.
+- **Receiving hospital acceptance** (`outbound-bed-acceptance`, "We call
+  hospitals", CASE-1022). The other half of the transport story for air
+  ambulance operators (Stephen in Nairobi, Estram): the bed, the accepting
+  physician, the documents, the hand-over point, the earliest admission. In
+  the air-ambulance run it sits between the hospital coordination and the
+  follow-up.
+- **Missed-call return** (`outbound-missed-call-return`, "We call travellers",
+  no case needed). For the hospital that loses half its calls and for any
+  desk with a queue: every dropped call is returned within minutes, in the
+  caller's language, and handled like the hotline would (coverage, a doctor,
+  case status) or booked for a person. Play the traveller with the broken
+  tooth.
+
 ## If they mention… call volumes, seasonal spikes, emergencies
 
 **Have them call the hotline** (number on screen) while `/calls` is visible.
