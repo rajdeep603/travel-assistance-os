@@ -29,6 +29,7 @@ import { getAgent } from "@/lib/voice/agents/registry";
 import { runVoiceSession, type CallControls } from "@/lib/voice/bridge";
 import type { VoiceLeg } from "@/lib/voice/legs/types";
 import type { AudioFormat } from "@/lib/voice/realtime/xai-session";
+import { linearToMulaw, mulawToLinear } from "@/lib/voice/g711";
 
 const VOICES: Record<string, string> = {
   en: "Samantha", tr: "Yelda", es: "Mónica", ar: "Majed", de: "Anna", it: "Alice", sv: "Alva", nb: "Nora", no: "Nora",
@@ -40,7 +41,7 @@ const VOICES: Record<string, string> = {
 
 function args() {
   const a = process.argv.slice(2);
-  const out = { agent: "inbound-hotline", channel: "PHONE" as "PHONE" | "BROWSER", lang: "en", language: "", caseRef: "", briefFile: "", turns: [] as { text: string; typed: boolean }[], debug: false, gapMs: 1200, holdMs: 0, save: "" };
+  const out = { agent: "inbound-hotline", channel: "PHONE" as "PHONE" | "BROWSER", lang: "en", language: "", caseRef: "", briefFile: "", noise: 0, babble: 0, turns: [] as { text: string; typed: boolean }[], debug: false, gapMs: 1200, holdMs: 0, save: "" };
   for (let i = 0; i < a.length; i++) {
     const v = a[i + 1];
     switch (a[i]) {
@@ -50,6 +51,8 @@ function args() {
       case "--language": out.language = v; i++; break;
       case "--case": out.caseRef = v; i++; break;
       case "--brief": out.briefFile = v; i++; break;
+      case "--noise": out.noise = Number(v); i++; break;
+      case "--babble": out.babble = Number(v); i++; break;
       case "--say": out.turns.push({ text: v, typed: false }); i++; break;
       case "--text": out.turns.push({ text: v, typed: true }); i++; break;
       case "--gap": out.gapMs = Number(v); i++; break;
@@ -94,6 +97,7 @@ class ProbeLeg implements VoiceLeg {
   /** What the recogniser heard, per caller utterance (it grows while they speak). */
   heard = new Map<string, string>();
   private bytesPerMs: number;
+  private frameMs = 20;
   private silence: NodeJS.Timeout;
 
   constructor(readonly phone: boolean) {
@@ -101,20 +105,61 @@ class ProbeLeg implements VoiceLeg {
     this.format = phone ? { type: "audio/pcmu" } : { type: "audio/pcm", rate: 24_000 };
     this.bytesPerMs = phone ? 8 : 48;
     // A phone line never goes quiet: send silence whenever the caller isn't talking.
+    // Twilio sends 20 ms frames; the browser's worklet 40 ms chunks.
+    this.frameMs = phone ? 20 : 40;
     this.silence = setInterval(() => {
-      if (!this.talking) this.push(Buffer.alloc(20 * this.bytesPerMs, phone ? 0xff : 0));
-    }, 20);
+      if (!this.talking) this.push(Buffer.alloc(this.frameMs * this.bytesPerMs, phone ? 0xff : 0));
+    }, this.frameMs);
   }
   talking = false;
 
+  private babble: Int16Array | null = null;
+  private babblePos = 0;
+  /** --noise / --babble: a hall around the caller (white noise, and people talking nearby). */
+  private hall(frame: Buffer): Buffer {
+    if (!opts.noise && !opts.babble) return frame;
+    const rate = this.phone ? 8000 : 24_000;
+    if (opts.babble && !this.babble) {
+      const parts = [
+        ["Daniel", "So the booth on the left has the new claims platform, we should go and see it after lunch."],
+        ["Karen", "I think the session on medical tourism starts at two, are you coming with us or staying here?"],
+        ["Moira", "Did you get their card? They said they'd send the proposal on Friday."],
+        ["Rishi", "The coffee here is much better than yesterday, let's grab one before the next meeting."],
+      ].map(([v, t]) => {
+        const dir = mkdtempSync(path.join(tmpdir(), "babble-"));
+        execFileSync("say", ["-v", v, "-o", path.join(dir, "b.aiff"), t]);
+        execFileSync("afconvert", ["-f", "WAVE", "-d", `LEI16@${rate}`, "-c", "1", path.join(dir, "b.aiff"), path.join(dir, "b.wav")]);
+        const b = readFileSync(path.join(dir, "b.wav"));
+        const d = b.subarray(b.indexOf("data") + 8);
+        return new Int16Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.length - (d.length % 2)));
+      });
+      this.babble = new Int16Array(Math.max(...parts.map((x) => x.length)));
+      for (const x of parts) for (let i = 0; i < x.length; i++) this.babble[i] += x[i] / 2;
+    }
+    const n = this.phone ? frame.length : Math.floor(frame.length / 2);
+    const out = Buffer.alloc(frame.length);
+    for (let i = 0; i < n; i++) {
+      const v0 = this.phone ? mulawToLinear(frame[i]) : frame.readInt16LE(i * 2);
+      let extra = (Math.random() - 0.5) * opts.noise;
+      if (this.babble) {
+        extra += this.babble[this.babblePos] * opts.babble;
+        this.babblePos = (this.babblePos + 1) % this.babble.length;
+      }
+      const v = Math.max(-32768, Math.min(32767, Math.round(v0 + extra)));
+      if (this.phone) out[i] = linearToMulaw(v);
+      else out.writeInt16LE(v, i * 2);
+    }
+    return out;
+  }
   private push(frame: Buffer) {
+    frame = this.hall(frame);
     const b64 = frame.toString("base64");
     for (const h of this.audio) h(b64);
   }
 
   async speak(text: string) {
     const pcm = speech(text, this.phone);
-    const frame = 20 * this.bytesPerMs;
+    const frame = this.frameMs * this.bytesPerMs;
     this.talking = true;
     log(`caller ▶ ${text}`);
     const start = Date.now();

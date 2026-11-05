@@ -189,6 +189,8 @@ const DEFS: ScenarioDef[] = [
     tryLine: "Provider services, good morning. Which patient is this about?",
     pinnedRef: "CASE-1024",
     findCase: () => prisma.case.findFirst({ where: { ...OPEN_CASE, assistanceType: "HOSPITALIZATION" }, orderBy: { updatedAt: "desc" }, select: { id: true, ref: true } }),
+    // Nothing a rehearsal consumes: the check only adds to the case timeline.
+    prepare: async () => {},
   },
   {
     agentId: "outbound-bed-acceptance",
@@ -197,6 +199,8 @@ const DEFS: ScenarioDef[] = [
     tryLine: "Bed management. Who is the patient and what do they need?",
     pinnedRef: "CASE-1022",
     findCase: () => prisma.case.findFirst({ where: { ...OPEN_CASE, assistanceType: { in: ["HOSPITALIZATION", "REPATRIATION", "EVACUATION"] } }, orderBy: { updatedAt: "desc" }, select: { id: true, ref: true } }),
+    // Nothing a rehearsal consumes: the answer only adds to the case timeline.
+    prepare: async () => {},
   },
   {
     agentId: "inbound-hotline",

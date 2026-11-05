@@ -7,6 +7,13 @@ import { nextRef } from "@/lib/refs";
 import { addDays, weekdayKey, zonedToday } from "@/lib/time";
 import { startFakeXai } from "../fakes/fake-xai";
 
+/** 40 ms of a loud 440 Hz tone as browser PCM16 at 24 kHz: a voice, which the microphone's noise gate lets through untouched. */
+const VOICE_CHUNK = (() => {
+  const b = Buffer.alloc(960 * 2);
+  for (let i = 0; i < 960; i++) b.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / 24000) * 6000), i * 2);
+  return b.toString("base64");
+})();
+
 // Runs a complete browser voice session through the real gateway, bridge,
 // tools and database, with a scripted stand-in for the Grok Voice API.
 
@@ -106,10 +113,10 @@ describe("voice gateway (browser session)", () => {
     await browser.waitForEvent((e) => e.type === "audio");
     await browser.waitForEvent((e) => e.type === "transcript" && e.role === "agent");
 
-    // Caller audio is relayed untouched.
-    browser.ws.send(JSON.stringify({ type: "audio", data: "UENNMTY=" }));
-    const appended = await model.waitFor((e) => e.type === "input_audio_buffer.append");
-    expect(appended.audio).toBe("UENNMTY=");
+    // A caller's voice is relayed untouched (the noise gate passes it).
+    browser.ws.send(JSON.stringify({ type: "audio", data: VOICE_CHUNK }));
+    const appended = await model.waitFor((e) => e.type === "input_audio_buffer.append" && e.audio === VOICE_CHUNK);
+    expect(appended.audio).toBe(VOICE_CHUNK);
 
     // Barge-in: the caller talks over the agent → browser is told to clear playback.
     model.send({ type: "input_audio_buffer.speech_started" });

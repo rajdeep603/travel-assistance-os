@@ -1,3 +1,4 @@
+import { linearToMulaw } from "@/lib/voice/g711";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { PrismaClient } from "@prisma/client";
@@ -5,6 +6,14 @@ import { createGateway } from "../../voice-gateway/gateway";
 import { gatewaySecret, signToken } from "@/lib/auth/tokens";
 import { setTelephony, type TelephonyService } from "@/lib/services/telephony";
 import { startFakeXai, type FakeConnection } from "../fakes/fake-xai";
+
+/** 40 ms of a loud tone as browser PCM16 (24 kHz), and 20 ms as a phone's μ-law: voices, which the noise gates let through untouched. */
+const MANAGER_VOICE = (() => {
+  const b = Buffer.alloc(960 * 2);
+  for (let i = 0; i < 960; i++) b.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / 24000) * 6000), i * 2);
+  return b.toString("base64");
+})();
+const HOSPITAL_VOICE = Buffer.from(Array.from({ length: 160 }, (_, i) => linearToMulaw(Math.sin((2 * Math.PI * 440 * i) / 8000) * 6000))).toString("base64");
 
 const HOSPITAL = "+905550001111";
 const prisma = new PrismaClient();
@@ -117,15 +126,15 @@ describe("live interpreter bridge", () => {
     await ab.waitFor((e) => e.type === "conversation.item.create" && JSON.stringify(e).includes("AI interpreter"));
 
     // Manager speaks → session A → hospital hears the Turkish audio.
-    manager.send(JSON.stringify({ type: "audio", data: "TUFOQUdFUg==" }));
-    expect((await ab.waitFor((e) => e.type === "input_audio_buffer.append")).audio).toBe("TUFOQUdFUg==");
+    manager.send(JSON.stringify({ type: "audio", data: MANAGER_VOICE }));
+    expect((await ab.waitFor((e) => e.type === "input_audio_buffer.append" && e.audio === MANAGER_VOICE)).audio).toBe(MANAGER_VOICE);
     ab.send({ type: "conversation.item.input_audio_transcription.completed", transcript: "Is the patient admitted?" });
     ab.say("Hasta yatırıldı mı?");
     await until(() => hospitalFrames.some((f) => f.event === "media" && f.streamSid === "MZ7"));
 
     // Hospital answers → session B → manager hears English.
-    hospital.send(JSON.stringify({ event: "media", streamSid: "MZ7", media: { track: "inbound", payload: "SE9TUA==" } }));
-    expect((await ba.waitFor((e) => e.type === "input_audio_buffer.append")).audio).toBe("SE9TUA==");
+    hospital.send(JSON.stringify({ event: "media", streamSid: "MZ7", media: { track: "inbound", payload: HOSPITAL_VOICE } }));
+    expect((await ba.waitFor((e) => e.type === "input_audio_buffer.append" && e.audio === HOSPITAL_VOICE)).audio).toBe(HOSPITAL_VOICE);
     ba.send({ type: "conversation.item.input_audio_transcription.completed", transcript: "Evet, kardiyoloji servisinde." });
     ba.say("Yes, in the cardiology ward.");
     await until(() => managerEvents.some((e) => e.type === "audio"));

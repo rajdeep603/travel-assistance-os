@@ -9,7 +9,7 @@ import type { AgentContext, AgentProfile } from "./agents/types";
 import type { VoiceLeg } from "./legs/types";
 import { voiceLanguage } from "./languages";
 import { monitorBus } from "./monitor";
-import { NoiseGate } from "./noise-gate";
+import { MULAW_CODEC, NoiseGate, PCM16_CODEC } from "./noise-gate";
 import { XaiRealtimeSession } from "./realtime/xai-session";
 import { readyTone } from "./tones";
 import { executeTool, realtimeTools } from "./tools/registry";
@@ -101,6 +101,12 @@ const DEFAULT_KEYTERMS = [
   "CASE",
   "CLM",
 ];
+
+/** The gate passes sound within about 10 dB of the caller's own voice, and stays open down to about 14 dB below it. */
+const AGENT_RELATIVE = { open: 0.3, close: 0.2 };
+/** During the greeting, before the caller has spoken: only a voice this loud (about -22 dBFS) gets through, for at most this long. */
+const GREETING_MIN_RMS = 2500;
+const GREETING_GUARD_MS = 15_000;
 
 /** Runs one voice session; resolves once it has ended and its call record is saved. */
 export async function runVoiceSession(params: VoiceSessionParams): Promise<void> {
@@ -300,6 +306,11 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   let agentSpoke = false;
   /** Whether the agent is being heard right now (generating or still playing out). */
   let agentSpeaking = false;
+  /** Whether the caller has said anything yet (their voice level is then known to the gate). */
+  let callerHeard = false;
+  /** When the agent's first answer (the greeting) started. */
+  let greetingStartedAt = 0;
+  const greetingCodec = leg.format.type === "audio/pcmu" ? MULAW_CODEC : PCM16_CODEC;
   let speakingSeq = 0;
   /** When answering-machine detection called the callee a machine, if it did. */
   let machineVerdictAt: number | null = null;
@@ -393,7 +404,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     // Closing the leg before a redirect lands would hang up on the caller.
     if (handover) await handover;
     reason = failure ?? reason;
-    if (gate?.hiddenFrames) outcome = { ...outcome, noiseGate: { hiddenSeconds: Math.round(gate.hiddenFrames / 50) } };
+    if (gate?.hiddenMs) outcome = { ...outcome, noiseGate: { hiddenSeconds: Math.round(gate.hiddenMs / 1000) } };
     liveSessions.delete(call.id);
     disarmIdle();
     for (const t of timers) clearTimeout(t);
@@ -457,7 +468,16 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
 
   // Phone legs pass through the noise gate: a noisy room around the phone
   // (a trade-show hall) must not start turns or cut the agent off.
-  const gate = channel === "PHONE" && leg.format.type === "audio/pcmu" && env.phoneNoiseGate ? new NoiseGate() : null;
+  // Both a phone and a browser microphone pass through the gate, which also
+  // follows the caller's own level: in a hall, people talking nearby otherwise
+  // keep the model's turn open (it never answers) or cut the agent off.
+  const gate = !env.phoneNoiseGate
+    ? null
+    : leg.format.type === "audio/pcmu"
+      ? new NoiseGate({ relative: AGENT_RELATIVE })
+      : leg.format.type === "audio/pcm"
+        ? new NoiseGate({ codec: PCM16_CODEC, frameMs: 40, windowFrames: 50, prerollMs: 240, relative: AGENT_RELATIVE })
+        : null;
 
   // --- Connect to the model -------------------------------------------------
   try {
@@ -501,12 +521,22 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   // --- Wire audio, transcripts and tools ---------------------------------------
   if (gate) {
     leg.onAudio((b64) => {
-      for (const frame of gate.process(Buffer.from(b64, "base64"))) session.appendAudio(frame.toString("base64"));
+      const frame = Buffer.from(b64, "base64");
+      // Until the caller has said anything their level is unknown, so during the
+      // agent's greeting only a voice held to the microphone gets through: the
+      // room can't cut the greeting off. (Time-boxed, in case playback is never confirmed.)
+      if (!callerHeard && agentSpeaking && Date.now() - greetingStartedAt < GREETING_GUARD_MS && greetingCodec.rms(frame) < GREETING_MIN_RMS) {
+        gate.process(frame);
+        session.appendAudio(greetingCodec.silence(frame.length).toString("base64"));
+        return;
+      }
+      for (const out of gate.process(frame)) session.appendAudio(out.toString("base64"));
     });
   } else {
     leg.onAudio((b64) => session.appendAudio(b64));
   }
   leg.onText((text) => {
+    callerHeard = true;
     disarmIdle();
     idleNudges = 0;
     record("user", text);
@@ -527,6 +557,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
 
   session.on("audio", (b64) => leg.sendAudio(b64));
   session.on("speech_started", () => {
+    callerHeard = true;
     disarmIdle();
     idleNudges = 0;
     leg.clearPlayback();
@@ -540,6 +571,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
     emit({ type: "user_speaking" });
   });
   session.on("response_started", () => {
+    if (!agentSpoke) greetingStartedAt = Date.now();
     agentSpoke = true;
     agentSpeaking = true;
     speakingSeq += 1;

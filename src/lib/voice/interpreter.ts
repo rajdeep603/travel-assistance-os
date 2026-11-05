@@ -255,8 +255,18 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
       // Never hold a real translation back for long when its text is slow to come.
       if (!timer) timer = setTimeout(release, 700);
     });
+    // Text that only comes whole, at the end: decide on it then.
+    session.on("agent_transcript_done", (full) => {
+      if (state !== "waiting") return;
+      if (isNonSpeech(full)) {
+        state = "muted";
+        held = [];
+        if (timer) clearTimeout(timer);
+      } else release();
+    });
     session.on("response_done", () => {
-      if (state === "waiting" && !isNonSpeech(text.trim())) release();
+      // No text at all is no reason to drop real audio; only a note is dropped.
+      if (state === "waiting" && !(text.trim() && isNonSpeech(text))) release();
       if (timer) clearTimeout(timer);
       timer = null;
     });

@@ -112,6 +112,11 @@ export class NoiseGate {
     return this.open;
   }
 
+  /** Time hidden so far, in ms. */
+  get hiddenMs(): number {
+    return this.hidden * this.frameMs;
+  }
+
   get hiddenFrames(): number {
     return this.hidden;
   }
@@ -135,7 +140,8 @@ export class NoiseGate {
     const floor = this.floor;
     // Relative to the speaker, once enough of their speech has been heard (half a second).
     const known = this.relative && this.voiceFrames * this.frameMs >= 500;
-    this.voiceLevel *= this.decay;
+    // The speaker's level fades only while they could be talking (not while the agent or a translation is heard).
+    if (!this.strict) this.voiceLevel *= this.decay;
     const openAt = Math.max(floor * (this.strict ? this.strictRatio : this.openRatio), known ? this.voiceLevel * this.relative!.open : 0);
     const closeAt = Math.max(floor * this.closeRatio, known ? this.voiceLevel * this.relative!.close : 0);
 
