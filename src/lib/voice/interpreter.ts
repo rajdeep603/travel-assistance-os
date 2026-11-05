@@ -9,6 +9,7 @@ import type { CallControls } from "./bridge";
 import type { VoiceLeg } from "./legs/types";
 import { INTERPRETER_LANGUAGES, interpreterPrompt } from "./interpreter-prompt";
 import { monitorBus } from "./monitor";
+import { NoiseGate, PCM16_CODEC } from "./noise-gate";
 import { XaiRealtimeSession } from "./realtime/xai-session";
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,8 @@ interface PendingBridge {
   hospitalLanguage: string;
   /** What the conversation is, when the API caller said (else a hospital call). */
   context: string | null;
+  /** Who is calling, when an API caller said (else the platform's brand). */
+  client: string | null;
   manager?: VoiceLeg;
   hospital?: { leg: VoiceLeg; controls: CallControls };
   started: boolean;
@@ -37,6 +40,15 @@ interface PendingBridge {
 }
 
 const bridges = new Map<string, PendingBridge>();
+
+/** A translation that is only a note about silence ("(no response)", "[silence]", "…"): never spoken. */
+export function isNonSpeech(text: string): boolean {
+  const t = text.trim();
+  return !t || /^[([{*<…]/.test(t) || /^\.{2,}$/.test(t);
+}
+
+/** The gates pass sound within about 10 dB of the speaker's own voice, and stay open down to about 14 dB below it. */
+const INTERPRETER_RELATIVE = { open: 0.3, close: 0.2 };
 
 export interface InterpreterModel {
   url?: string;
@@ -51,7 +63,7 @@ async function load(bridgeId: string): Promise<PendingBridge | null> {
   const manager = calls.find((c) => c.channel === "BROWSER");
   const hospital = calls.find((c) => c.channel === "PHONE");
   if (!manager || !hospital) return null;
-  const outcome = (hospital.outcome as { languages?: { manager?: string; hospital?: string }; context?: string } | null) ?? {};
+  const outcome = (hospital.outcome as { languages?: { manager?: string; hospital?: string }; context?: string; client?: string } | null) ?? {};
   const langs = outcome.languages ?? {};
   const bridge: PendingBridge = {
     bridgeId,
@@ -61,6 +73,7 @@ async function load(bridgeId: string): Promise<PendingBridge | null> {
     managerLanguage: langs.manager ?? "en",
     hospitalLanguage: langs.hospital ?? "tr",
     context: typeof outcome.context === "string" ? outcome.context : null,
+    client: typeof outcome.client === "string" && outcome.client.trim() ? outcome.client.trim() : null,
     started: false,
   };
   bridges.set(bridgeId, bridge);
@@ -176,10 +189,112 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
   });
 
   // Audio: each side's speech feeds the session that translates it for the other side.
-  manager.onAudio((b64) => ab.appendAudio(b64));
-  hospital.onAudio((b64) => ba.appendAudio(b64));
-  ab.on("audio", (b64) => hospital.sendAudio(b64));
-  ba.on("audio", (b64) => manager.sendAudio(b64));
+  // Both microphones pass through an adaptive noise gate: steady background
+  // (a hall's chatter) otherwise keeps the model's turn detection open, so a
+  // speaker never seems to finish and nothing gets translated. While either
+  // translation is being heard, the gates are strict, so a translation coming
+  // back through a loudspeaker (a phone on speaker next to the laptop) can't
+  // start a turn or cut the translation off; a voice at the microphone still can.
+  const gates = env.phoneNoiseGate
+    ? {
+        manager:
+          manager.format.type === "audio/pcm"
+            ? new NoiseGate({ codec: PCM16_CODEC, frameMs: 40, windowFrames: 50, prerollMs: 240, relative: INTERPRETER_RELATIVE })
+            : new NoiseGate({ relative: INTERPRETER_RELATIVE }),
+        hospital: hospital.format.type === "audio/pcmu" ? new NoiseGate({ relative: INTERPRETER_RELATIVE }) : null,
+      }
+    : { manager: null, hospital: null };
+  const feed = (gate: NoiseGate | null, session: XaiRealtimeSession) => (b64: string) => {
+    if (!gate) return session.appendAudio(b64);
+    for (const frame of gate.process(Buffer.from(b64, "base64"))) session.appendAudio(frame.toString("base64"));
+  };
+  manager.onAudio(feed(gates.manager, ab));
+  hospital.onAudio(feed(gates.hospital, ba));
+  // A translation's first audio waits for its first words of text: a model that
+  // decides not to translate still has to answer, and does so with a note like
+  // "(no response)" or "(silencio)", which must never be spoken to anyone.
+  /** Sessions whose current response the relay cancelled on purpose (a note, not a translation). */
+  const mutedOnPurpose = new Set<XaiRealtimeSession>();
+  const relay = (session: XaiRealtimeSession, listener: VoiceLeg) => {
+    let held: string[] = [];
+    let text = "";
+    let state: "waiting" | "speaking" | "muted" = "waiting";
+    let timer: NodeJS.Timeout | null = null;
+    const release = () => {
+      if (state !== "waiting") return;
+      state = "speaking";
+      if (timer) clearTimeout(timer);
+      for (const b of held) listener.sendAudio(b);
+      held = [];
+    };
+    session.on("response_started", () => {
+      held = [];
+      text = "";
+      state = "waiting";
+      if (timer) clearTimeout(timer);
+      timer = null;
+    });
+    session.on("agent_transcript_delta", (delta) => {
+      text += delta;
+      const start = text.trimStart();
+      if (state !== "waiting" || !start) return;
+      if (isNonSpeech(start)) {
+        state = "muted";
+        held = [];
+        if (timer) clearTimeout(timer);
+        mutedOnPurpose.add(session);
+        session.cancelResponse();
+        return;
+      }
+      if (start.length >= 3) release();
+    });
+    session.on("audio", (b64) => {
+      if (state === "speaking") return listener.sendAudio(b64);
+      if (state === "muted") return;
+      held.push(b64);
+      // Never hold a real translation back for long when its text is slow to come.
+      if (!timer) timer = setTimeout(release, 700);
+    });
+    session.on("response_done", () => {
+      if (state === "waiting" && !isNonSpeech(text.trim())) release();
+      if (timer) clearTimeout(timer);
+      timer = null;
+    });
+  };
+  relay(ab, hospital);
+  relay(ba, manager);
+  const speaking = { ab: 0, ba: 0 };
+  const strict = () => {
+    const on = speaking.ab > 0 || speaking.ba > 0;
+    gates.manager?.setStrict(on);
+    gates.hospital?.setStrict(on);
+  };
+  const track = (name: "ab" | "ba", session: XaiRealtimeSession, listener: VoiceLeg) => {
+    let seq = 0;
+    session.on("response_started", () => {
+      seq += 1;
+      speaking[name] = seq;
+      strict();
+    });
+    session.on("response_done", () => {
+      const mine = seq;
+      // Strict until the listener has actually heard the end of it.
+      void listener.awaitPlayback(30_000).then(() => {
+        if (speaking[name] === mine) {
+          speaking[name] = 0;
+          strict();
+        }
+      });
+    });
+    // A cut-off translation: the next one must cover what this one didn't (not when the relay muted a note on purpose).
+    session.on("response_cancelled", () => {
+      if (mutedOnPurpose.delete(session)) return;
+      session.sendText("[Your last translation was cut off before it finished. In your next translation, include anything it didn't cover.]", { respond: false });
+    });
+    session.on("response_done", () => mutedOnPurpose.delete(session));
+  };
+  track("ab", ab, hospital);
+  track("ba", ba, manager);
 
   // Captions: what each side said, and how it was rendered for the other.
   // Originals grow while a side speaks: `line` (that utterance) updates one caption in place.
@@ -210,16 +325,20 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
     state.transcript.push(entry);
   };
   ab.on("user_transcript", (t, line) => caption("manager", "original", t, line));
-  ab.on("agent_transcript_done", (t) => caption("manager", "translation", t));
+  ab.on("agent_transcript_done", (t) => !isNonSpeech(t) && caption("manager", "translation", t));
   ba.on("user_transcript", (t, line) => caption("hospital", "original", t, line));
-  ba.on("agent_transcript_done", (t) => caption("hospital", "translation", t));
+  ba.on("agent_transcript_done", (t) => !isNonSpeech(t) && caption("hospital", "translation", t));
+  ab.on("response_cancelled", () => console.log(`[interpreter] ${bridge.bridgeId.slice(0, 8)} translation to the ${hospitalLang} side was cut off`));
+  ba.on("response_cancelled", () => console.log(`[interpreter] ${bridge.bridgeId.slice(0, 8)} translation to the ${managerLang} side was cut off`));
   ab.on("closed", () => void finish(bridge, "interpreter disconnected"));
   ba.on("closed", () => void finish(bridge, "interpreter disconnected"));
 
   manager.sendEvent({ type: "bridge_status", status: "connected", languages: [managerLang, hospitalLang] });
   // Open the call for the hospital: one translated sentence explaining the setup.
   ab.sendText(
-    `Hello, I'm calling from ${BRAND.name} travel assistance about one of our insured patients. An AI interpreter is translating this call.`
+    bridge.client
+      ? `Hello, I'm calling from ${bridge.client}. An AI interpreter is translating this call.`
+      : `Hello, I'm calling from ${BRAND.name} travel assistance about one of our insured patients. An AI interpreter is translating this call.`
   );
 }
 

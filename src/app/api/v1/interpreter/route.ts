@@ -23,6 +23,8 @@ const Body = z.object({
   clientRef: z.string().max(80).optional(),
   /** What the conversation is ("a debt collector speaking with a former patient about a hospital invoice"); a hospital call otherwise. */
   context: z.string().max(200).optional(),
+  /** Who is calling, for the line the other side hears first ("Hello, I'm calling from Global Excel…"). */
+  client: z.string().max(80).optional(),
 });
 
 /**
@@ -50,7 +52,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     bridgeId,
     amd: false,
     clientRef: body.clientRef ?? null,
-    extraOutcome: { languages: { manager: "en", hospital: code }, ...(body.context ? { context: body.context } : {}) },
+    extraOutcome: { languages: { manager: "en", hospital: code }, ...(body.context ? { context: body.context } : {}), ...(body.client ? { client: body.client } : {}) },
   });
   const managerCall = await withRef("call", (ref) =>
     prisma.call.create({

@@ -70,6 +70,8 @@ export interface RealtimeSessionEvents {
   function_call: [call: FunctionCall];
   response_started: [];
   response_done: [];
+  /** The response was cut off (the speaker's voice, or noise, started a new turn while it was being generated). */
+  response_cancelled: [];
   error: [error: Error];
   closed: [code: number];
 }
@@ -261,6 +263,7 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
       case "response.done":
       case "response.cancelled":
         this.responseInFlight = false;
+        if (msg.type === "response.cancelled" || (msg as { response?: { status?: string } }).response?.status === "cancelled") this.emit("response_cancelled");
         this.emit("response_done");
         this.maybeContinue();
         break;
@@ -284,6 +287,8 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
     // Grok sometimes starts a new utterance with the previous one's words.
     const prev = this.previousUserRaw;
     if (prev && text.length > prev.length && text.startsWith(prev)) text = text.slice(prev.length).trim();
+    // ...or repeats it word for word (a long noisy turn re-segmented): nothing new was said.
+    else if (prev && text === prev.trim()) text = "";
     const before = this.userLines.get(id);
     this.userLines.set(id, { raw, text: text || (before?.text ?? "") });
     if (text && text !== before?.text) this.emit("user_transcript", text, id);
@@ -309,6 +314,11 @@ export class XaiRealtimeSession extends EventEmitter<RealtimeSessionEvents> {
       this.turnHadCalls = false;
       this.send({ type: "response.create" });
     }
+  }
+
+  /** Stops the response being generated (its audio already sent is not recalled). */
+  cancelResponse(): void {
+    if (this.responseInFlight) this.send({ type: "response.cancel" });
   }
 
   appendAudio(base64: string): void {

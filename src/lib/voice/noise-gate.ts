@@ -1,5 +1,28 @@
 import { MULAW_SILENCE, mulawRms } from "./g711";
 
+/** How to measure a frame and make silence of its length: μ-law phone frames, or 16-bit PCM browser chunks. */
+export interface GateCodec {
+  rms(frame: Buffer): number;
+  silence(length: number): Buffer;
+}
+
+export const MULAW_CODEC: GateCodec = { rms: (f) => mulawRms(f), silence: (n) => Buffer.alloc(n, MULAW_SILENCE) };
+
+/** 16-bit little-endian PCM (the browser's 24 kHz chunks), on the same 16-bit scale as μ-law RMS. */
+export const PCM16_CODEC: GateCodec = {
+  rms(frame) {
+    const n = Math.floor(frame.length / 2);
+    if (!n) return 0;
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      const v = frame.readInt16LE(i * 2);
+      sum += v * v;
+    }
+    return Math.sqrt(sum / n);
+  },
+  silence: (n) => Buffer.alloc(n, 0),
+};
+
 // ---------------------------------------------------------------------------
 // An adaptive noise gate for phone legs. In a trade-show hall the chatter
 // around the phone must not start turns, cut the agent off (the model treats
@@ -33,6 +56,16 @@ export interface NoiseGateOptions {
   floorMin?: number;
   /** ...nor above this one: louder noise is let through rather than risk hiding a voice. */
   floorMax?: number;
+  /** The frames' format (μ-law by default). */
+  codec?: GateCodec;
+  /**
+   * Also follow the speaker's own level (the loudest recent speech through the
+   * gate, fading over about 20 s) and pass only sound close to it: a voice at
+   * the microphone, not people talking a few metres away, whose chatter has
+   * gaps the floor alone follows. Fractions of that level to open and to stay
+   * open. For the interpreter, where chatter otherwise keeps a turn open for ever.
+   */
+  relative?: { open: number; close: number };
 }
 
 export class NoiseGate {
@@ -45,6 +78,12 @@ export class NoiseGate {
   private readonly prerollFrames: number;
   private readonly floorMin: number;
   private readonly floorMax: number;
+  private readonly codec: GateCodec;
+  private readonly relative: { open: number; close: number } | null;
+  /** The speaker's level (decaying peak of frames that passed), and how much speech it is based on. */
+  private voiceLevel = 0;
+  private voiceFrames = 0;
+  private readonly decay: number;
 
   private readonly recent: number[] = [];
   private preroll: Buffer[] = [];
@@ -64,6 +103,9 @@ export class NoiseGate {
     this.prerollFrames = Math.ceil((opts.prerollMs ?? 200) / this.frameMs);
     this.floorMin = opts.floorMin ?? 60;
     this.floorMax = opts.floorMax ?? 700;
+    this.codec = opts.codec ?? MULAW_CODEC;
+    this.relative = opts.relative ?? null;
+    this.decay = Math.pow(0.5, this.frameMs / 20_000);
   }
 
   get isOpen(): boolean {
@@ -87,13 +129,22 @@ export class NoiseGate {
 
   /** The frames to forward for one received frame: itself (after any pre-roll), or silence of its length. */
   process(frame: Buffer): Buffer[] {
-    const rms = mulawRms(frame);
+    const rms = this.codec.rms(frame);
     this.recent.push(rms);
     if (this.recent.length > this.windowFrames) this.recent.shift();
     const floor = this.floor;
+    // Relative to the speaker, once enough of their speech has been heard (half a second).
+    const known = this.relative && this.voiceFrames * this.frameMs >= 500;
+    this.voiceLevel *= this.decay;
+    const openAt = Math.max(floor * (this.strict ? this.strictRatio : this.openRatio), known ? this.voiceLevel * this.relative!.open : 0);
+    const closeAt = Math.max(floor * this.closeRatio, known ? this.voiceLevel * this.relative!.close : 0);
 
     if (this.open) {
-      if (rms < floor * this.closeRatio) {
+      if (rms >= openAt) {
+        this.voiceFrames += 1;
+        if (rms > this.voiceLevel) this.voiceLevel = rms;
+      }
+      if (rms < closeAt) {
         this.hang += this.frameMs;
         if (this.hang >= this.hangoverMs) {
           this.open = false;
@@ -105,7 +156,7 @@ export class NoiseGate {
       return [frame];
     }
 
-    if (rms >= floor * (this.strict ? this.strictRatio : this.openRatio)) {
+    if (rms >= openAt) {
       this.open = true;
       this.hang = 0;
       const out = [...this.preroll, frame];
@@ -115,6 +166,6 @@ export class NoiseGate {
     this.preroll.push(frame);
     if (this.preroll.length > this.prerollFrames) this.preroll.shift();
     this.hidden += 1;
-    return [Buffer.alloc(frame.length, MULAW_SILENCE)];
+    return [this.codec.silence(frame.length)];
   }
 }
