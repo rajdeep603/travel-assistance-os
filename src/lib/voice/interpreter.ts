@@ -34,6 +34,8 @@ interface PendingBridge {
   context: string | null;
   /** Who is calling, when an API caller said (else the platform's brand). */
   client: string | null;
+  /** Names the recogniser should expect on this call (the client, the patient, the insurer, the hotel…). */
+  keyterms: string[];
   manager?: VoiceLeg;
   hospital?: { leg: VoiceLeg; controls: CallControls };
   started: boolean;
@@ -46,6 +48,12 @@ const bridges = new Map<string, PendingBridge>();
 export function isNonSpeech(text: string): boolean {
   const t = text.trim();
   return !t || /^[([{*<…]/.test(t) || /^\.{2,}$/.test(t);
+}
+
+/** The client's name and the API caller's names, deduplicated: a recogniser that expects "Hanseatica" doesn't hear "Hans Siedeka". */
+export function interpreterKeyterms(client: unknown, extra: unknown): string[] {
+  const list = [client, ...(Array.isArray(extra) ? extra : [])].filter((k): k is string => typeof k === "string" && k.trim().length > 1).map((k) => k.trim().slice(0, 50));
+  return [...new Set(list)].slice(0, 40);
 }
 
 /** The gates pass sound within about 10 dB of the speaker's own voice, and stay open down to about 14 dB below it. */
@@ -64,7 +72,7 @@ async function load(bridgeId: string): Promise<PendingBridge | null> {
   const manager = calls.find((c) => c.channel === "BROWSER");
   const hospital = calls.find((c) => c.channel === "PHONE");
   if (!manager || !hospital) return null;
-  const outcome = (hospital.outcome as { languages?: { manager?: string; hospital?: string }; context?: string; client?: string } | null) ?? {};
+  const outcome = (hospital.outcome as { languages?: { manager?: string; hospital?: string }; context?: string; client?: string; keyterms?: unknown } | null) ?? {};
   const langs = outcome.languages ?? {};
   const bridge: PendingBridge = {
     bridgeId,
@@ -75,6 +83,7 @@ async function load(bridgeId: string): Promise<PendingBridge | null> {
     hospitalLanguage: langs.hospital ?? "tr",
     context: typeof outcome.context === "string" ? outcome.context : null,
     client: typeof outcome.client === "string" && outcome.client.trim() ? outcome.client.trim() : null,
+    keyterms: interpreterKeyterms(outcome.client, outcome.keyterms),
     started: false,
   };
   bridges.set(bridgeId, bridge);
@@ -144,6 +153,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
       input: manager.format,
       output: hospital.format,
       languageHint: languageHintOf(bridge.managerLanguage),
+      ...(bridge.keyterms.length ? { keyterms: bridge.keyterms } : {}),
       reasoningEffort: "none",
     },
   });
@@ -155,6 +165,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
       input: hospital.format,
       output: manager.format,
       languageHint: languageHintOf(bridge.hospitalLanguage),
+      ...(bridge.keyterms.length ? { keyterms: bridge.keyterms } : {}),
       reasoningEffort: "none",
     },
   });

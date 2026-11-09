@@ -27,6 +27,8 @@ const Body = z.object({
   context: z.string().max(200).optional(),
   /** Who is calling, for the line the other side hears first ("Hello, I'm calling from Global Excel…"). */
   client: z.string().max(80).optional(),
+  /** Names on this call the recogniser should expect: the patient, the insurer, the doctor, the hotel… */
+  keyterms: z.array(z.string().max(50)).max(30).optional(),
 });
 
 /**
@@ -58,7 +60,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     bridgeId,
     amd: false,
     clientRef: body.clientRef ?? null,
-    extraOutcome: { languages: { manager: managerCode, hospital: code }, ...(body.context ? { context: body.context } : {}), ...(body.client ? { client: body.client } : {}) },
+    extraOutcome: { languages: { manager: managerCode, hospital: code }, ...(body.context ? { context: body.context } : {}), ...(body.client ? { client: body.client } : {}), ...(body.keyterms?.length ? { keyterms: body.keyterms } : {}) },
   });
   const managerCall = await withRef("call", (ref) =>
     prisma.call.create({

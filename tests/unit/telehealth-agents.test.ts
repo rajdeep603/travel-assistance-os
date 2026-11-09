@@ -3,6 +3,7 @@ import { getAgent, listAgents } from "@/lib/voice/agents/registry";
 import { TELEHEALTH_AGENTS, benefitCheckAgent, patientLineAgent } from "@/lib/voice/agents/telehealth";
 import type { AgentContext } from "@/lib/voice/agents/types";
 import { INTERPRETER_LANGUAGES, interpreterOpening, languageHintOf } from "@/lib/voice/interpreter-prompt";
+import { interpreterKeyterms } from "@/lib/voice/interpreter";
 import { realtimeTools } from "@/lib/voice/tools/registry";
 import { toolChipLabel } from "@/lib/voice/tool-labels";
 
@@ -59,5 +60,10 @@ describe("interpreter with a Spanish-speaking agent", () => {
     expect(interpreterOpening("es-MX", "EverHealth", "CareTrail")).toMatch(/^Hola, le llamo de EverHealth/);
     expect(interpreterOpening("en", "Global Excel", "CareTrail")).toMatch(/^Hello, I'm calling from Global Excel/);
     expect(interpreterOpening("en", null, "CareTrail")).toMatch(/CareTrail travel assistance/);
+  });
+
+  it("expects the call's names: the client first, no duplicates or blanks", () => {
+    expect(interpreterKeyterms("EverHealth", ["Hanseatica", "EverHealth", " ", 3, "Lukas Becker"])).toEqual(["EverHealth", "Hanseatica", "Lukas Becker"]);
+    expect(interpreterKeyterms(undefined, undefined)).toEqual([]);
   });
 });

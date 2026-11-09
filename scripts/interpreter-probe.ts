@@ -9,6 +9,7 @@
 // that gain, after --echo-delay ms.
 //
 //   npx tsx scripts/interpreter-probe.ts --lang es [--echo 0.3] [--pause-mid]
+//   npx tsx scripts/interpreter-probe.ts --manager es-MX --lang de   (a Spanish-speaking agent, EverHealth)
 //
 // Needs XAI_API_KEY, the local database and macOS. Development only.
 // ---------------------------------------------------------------------------
@@ -27,7 +28,7 @@ import { joinAsHospital, joinAsManager } from "@/lib/voice/interpreter";
 import type { VoiceLeg } from "@/lib/voice/legs/types";
 import type { AudioFormat } from "@/lib/voice/realtime/xai-session";
 
-const VOICES: Record<string, string> = { en: "Samantha", es: "Mónica", "es-ES": "Mónica", tr: "Yelda", ar: "Majed", hi: "Lekha", fr: "Thomas", de: "Anna", it: "Alice", ru: "Milena" };
+const VOICES: Record<string, string> = { en: "Samantha", es: "Mónica", "es-ES": "Mónica", "es-MX": "Paulina", tr: "Yelda", ar: "Majed", hi: "Lekha", fr: "Thomas", de: "Anna", it: "Alice", ru: "Milena" };
 
 const argv = process.argv.slice(2);
 const flag = (name: string) => argv.includes(name);
@@ -36,6 +37,8 @@ const value = (name: string, fallback: string) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback;
 };
 const LANG = value("--lang", "es-ES");
+/** The browser side's language (English by default; es-MX for a Spanish-speaking agent). */
+const MANAGER = value("--manager", "en");
 const ECHO = Number(value("--echo", "0"));
 const ECHO_DELAY_MS = Number(value("--echo-delay", "180"));
 const PAUSE_MID = flag("--pause-mid");
@@ -207,14 +210,56 @@ const SCRIPTS: Record<string, Turn[]> = {
   ],
 };
 
+/** EverHealth: a Spanish-speaking care agent in Mexico (browser) and a patient abroad (phone); or the reverse. */
+const EVERHEALTH: Record<string, Turn[]> = {
+  "es-MX>de": [
+    { side: "manager", text: "Buenos días, señor Becker. Le habla Mariana, del equipo médico de EverHealth. Recibimos su mensaje por WhatsApp." },
+    { side: "hospital", text: "Guten Tag. Ja, ich habe seit gestern Abend Fieber, achtunddreißig Komma neun, und starke Halsschmerzen." },
+    { side: "manager", text: "Lo siento mucho. ¿Ha tomado algún medicamento?", then: "¿Y tiene dificultad para respirar o para tragar?" },
+    { side: "hospital", text: "Ich habe heute Morgen vierhundert Milligramm Ibuprofen genommen. Atmen geht gut, aber Schlucken tut weh." },
+    { side: "manager", text: "De acuerdo. La doctora Ortiz le puede atender por videollamada a las diez y media. ¿Le parece bien?" },
+    { side: "hospital", text: "Ja, perfekt. Muss ich etwas bezahlen? Ich bin bei der Hanseatica versichert." },
+    { side: "manager", text: "Nosotros verificamos su póliza con la aseguradora antes de la consulta. Le enviamos el enlace por WhatsApp." },
+    { side: "hospital", text: "Vielen Dank, das ist sehr hilfreich." },
+    { side: "manager", text: "Con gusto. Que se mejore pronto. Hasta luego." },
+  ],
+  "es-MX>fr": [
+    { side: "manager", text: "Buenas tardes, señora Laurent. Le llamo de EverHealth por su tobillo." },
+    { side: "hospital", text: "Bonjour. Oui, ma cheville est très gonflée et j'ai du mal à marcher." },
+    { side: "manager", text: "¿Puede apoyar el pie?", then: "¿Y en qué hotel está ahora?" },
+    { side: "hospital", text: "Je peux poser le pied, mais ça fait très mal. Je suis à l'hôtel Coral Maya, chambre deux cent quatorze." },
+    { side: "manager", text: "Un médico puede ir a su hotel en una hora. Le llevará una férula y le revisará el tobillo." },
+    { side: "hospital", text: "D'accord, merci. Est-ce que mon assurance Horizon couvre la visite ?" },
+    { side: "manager", text: "Sí, ya confirmamos su cobertura con Assurances Horizon. No tiene que pagar nada." },
+    { side: "hospital", text: "Parfait, merci beaucoup." },
+  ],
+  "es-MX>en": [
+    { side: "manager", text: "Buenos días, señor Turner. Le llamo de EverHealth sobre su cita de hoy a las doce y media." },
+    { side: "hospital", text: "Hi, yes. I still have the cough, and the fever came back last night, about a hundred and one." },
+    { side: "manager", text: "Entiendo. ¿Tiene dificultad para respirar o dolor en el pecho?" },
+    { side: "hospital", text: "No chest pain. I get a bit short of breath when I walk up the stairs." },
+    { side: "manager", text: "Gracias. La doctora le hará una radiografía de tórax. Su seguro la cubre con un coaseguro del veinte por ciento." },
+    { side: "hospital", text: "Okay, that's fine. See you at twelve thirty." },
+  ],
+  "en>es-MX": [
+    { side: "manager", text: "Hello, this is Rajdeep from EverHealth's care team. Am I speaking with the operations manager?" },
+    { side: "hospital", text: "Sí, soy yo. Dígame, ¿en qué le puedo ayudar?" },
+    { side: "manager", text: "We have a German patient in Cancún with a fever since last night. Can a doctor see him by video at ten thirty?" },
+    { side: "hospital", text: "Sí, la doctora Ortiz está disponible a las diez y media. ¿Tiene el número de póliza?" },
+    { side: "manager", text: "Yes, Hanseatica, policy H R S, four four seven one, zero nine two one." },
+    { side: "hospital", text: "Perfecto, lo registro ahora mismo. Muchas gracias." },
+  ],
+};
+
 async function main() {
-  const script = SCRIPTS[LANG] ?? SCRIPTS["es-ES"];
+  const everhealth = EVERHEALTH[`${MANAGER}>${LANG}`];
+  const script = everhealth ?? SCRIPTS[LANG] ?? SCRIPTS["es-ES"];
   const bridgeId = randomUUID();
   const hospitalRef = await nextRef("call");
-  await prisma.call.create({ data: { ref: hospitalRef, direction: "OUTBOUND", channel: "PHONE", agentProfile: "interpreter", status: "RINGING", toNumber: "+10000000000", bridgeId, outcome: { languages: { manager: "en", hospital: LANG }, context: "a Global Excel case manager speaking with a hospital's international office about a patient's medical claim", client: "Global Excel" } } });
+  await prisma.call.create({ data: { ref: hospitalRef, direction: "OUTBOUND", channel: "PHONE", agentProfile: "interpreter", status: "RINGING", toNumber: "+10000000000", bridgeId, outcome: { languages: { manager: MANAGER, hospital: LANG }, ...(everhealth ? { context: "an EverHealth telemedicine care agent speaking with a patient abroad who called EverHealth", client: "EverHealth", ...(flag("--keyterms") ? { keyterms: ["Lukas Becker", "Becker", "Hanseatica", "Camille Laurent", "Laurent", "Coral Maya", "Assurances Horizon", "Michael Turner", "Dra. Mariana Ortiz", "Ortiz", "Cancún", "Playa del Carmen"] } : {}) } : { context: "a Global Excel case manager speaking with a hospital's international office about a patient's medical claim", client: "Global Excel" }) } } });
   const managerRef = await nextRef("call");
   await prisma.call.create({ data: { ref: managerRef, direction: "OUTBOUND", channel: "BROWSER", agentProfile: "interpreter", status: "RINGING", bridgeId } });
-  log(`bridge ${bridgeId.slice(0, 8)} · ${managerRef}/${hospitalRef} · en ⇄ ${LANG}${ECHO ? ` · echo ${ECHO} after ${ECHO_DELAY_MS} ms` : ""}${PAUSE_MID ? " · pause mid-sentence" : ""}${NOISE ? ` · noise ${NOISE}` : ""}${BABBLE ? ` · babble ${BABBLE}` : ""}`);
+  log(`bridge ${bridgeId.slice(0, 8)} · ${managerRef}/${hospitalRef} · ${MANAGER} ⇄ ${LANG}${ECHO ? ` · echo ${ECHO} after ${ECHO_DELAY_MS} ms` : ""}${PAUSE_MID ? " · pause mid-sentence" : ""}${NOISE ? ` · noise ${NOISE}` : ""}${BABBLE ? ` · babble ${BABBLE}` : ""}`);
 
   const manager = new Side("manager");
   const hospital = new Side("hospital");
@@ -240,7 +285,7 @@ async function main() {
   for (const [i, turn] of script.entries()) {
     const speaker = turn.side === "manager" ? manager : hospital;
     const listener = turn.side === "manager" ? hospital : manager;
-    const lang = turn.side === "manager" ? "en" : LANG;
+    const lang = turn.side === "manager" ? MANAGER : LANG;
     const start = Date.now();
     await speaker.say(turn.text, lang);
     if (turn.then) {
