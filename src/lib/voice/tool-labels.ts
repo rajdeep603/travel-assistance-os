@@ -43,6 +43,9 @@ const LABELS: Record<string, [activity: string, chip: string]> = {
   send_provider_upload_link: ["Sending the provider the secure upload link", "Upload link sent"],
   record_invoice_followup: ["Recording the payer's answer on the invoice", "Invoice status"],
   hand_to_case_manager: ["Handing over to a case manager", "Handover"],
+  record_benefit_check: ["Recording the insurer's answer on the benefits", "Benefits verified"],
+  record_patient_request: ["Recording the patient's request", "Patient request"],
+  hand_to_care_team: ["Handing over to the care team", "Handover"],
   transfer_to_human: ["Handing over to a person", "Handover"],
   end_call: ["Ending the call", "Call ended"],
 };

@@ -3,7 +3,7 @@
 // imports: the case page uses the language list too.
 // ---------------------------------------------------------------------------
 
-/** BCP-47 code (Grok Voice language_hint) → name. English is the case manager's side. */
+/** BCP-47 code (Grok Voice language_hint) → name. English is the case manager's side unless an API caller says otherwise. */
 export const INTERPRETER_LANGUAGES: Record<string, string> = {
   en: "English",
   tr: "Turkish",
@@ -13,8 +13,27 @@ export const INTERPRETER_LANGUAGES: Record<string, string> = {
   fr: "French",
   ru: "Russian",
   "es-ES": "Spanish",
+  "es-MX": "Mexican Spanish",
   it: "Italian",
+  pt: "Portuguese",
 };
+
+/** The recogniser's hint for a code: Mexican Spanish is transcribed as Spanish. */
+export function languageHintOf(code: string): string {
+  return code === "es-MX" ? "es-ES" : code;
+}
+
+/** The first line the other side hears, written in the browser side's language (the session translates it). */
+export function interpreterOpening(managerLanguage: string, client: string | null, brand: string): string {
+  if (managerLanguage.startsWith("es")) {
+    return client
+      ? `Hola, le llamo de ${client}. Un intérprete con inteligencia artificial está traduciendo esta llamada.`
+      : `Hola, le llamo de la asistencia en viaje ${brand} sobre uno de nuestros pacientes asegurados. Un intérprete con inteligencia artificial está traduciendo esta llamada.`;
+  }
+  return client
+    ? `Hello, I'm calling from ${client}. An AI interpreter is translating this call.`
+    : `Hello, I'm calling from ${brand} travel assistance about one of our insured patients. An AI interpreter is translating this call.`;
+}
 
 /** Where hospital speech differs from the textbook language. */
 const SPOKEN_STYLE: Record<string, { speaking: string; listening: string }> = {

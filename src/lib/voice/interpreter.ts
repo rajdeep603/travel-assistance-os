@@ -7,13 +7,14 @@ import { emit as emitWebhook } from "@/lib/services/webhooks";
 import type { ChatMessage, ConversationSummaryContext } from "@/lib/services/types";
 import type { CallControls } from "./bridge";
 import type { VoiceLeg } from "./legs/types";
-import { INTERPRETER_LANGUAGES, interpreterPrompt } from "./interpreter-prompt";
+import { INTERPRETER_LANGUAGES, interpreterOpening, interpreterPrompt, languageHintOf } from "./interpreter-prompt";
 import { monitorBus } from "./monitor";
 import { NoiseGate, PCM16_CODEC } from "./noise-gate";
 import { XaiRealtimeSession } from "./realtime/xai-session";
 
 // ---------------------------------------------------------------------------
-// Live interpreter bridge: a case manager (browser, English) and a hospital
+// Live interpreter bridge: a case manager (browser, English unless an API
+// caller chose another language) and a hospital
 // (phone, e.g. Turkish) talk through two one-way Grok Voice sessions —
 //   manager audio → session A (EN→TR) → hospital
 //   hospital audio → session B (TR→EN) → manager
@@ -142,7 +143,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
       voice: "ara",
       input: manager.format,
       output: hospital.format,
-      languageHint: bridge.managerLanguage,
+      languageHint: languageHintOf(bridge.managerLanguage),
       reasoningEffort: "none",
     },
   });
@@ -153,7 +154,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
       voice: "eve",
       input: hospital.format,
       output: manager.format,
-      languageHint: bridge.hospitalLanguage,
+      languageHint: languageHintOf(bridge.hospitalLanguage),
       reasoningEffort: "none",
     },
   });
@@ -345,11 +346,7 @@ async function maybeStart(bridge: PendingBridge, model?: InterpreterModel): Prom
 
   manager.sendEvent({ type: "bridge_status", status: "connected", languages: [managerLang, hospitalLang] });
   // Open the call for the hospital: one translated sentence explaining the setup.
-  ab.sendText(
-    bridge.client
-      ? `Hello, I'm calling from ${bridge.client}. An AI interpreter is translating this call.`
-      : `Hello, I'm calling from ${BRAND.name} travel assistance about one of our insured patients. An AI interpreter is translating this call.`
-  );
+  ab.sendText(interpreterOpening(bridge.managerLanguage, bridge.client, BRAND.name));
 }
 
 async function finish(bridge: PendingBridge, reason: string): Promise<void> {

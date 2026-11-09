@@ -17,8 +17,10 @@ export const dynamic = "force-dynamic";
 const Body = z.object({
   /** E.164; must be approved for AI calls (POST /api/v1/approved-numbers). */
   to: z.string().min(6).max(24),
-  /** The other side's language, as a code from INTERPRETER_LANGUAGES ("ar", "ru", "es-ES", "tr"…). The browser side speaks English. */
+  /** The other side's language, as a code from INTERPRETER_LANGUAGES ("ar", "ru", "es-ES", "tr"…). */
   language: z.string().min(2).max(8),
+  /** The browser side's language, same codes ("es-MX" for an agent in Mexico); English by default. */
+  managerLanguage: z.string().min(2).max(8).optional(),
   /** Your own reference, returned in the call.completed webhook of the phone leg. */
   clientRef: z.string().max(80).optional(),
   /** What the conversation is ("a debt collector speaking with a former patient about a hospital invoice"); a hospital call otherwise. */
@@ -39,8 +41,12 @@ export const POST = withErrorHandling(async (req: Request) => {
   const caller = await requireApiCaller(req);
   if (!env.xaiApiKey) throw new ApiError("Voice is not configured on this server (XAI_API_KEY is missing).", 503, "VOICE_NOT_CONFIGURED");
   const body = Body.parse(await req.json().catch(() => ({})));
-  const code = INTERPRETER_LANGUAGES[body.language] ? body.language : body.language === "es" ? "es-ES" : null;
-  if (!code || code === "en") throw badRequest(`Choose the other side's language: ${Object.keys(INTERPRETER_LANGUAGES).filter((c) => c !== "en").join(", ")}.`);
+  const known = (c: string | undefined) => (c && INTERPRETER_LANGUAGES[c] ? c : c === "es" ? "es-ES" : null);
+  const managerCode = body.managerLanguage ? known(body.managerLanguage) : "en";
+  if (!managerCode) throw badRequest(`Unknown managerLanguage: use one of ${Object.keys(INTERPRETER_LANGUAGES).join(", ")}.`);
+  const code = known(body.language);
+  if (!code || code === managerCode)
+    throw badRequest(`Choose the other side's language: ${Object.keys(INTERPRETER_LANGUAGES).filter((c) => c !== managerCode).join(", ")}.`);
   const bridgeId = randomUUID();
   const placedBy = `api:${caller.name}`;
 
@@ -52,7 +58,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     bridgeId,
     amd: false,
     clientRef: body.clientRef ?? null,
-    extraOutcome: { languages: { manager: "en", hospital: code }, ...(body.context ? { context: body.context } : {}), ...(body.client ? { client: body.client } : {}) },
+    extraOutcome: { languages: { manager: managerCode, hospital: code }, ...(body.context ? { context: body.context } : {}), ...(body.client ? { client: body.client } : {}) },
   });
   const managerCall = await withRef("call", (ref) =>
     prisma.call.create({
@@ -73,7 +79,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     {
       bridgeId,
       calls: { manager: managerCall.ref, phone: phoneCall.ref },
-      languages: ["English", INTERPRETER_LANGUAGES[code]],
+      languages: [INTERPRETER_LANGUAGES[managerCode], INTERPRETER_LANGUAGES[code]],
       url: `${gatewayBase(req)}/ws/interpreter?ticket=${encodeURIComponent(ticket)}`,
     },
     { status: 201 }
