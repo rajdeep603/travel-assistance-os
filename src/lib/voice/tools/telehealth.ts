@@ -98,7 +98,10 @@ export const handToCareTeamTool = defineTool({
       if (result.ok) return { transferring: true, say: "Say you are connecting them to a member of the care team now and that you have passed on a summary." };
       return { transferring: false, say: result.message };
     }
-    return { transferring: false, say: "Say the care team has the summary and will contact them on the number they gave very shortly, and thank them." };
+    return {
+      transferring: false,
+      say: "Say the care team has the summary and will contact them on the number they gave very shortly, and thank them. Then make sure record_patient_request has been called and end the call with end_call: nobody will join this line, so don't keep the caller waiting on it.",
+    };
   },
 });
 
