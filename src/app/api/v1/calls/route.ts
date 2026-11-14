@@ -23,6 +23,8 @@ const Body = z.object({
   caseRef: z.string().max(20).optional(),
   /** Answering-machine detection (on by default). Off for calls a person is expected to answer: the detector sometimes takes a live person for a machine. */
   amd: z.boolean().optional(),
+  /** Names on this call the recogniser should expect (people, providers, places), beyond those in the brief. */
+  keyterms: z.array(z.string().max(60)).max(40).optional(),
 });
 
 /** POST /api/v1/calls: places an AI call; the outcome arrives as a call.completed webhook (or GET /api/v1/calls/{ref}). */
@@ -39,7 +41,7 @@ export const POST = withErrorHandling(async (req: Request) => {
       language: body.language,
       brief: body.brief ?? null,
       clientRef: body.clientRef ?? null,
-      keyterms: briefKeyterms(body.brief),
+      keyterms: [...briefKeyterms(body.brief), ...(body.keyterms ?? [])].slice(0, 60),
       placedBy: `api:${caller.name}`,
     });
     return json({ call: { id: call.id, ref: call.ref, status: call.status, agent: profile.id } }, { status: 201 });
@@ -55,7 +57,7 @@ export const POST = withErrorHandling(async (req: Request) => {
     clientRef: body.clientRef ?? null,
     placedBy: `api:${caller.name}`,
     ...(body.amd === false ? { amd: false } : {}),
-    ...(briefKeyterms(body.brief).length ? { extraOutcome: { keyterms: briefKeyterms(body.brief) } } : {}),
+    ...(briefKeyterms(body.brief).length || body.keyterms?.length ? { extraOutcome: { keyterms: [...briefKeyterms(body.brief), ...(body.keyterms ?? [])].slice(0, 60) } } : {}),
   });
   return json({ call: { id: call.id, ref: call.ref, status: call.status, agent: profile.id } }, { status: 201 });
 });

@@ -35,7 +35,7 @@ async function briefOf(ctx: ToolContext): Promise<{ brief: TpaBrief; outcome: Re
   return { brief: (outcome.brief as TpaBrief | undefined) ?? {}, outcome };
 }
 
-function editDistance(a: string, b: string): number {
+export function editDistance(a: string, b: string): number {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
   for (let j = 1; j <= b.length; j++) dp[0][j] = j;
   for (let i = 1; i <= a.length; i++)
@@ -123,7 +123,7 @@ export const recordMemberCallTool = defineTool({
   name: "record_member_call",
   description: "Save how the member call ended: the outcome, what the member asked, any call-back time agreed. Call it once, before ending.",
   schema: z.object({
-    outcome: z.enum(["status_given", "callback_requested", "escalated", "wrong_person", "no_answer"]),
+    outcome: z.enum(["status_given", "benefits_given", "case_opened", "callback_requested", "escalated", "not_verified", "wrong_person", "no_answer"]),
     member_question: z.string().optional().describe("What they wanted to know, in a few words"),
     callback_time: z.string().optional().describe("When a case manager should call back, as agreed"),
     notes: z.string().optional(),
@@ -208,7 +208,7 @@ export const recordInvoiceFollowupTool = defineTool({
 export const handToCaseManagerTool = defineTool({
   name: "hand_to_case_manager",
   description:
-    "Hand the call to a Global Excel case manager: the caller asks for a person, disputes something, is distressed, or needs a decision you cannot make. Say what you are doing first. The summary is what the case manager reads or hears before taking over.",
+    "Hand the call to a case manager of the company you answer for: the caller asks for a person, disputes something, is distressed, or needs a decision you cannot make. Say what you are doing first. The summary is what the case manager reads or hears before taking over.",
   schema: z.object({
     reason: z.enum(["asked_for_person", "dispute", "medical_question", "complaint", "cannot_help", "other"]),
     summary: z.string().describe("Two or three sentences: who, which claim, what they want"),
