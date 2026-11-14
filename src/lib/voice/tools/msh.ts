@@ -44,7 +44,7 @@ const DIGIT_WORDS: Record<string, string> = {
   zéro: "0", un: "1", une: "1", deux: "2", trois: "3", quatre: "4", cinq: "5", sept: "7", huit: "8", neuf: "9",
 };
 
-/** "MSH-410-287", "M S H four one zero two eight seven", "quatre un zéro…" → "410287". */
+/** "MSH-123-456", "M S H one two three four five six", "un deux trois…" → "123456". */
 export function memberDigits(input: string | undefined): string {
   if (!input) return "";
   return input
@@ -91,8 +91,8 @@ export const verifyMemberIdentityTool = defineTool({
   description:
     "Check that the caller is the member, on three factors: member number, full name (first name and surname) and date of birth. Call it once you have all three. Returns verified true with the member's name, or verified false with what to do. Nothing about a member, policy or case may be said before it returns verified true. After two failed attempts it locks: apologise, offer a call-back, and say nothing about any member.",
   schema: z.object({
-    member_number: z.string().describe("As given, e.g. 'MSH-410-287' (letters, then the six digits)"),
-    full_name: z.string().describe("First name and surname as given, e.g. 'Sarah Okafor'"),
+    member_number: z.string().describe("As given, in the format MSH-123-456 (letters, then six digits)"),
+    full_name: z.string().describe("First name and surname as given"),
     date_of_birth: z.string().describe("YYYY-MM-DD, e.g. '1996-03-14'"),
   }),
   async execute(args, ctx) {

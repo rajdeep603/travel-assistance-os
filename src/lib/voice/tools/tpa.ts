@@ -22,6 +22,8 @@ interface ClaimFacts {
 
 interface TpaBrief {
   client?: string;
+  /** What a call-back promise sounds like for this client ("a member services agent calls back within one business hour"). */
+  callback_promise?: string;
   claim_ref?: string;
   upload_link?: string;
   patient?: string;
@@ -222,7 +224,7 @@ export const handToCaseManagerTool = defineTool({
       if (result.ok) return { transferring: true, say: "Say you are connecting them to a case manager now and that you have passed on a summary." };
       return { transferring: false, say: result.message };
     }
-    return { transferring: false, say: "Say a case manager has the summary and will call them back within one working day, and thank them." };
+    return { transferring: false, say: brief.callback_promise ? `Say a case manager has the summary and that ${brief.callback_promise}; take their phone number if you don't have it, and thank them.` : "Say a case manager has the summary and will call them back within one working day, and thank them." };
   },
 });
 
