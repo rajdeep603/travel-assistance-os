@@ -1110,3 +1110,46 @@ model ApprovedNumber {
   addedBy   String?
   createdAt DateTime @default(now())
 }
+
+/// A private, time-limited demo for one prospect (a partner's CTO studying the
+/// product before a partnership call): a token link with fixed scenarios, a
+/// voice-minute budget, an expiry and a usage log. Content comes from a kit
+/// in src/lib/partner-demo (e.g. "benefit"). The token in the link is the credential.
+model DemoPortal {
+  id             String            @id @default(cuid())
+  token          String            @unique
+  /// Which tailored content it shows ("benefit").
+  kit            String
+  company        String
+  contactName    String
+  contactEmail   String
+  /// Viewers give an e-mail at this domain (or the contact's own address) to open it.
+  emailDomain    String?
+  /// Who to ask, shown in the portal ("Rajdeep Shah · rajdeep@… · WhatsApp …").
+  hostContact    String?
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  /// Voice minutes for the whole portal, seconds per session, sessions at once.
+  minuteBudget   Int               @default(60)
+  sessionSeconds Int               @default(300)
+  maxConcurrent  Int               @default(2)
+  createdBy      String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  events         DemoPortalEvent[]
+}
+
+/// What happened on a demo portal: opened, acknowledged, sections viewed, sessions run.
+model DemoPortalEvent {
+  id        String     @id @default(cuid())
+  portal    DemoPortal @relation(fields: [portalId], references: [id], onDelete: Cascade)
+  portalId  String
+  /// OPENED | ACKNOWLEDGED | SECTION | SESSION_STARTED | SESSION_REFUSED | GOP_RUN | REVOKED | EXTENDED
+  type      String
+  /// The e-mail the viewer gave on the confidentiality acknowledgement.
+  viewer    String?
+  detail    Json?
+  createdAt DateTime   @default(now())
+
+  @@index([portalId, createdAt])
+}

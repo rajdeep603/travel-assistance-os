@@ -49,6 +49,11 @@ export function contextBlock(ctx: AgentContext): string {
       `- This session is for case ${ctx.linkedCase.ref}: "${ctx.linkedCase.title}", patient ${ctx.linkedCase.patientName}, ${ctx.linkedCase.location}, status ${ctx.linkedCase.status}. Don't open a new case; everything you do is filed on it.`
     );
   }
+  if (ctx.operatingFor) {
+    lines.push(
+      `- You work for ${ctx.operatingFor}, the assistance company on this ${ctx.channel === "PHONE" ? "line" : "session"}: wherever these instructions say ${COMPANY}, say ${ctx.operatingFor} instead, in the greeting too. ${COMPANY} is only the software behind you; don't mention it.`
+    );
+  }
   if (ctx.rehearsal) lines.push(`- Rehearsal: ${ctx.rehearsal}`);
   return lines.join("\n");
 }

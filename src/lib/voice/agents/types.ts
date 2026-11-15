@@ -23,6 +23,8 @@ export interface AgentContext {
   language?: string | null;
   /** A demo step on a real phone: who the presenter plays and the exchange they expect (inbound agents; outbound ones carry it in the brief). */
   rehearsal?: string | null;
+  /** The assistance company the agent answers for on this call, when it isn't ours (a partner's demo portal). */
+  operatingFor?: string | null;
 }
 
 /**

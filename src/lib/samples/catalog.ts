@@ -142,6 +142,12 @@ export const SAMPLE_KITS: SampleKit[] = [
         email: { sample: "hospital-cost-estimate", sentAt: "2026-10-15T09:35:00+03:00" },
       },
       {
+        path: "samples/inbox/akdeniz-maliyet-tahmini-petra-hoffmann.eml",
+        title: "Antalya hospital asks for a guarantee (Turkish)",
+        note: "Turkish cost estimate for a hip fracture · Benefit demo · starts a Letter of Guarantee",
+        email: { sample: "benefit-cost-estimate-antalya", sentAt: "2026-11-15T20:40:00+03:00" },
+      },
+      {
         path: "samples/inbox/marmara-final-invoice-lena-koch.eml",
         title: "Hospital bills above the guarantee",
         note: "Final invoice for LOG-0902 · bill review brings it back inside",

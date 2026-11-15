@@ -8,7 +8,7 @@ import {
   zonedDayRange,
   zonedToday,
 } from "@/lib/time";
-import { ISTANBUL_DISTRICTS, distanceKm } from "./nlu";
+import { ANTALYA_TOWNS, ISTANBUL_DISTRICTS, distanceKm } from "./nlu";
 import { ACTIVE_CARE_PROVIDER } from "./provider-network";
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ export async function searchProviders(
   const now = new Date();
 
   const origin = query.district
-    ? ISTANBUL_DISTRICTS[query.district.toLowerCase()] ?? null
+    ? ISTANBUL_DISTRICTS[query.district.toLowerCase()] ?? ANTALYA_TOWNS[query.district.toLowerCase()] ?? null
     : null;
 
   const scored: ScoredProvider[] = [];

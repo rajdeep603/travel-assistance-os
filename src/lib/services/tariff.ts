@@ -114,6 +114,8 @@ const STAY_NORMS: [RegExp, number][] = [
   [/angina|chest pain/i, 4],
   [/myocardial infarction|heart attack/i, 6],
   [/meniscus|arthroscop/i, 1],
+  // A hip fracture is operated and mobilised before discharge: days, not the two nights of a cast.
+  [/hip fracture|femoral neck|femur|kalça kırığı/i, 5],
   [/fracture/i, 2],
   [/appendicitis/i, 3],
   [/pneumonia/i, 5],

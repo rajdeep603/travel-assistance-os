@@ -128,6 +128,8 @@ export interface ConversationSummaryContext {
   patientName?: string | null;
   /** Where the traveller is, from the case. */
   location?: string | null;
+  /** The language the summary is written in (English name); English when unset. */
+  summaryLanguage?: string | null;
 }
 
 // --- The provider-agnostic AI interface ------------------------------------

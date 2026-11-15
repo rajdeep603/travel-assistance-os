@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { ApiError } from "@/lib/errors";
 import { bookAppointment, videoLink } from "@/lib/services/appointment";
-import { LANGUAGES, SPECIALTIES, findCity, findDistrict, parseDateExpression, parseTimeExpression } from "@/lib/services/nlu";
+import { LANGUAGES, SPECIALTIES, findCity, findDistrict, findResortTown, parseDateExpression, parseTimeExpression } from "@/lib/services/nlu";
 import { searchProviders } from "@/lib/services/provider-search";
 import { daysFromToday, formatPlainDate, isValidDate, zonedToday } from "@/lib/time";
 import { agentActor, createCaseRecord, resolvePatient } from "./records";
@@ -13,7 +13,7 @@ import { ACTIVE_CARE_PROVIDER } from "@/lib/services/provider-network";
 const fold = (s: string) => s.replace(/ı/g, "i").replace(/İ/g, "I");
 
 function resolveLocation(text: string): { city: string; district: string | null; label: string } {
-  const district = findDistrict(fold(text));
+  const district = findDistrict(fold(text)) ?? findResortTown(fold(text));
   const city = findCity(fold(text)) ?? "Istanbul";
   return { city, district, label: district ? `${district}, ${city}` : city };
 }

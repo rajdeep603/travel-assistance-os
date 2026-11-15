@@ -71,7 +71,8 @@ function agentContext(
   linkedCase: AgentContext["linkedCase"],
   brief: Record<string, unknown> | null | undefined,
   language: string | null,
-  rehearsal: string | null
+  rehearsal: string | null,
+  operatingFor: string | null = null
 ): AgentContext {
   const now = utcToZoned(new Date());
   return {
@@ -84,6 +85,7 @@ function agentContext(
     brief: brief ?? null,
     language,
     rehearsal,
+    operatingFor,
   };
 }
 
@@ -120,6 +122,10 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   // Browser rehearsals of outbound agents carry their brief on the call, like phone calls do.
   const brief = params.brief ?? (call.outcome as { brief?: Record<string, unknown> } | null)?.brief ?? null;
   const opening = (call.outcome as { opening?: CallOpening } | null)?.opening ?? null;
+  // A partner's demo portal: the assistance company the agent works for, and a shorter time cap.
+  const callOutcome = (call.outcome ?? {}) as { operatingFor?: unknown; maxSeconds?: unknown };
+  const operatingFor = typeof callOutcome.operatingFor === "string" && callOutcome.operatingFor.trim() ? callOutcome.operatingFor.trim() : null;
+  const capSeconds = typeof callOutcome.maxSeconds === "number" && callOutcome.maxSeconds > 0 ? callOutcome.maxSeconds : null;
   const language = voiceLanguage(call.language);
   // Names the recogniser should expect on this call: the demo step's, the linked case's patient.
   const extraKeyterms = (call.outcome as { keyterms?: unknown } | null)?.keyterms;
@@ -282,7 +288,8 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
             : null,
           brief,
           language?.name ?? null,
-          opening?.rehearsal ?? null
+          opening?.rehearsal ?? null,
+          operatingFor
         )
       ),
       voice: profile.voice,
@@ -356,6 +363,8 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
       caseRef: kase?.ref ?? null,
       patientName: kase ? `${kase.patient.firstName} ${kase.patient.lastName}` : null,
       location: kase?.location ?? null,
+      // A partner's demo portal in Turkish gets its summaries in Turkish.
+      summaryLanguage: typeof finalOutcome.summaryLanguage === "string" ? finalOutcome.summaryLanguage : null,
     };
   }
 
@@ -621,7 +630,7 @@ export async function runVoiceSession(params: VoiceSessionParams): Promise<void>
   });
 
   // --- Session limits and the opening line -------------------------------------
-  const max = profile.maxSeconds * 1000;
+  const max = Math.min(profile.maxSeconds, capSeconds ?? Infinity) * 1000;
   timers.push(
     setTimeout(() => session.sendText("[Time is nearly up. Wrap up politely within twenty seconds.]"), Math.max(0, max - 30_000)),
     setTimeout(() => void ctx.actions.hangup("maximum call length reached"), max)

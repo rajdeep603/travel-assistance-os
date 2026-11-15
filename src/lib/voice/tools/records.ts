@@ -37,6 +37,12 @@ export async function resolvePatient(
       where: { policyNumber: input.policyNumber.trim().toUpperCase() },
     });
     if (byPolicy) return byPolicy;
+    // Spoken numbers arrive as "BGA 204417" or digits alone: the digits identify the policy when only one ends with them.
+    const digits = input.policyNumber.replace(/\D/g, "");
+    if (digits.length >= 6) {
+      const byDigits = await tx.patient.findMany({ where: { policyNumber: { endsWith: digits } }, take: 2 });
+      if (byDigits.length === 1) return byDigits[0];
+    }
   }
   const { first, last } = splitName(input.name);
   const contact = input.contact?.trim() ?? "";

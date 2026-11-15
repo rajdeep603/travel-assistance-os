@@ -158,9 +158,16 @@ function isLowerPhrase(s: string): boolean {
   );
 }
 
+/**
+ * Pages outside the workspace with their own hand-written languages (a
+ * partner's demo portal: Turkish and English in src/lib/partner-demo/copy.ts),
+ * which the interface translator never runs on.
+ */
+const OWN_LANGUAGE_DIRS = ["src/app/(partner)", "src/components/partner-demo", "src/lib/partner-demo"];
+
 function walkFiles(dir: string, exts: string[]): string[] {
   const abs = path.join(ROOT, dir);
-  if (!fs.existsSync(abs)) return [];
+  if (!fs.existsSync(abs) || OWN_LANGUAGE_DIRS.includes(dir)) return [];
   const out: string[] = [];
   for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
     const rel = path.join(dir, entry.name);

@@ -63,6 +63,16 @@ export const EMAIL_SAMPLES: EmailSample[] = [
     attachments: ["demo-inbound/cost-estimate-oliver-bennett.pdf"],
   },
   {
+    id: "benefit-cost-estimate-antalya",
+    label: "Antalya hospital e-mails a Turkish cost estimate (Benefit demo: Petra Hoffmann, hip fracture)",
+    from: "Antalya Demo Akdeniz Hastanesi Uluslararası Hasta Birimi <international@demo-akdeniz.example>",
+    to: "provizyon@inbound.demo-assistance.example",
+    subject: "Maliyet tahmini / Cost estimate — Petra Hoffmann (BGA-310582)",
+    body:
+      "Sayın yetkili,\n\nSigortalınız Petra Hoffmann (doğum tarihi 03.09.1958) dün akşam acil servisimize başvurmuş ve sol kalça kırığı tanısıyla ortopedi servisine yatırılmıştır. Ameliyat yarın sabah planlanmaktadır.\n\nMaliyet tahminimiz ektedir. Ameliyattan önce garanti mektubunuzu (provizyon) rica ederiz.\n\nSaygılarımızla,\nUluslararası Hasta Birimi\nAntalya Demo Akdeniz Hastanesi",
+    attachments: ["demo-inbound/maliyet-tahmini-petra-hoffmann.pdf"],
+  },
+  {
     id: "hospital-final-invoice",
     label: "Hospital bills the final invoice against a guarantee (overbilled)",
     from: "Marmara Demo Heart Center Billing <billing@demo-heart.example>",

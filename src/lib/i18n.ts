@@ -70,6 +70,7 @@ const D: Dictionary = {
 
   "Business Case": ["Caso de negocio", "Business case", "Caso de negócio", "دراسة الجدوى"],
   Leads: ["Contactos comerciales", "Prospects", "Leads", "العملاء المحتملون"],
+  "Partner demos": ["Demos para socios", "Démos partenaires", "Demos para parceiros", "عروض تجريبية للشركاء"],
   "Trust & Integration": ["Confianza e integración", "Confiance et intégration", "Confiança e integração", "الثقة والتكامل"],
   "Developers (API)": ["Desarrolladores (API)", "Développeurs (API)", "Desenvolvedores (API)", "المطورون (API)"],
   Search: ["Buscar", "Rechercher", "Buscar", "بحث"],

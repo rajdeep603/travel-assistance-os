@@ -11,6 +11,7 @@ import {
   FileText,
   FolderKanban,
   Handshake,
+  KeyRound,
   Home,
   MessageSquareText,
   Headset,
@@ -69,6 +70,7 @@ export const NAV_SECTIONS = [
     items: [
       { href: "/business-case", label: "Business Case", icon: Calculator },
       { href: "/leads", label: "Leads", icon: Handshake },
+      { href: "/partner-demos", label: "Partner demos", icon: KeyRound },
       { href: "/trust", label: "Trust & Integration", icon: ShieldCheck },
       { href: "/developers", label: "Developers (API)", icon: Code2 },
     ],

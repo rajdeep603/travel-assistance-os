@@ -1,4 +1,5 @@
 import { BRAND } from "../../src/lib/brand";
+import { BENEFIT_SAMPLE_DOCS } from "./documents-benefit";
 import { REGION_SAMPLE_DOCS } from "./documents-regions";
 import type { Block, Field, SampleDoc } from "./model";
 import {
@@ -1248,4 +1249,5 @@ export const SAMPLE_DOCS: SampleDoc[] = [
   danielMedicalReport,
   rachelFinalInvoice,
   ...REGION_SAMPLE_DOCS,
+  ...BENEFIT_SAMPLE_DOCS,
 ];

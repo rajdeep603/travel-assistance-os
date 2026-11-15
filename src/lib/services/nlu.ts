@@ -164,6 +164,34 @@ export function findDistrict(text: string): string | null {
   return null;
 }
 
+/**
+ * Antalya's resort towns and districts: a traveller names the town ("I'm in
+ * Kemer"), not the province. Words that are also everyday words (Kaş is
+ * "muscle", Side is English) are left out.
+ */
+export const ANTALYA_TOWNS: Record<string, { lat: number; lng: number }> = {
+  lara: { lat: 36.856, lng: 30.759 },
+  konyaalti: { lat: 36.876, lng: 30.635 },
+  muratpasa: { lat: 36.885, lng: 30.705 },
+  kaleici: { lat: 36.884, lng: 30.705 },
+  kundu: { lat: 36.858, lng: 30.842 },
+  belek: { lat: 36.862, lng: 31.055 },
+  kemer: { lat: 36.598, lng: 30.561 },
+  beldibi: { lat: 36.703, lng: 30.567 },
+  tekirova: { lat: 36.503, lng: 30.528 },
+  manavgat: { lat: 36.786, lng: 31.443 },
+  alanya: { lat: 36.544, lng: 31.999 },
+  kalkan: { lat: 36.265, lng: 29.414 },
+};
+const townRe = new Map(Object.keys(ANTALYA_TOWNS).map((k) => [k, new RegExp(`\\b${k}\\b`)]));
+
+/** An Antalya resort town named in the text ("Kemer"), else null. */
+export function findResortTown(text: string): string | null {
+  const t = norm(text).replace(/ı/g, "i");
+  for (const [key, re] of townRe) if (re.test(t)) return key.charAt(0).toUpperCase() + key.slice(1);
+  return null;
+}
+
 const OTHER_CITIES = [...APAC_CITIES, ...WORLD_CITIES];
 const otherCityRe = new Map(OTHER_CITIES.map((c) => [c.key, new RegExp(`\\b${c.key}\\b`)]));
 
@@ -172,7 +200,8 @@ export function findCity(text: string): string | null {
   for (const city of CITIES) {
     if (t.includes(city)) return city.charAt(0).toUpperCase() + city.slice(1);
   }
-  // Any known district implies Istanbul.
+  // A resort town implies Antalya; any known Istanbul district, Istanbul.
+  if (findResortTown(text)) return "Antalya";
   if (findDistrict(text)) return "Istanbul";
   for (const city of OTHER_CITIES) {
     if (otherCityRe.get(city.key)!.test(t)) return city.name;

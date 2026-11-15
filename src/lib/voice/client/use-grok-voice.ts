@@ -335,7 +335,11 @@ export function useGrokVoice() {
   useEffect(() => teardown, [teardown]);
 
   const start = useCallback(
-    async (opts: { profile?: string; caseId?: string; language?: string; threadId?: string; record?: string } = {}): Promise<VoiceSessionInfo | null> => {
+    async (
+      opts: { profile?: string; caseId?: string; language?: string; threadId?: string; record?: string; [key: string]: unknown } = {},
+      /** Where the session is started: the Voice Agents page's route unless a page has its own (a partner's demo portal). */
+      endpoint = "/api/voice/session"
+    ): Promise<VoiceSessionInfo | null> => {
       teardown();
       dispatch({ type: "start" });
       // Created synchronously in the click handler so audio output is allowed.
@@ -359,7 +363,7 @@ export function useGrokVoice() {
 
       let session: VoiceSessionInfo;
       try {
-        const res = await fetch("/api/voice/session", {
+        const res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(opts),
