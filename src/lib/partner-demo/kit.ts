@@ -6,6 +6,8 @@
 // ALL PEOPLE, POLICIES, HOSPITALS AND AMOUNTS ARE FICTIONAL.
 // ---------------------------------------------------------------------------
 
+import { VOICE_LANGUAGES } from "@/lib/voice/languages";
+
 export type PortalLang = "tr" | "en";
 export interface Bi {
   tr: string;
@@ -19,7 +21,11 @@ export interface ScriptCard {
   title: Bi;
   youPlay: Bi;
   facts: { label: Bi; value: Bi }[];
-  /** Lines to say, in the language spoken on the call, with an English gloss. Keyed by voice language name for scenarios with a choice. */
+  /**
+   * Lines to say, in the language spoken on the call, with an English gloss.
+   * Keyed by voice language name; a language without its own lines shows the
+   * English ones (else the Turkish ones, with their gloss) to say in it.
+   */
   say: Record<string, { text: string; gloss?: string }[]>;
   watch: Bi[];
 }
@@ -27,7 +33,10 @@ export interface ScriptCard {
 export interface VoiceOption {
   /** English name, as the voice layer knows it ("Turkish"). */
   name: string;
+  /** What a speaker calls it ("Deutsch"). */
   label: string;
+  /** Shown first, above the other languages: the partner's own markets. */
+  featured?: boolean;
 }
 
 export interface Scenario {
@@ -60,20 +69,28 @@ export interface PortalKit {
 
 const bi = (tr: string, en: string): Bi => ({ tr, en });
 
-const HOTLINE_LANGUAGES: VoiceOption[] = [
-  { name: "Turkish", label: "Türkçe" },
-  { name: "German", label: "Deutsch" },
-  { name: "English", label: "English" },
-  { name: "Russian", label: "Русский" },
-];
+/**
+ * Every language CareTrail's voice agents take calls in (VOICE_LANGUAGES),
+ * the partner's own markets first; `except` leaves languages out (the
+ * interpreter's patient side never speaks the doctor's language).
+ */
+function callLanguages(featured: string[], except: string[] = []): VoiceOption[] {
+  const byName = new Map(VOICE_LANGUAGES.map((l) => [l.name, l]));
+  const head = featured.flatMap((n) => {
+    const l = byName.get(n);
+    return l ? [{ name: l.name, label: l.native, featured: true }] : [];
+  });
+  const rest = VOICE_LANGUAGES.filter((l) => !featured.includes(l.name)).map((l) => ({ name: l.name, label: l.native }));
+  return [...head, ...rest].filter((l) => !except.includes(l.name));
+}
+
+const HOTLINE_LANGUAGES = callLanguages(["Turkish", "German", "English", "Russian", "Arabic"]);
+
+/** The hospital call: Turkish by default, any other language when asked. */
+const HOSPITAL_LANGUAGES = callLanguages(["Turkish", "English"]);
 
 /** The interpreter's patient side; the doctor speaks Turkish. */
-export const INTERPRETER_PATIENT_LANGUAGES: VoiceOption[] = [
-  { name: "German", label: "Deutsch" },
-  { name: "English", label: "English" },
-  { name: "Russian", label: "Русский" },
-  { name: "Arabic", label: "العربية" },
-];
+export const INTERPRETER_PATIENT_LANGUAGES = callLanguages(["German", "English", "Russian", "Arabic"], ["Turkish"]);
 
 export const BENEFIT_KIT: PortalKit = {
   id: "benefit",
@@ -169,10 +186,7 @@ export const BENEFIT_KIT: PortalKit = {
         "Ajan, Petra Hoffmann'ın yattığı Antalya'daki hastaneyi Benefit adına arar: yatışı, servisi, sorumlu hekimi, tahmini maliyeti ve epikrizin ne zaman hazır olacağını sorar, bilgileri vakaya kaydeder. Siz hastanenin uluslararası hasta birimisiniz.",
         "The agent calls the Antalya hospital where Petra Hoffmann is admitted, on Benefit's behalf: it asks about the admission, the ward, the attending doctor, the cost estimate and when the report will be ready, and records it all on the case. You are the hospital's international patients desk."
       ),
-      languages: [
-        { name: "Turkish", label: "Türkçe" },
-        { name: "English", label: "English" },
-      ],
+      languages: HOSPITAL_LANGUAGES,
       languageLabel: bi("Görüşme dili", "Language of the call"),
       scripts: [
         {

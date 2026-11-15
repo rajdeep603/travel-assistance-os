@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Mic, MicOff, PhoneCall, PhoneForwarded, PhoneOff, Send, XCircle } from "lucide-react";
 import { VoiceOrb, type OrbState } from "@/components/voice/voice-orb";
 import { CallResult } from "@/components/partner-demo/call-result";
-import type { PortalCopy } from "@/lib/partner-demo/copy";
-import type { PortalLang, Scenario } from "@/lib/partner-demo/kit";
+import { LANGUAGE_TR, type PortalCopy } from "@/lib/partner-demo/copy";
+import type { PortalLang, Scenario, VoiceOption } from "@/lib/partner-demo/kit";
 import { useGrokVoice, type VoiceState } from "@/lib/voice/client/use-grok-voice";
 import { toolActivityLabel } from "@/lib/voice/tool-labels";
 import { toolSteps } from "@/lib/voice/tool-steps";
@@ -62,9 +62,16 @@ export function VoiceScenario({
   const script = scenario.scripts.find((s) => s.id === scriptId) ?? scenario.scripts[0];
   const live = state.phase === "live";
   const busy = state.phase === "starting";
-  const lines = script?.say[language] ?? null;
+  const ownLines = script?.say[language] ?? null;
+  // A language without its own lines shows the English ones (else the Turkish
+  // ones, with their gloss) for the tester to say in the chosen language.
+  const lines = ownLines ?? script?.say.English ?? script?.say.Turkish ?? null;
   // The interpreter's card shows the doctor's Turkish lines and the patient's lines in the chosen language.
   const doctorLines = scenario.id === "interpreter" ? script?.say.Turkish ?? [] : [];
+  const featured = scenario.languages?.filter((l) => l.featured) ?? [];
+  const others = (scenario.languages?.filter((l) => !l.featured) ?? [])
+    .map((l) => ({ ...l, text: languageText(l, lang) }))
+    .sort((a, b) => a.text.localeCompare(b.text, lang));
 
   useEffect(() => {
     if (live) setStartedAt((s) => s ?? Date.now());
@@ -178,11 +185,30 @@ export function VoiceScenario({
                 onChange={(e) => setLanguage(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-base text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 md:text-sm"
               >
-                {scenario.languages.map((l) => (
-                  <option key={l.name} value={l.name}>
-                    {l.label}
-                  </option>
-                ))}
+                {featured.length && others.length ? (
+                  <>
+                    <optgroup label={t.languagesFeatured}>
+                      {featured.map((l) => (
+                        <option key={l.name} value={l.name}>
+                          {languageText(l, lang)}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label={t.languagesOther}>
+                      {others.map((l) => (
+                        <option key={l.name} value={l.name}>
+                          {l.text}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </>
+                ) : (
+                  scenario.languages.map((l) => (
+                    <option key={l.name} value={l.name}>
+                      {languageText(l, lang)}
+                    </option>
+                  ))
+                )}
               </select>
             </label>
           ) : null}
@@ -204,6 +230,7 @@ export function VoiceScenario({
 
               <p className="mt-4 text-xs font-medium text-muted">{t.sayTitle}</p>
               {doctorLines.length ? <SayList heading={t.doctorSays} lines={doctorLines} lang={lang} /> : null}
+              {lines?.length && !ownLines ? <p className="mt-1.5 text-sm text-muted">{t.sayOther}</p> : null}
               {lines?.length ? (
                 <SayList heading={doctorLines.length ? t.patientSays : undefined} lines={lines} lang={lang} />
               ) : (
@@ -398,4 +425,10 @@ function SayList({ heading, lines, lang }: { heading?: string; lines: { text: st
     </ul>
     </>
   );
+}
+
+/** "Deutsch · Almanca": the speaker's own name, then the name in the portal's language when it differs. */
+function languageText(l: VoiceOption, lang: PortalLang): string {
+  const local = lang === "tr" ? (LANGUAGE_TR[l.name] ?? l.name) : l.name;
+  return local === l.label ? l.label : `${l.label} · ${local}`;
 }
