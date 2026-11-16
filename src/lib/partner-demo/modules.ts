@@ -146,7 +146,10 @@ async function claimView(claimId: string) {
     amount: claim.amount != null ? Number(claim.amount) : null,
     currency: claim.currency,
     issues: (Array.isArray(claim.issues) ? claim.issues : []) as { severity: string; message: string }[],
-    signals: (Array.isArray(claim.signals) ? claim.signals : []) as { code: string; level: string; reason: string }[],
+    // One line per kind of signal: the sample pack's invoice is on every earlier sample claim, and the first (the seeded original) is enough.
+    signals: ((Array.isArray(claim.signals) ? claim.signals : []) as { code: string; level: string; reason: string }[]).filter(
+      (x, i, all) => all.findIndex((y) => y.code === x.code) === i
+    ),
     documents: claim.documents.map(documentView),
     settlement,
   };

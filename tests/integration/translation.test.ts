@@ -157,6 +157,8 @@ describe("partner demo portal modules", () => {
     expect(first.view.settlement?.billed).toBe(25250);
     expect(first.view.settlement?.currency).toBe("TRY");
     expect(first.view.summary ?? "").not.toContain("**");
+    // Each kind of integrity signal once, however many sample claims share the invoice.
+    expect(new Set(first.view.signals.map((x) => x.code)).size).toBe(first.view.signals.length);
 
     const second = await runClaim(portalId);
     expect(await prisma.claim.findUnique({ where: { id: first.claimId } })).toBeNull();
