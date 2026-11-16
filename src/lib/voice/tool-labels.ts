@@ -42,6 +42,8 @@ const LABELS: Record<string, [activity: string, chip: string]> = {
   lookup_member_case: ["Pulling up the member's file", "Member file"],
   open_member_case: ["Opening a new case", "New case"],
   record_member_call: ["Recording the member call", "Member call"],
+  verify_claim_caller: ["Checking who is calling (member, provider or broker)", "Caller verified"],
+  record_status_enquiry: ["Recording the status enquiry", "Status enquiry"],
   record_document_request: ["Recording the provider's answer on the documents", "Documents requested"],
   send_provider_upload_link: ["Sending the provider the secure upload link", "Upload link sent"],
   record_invoice_followup: ["Recording the payer's answer on the invoice", "Invoice status"],

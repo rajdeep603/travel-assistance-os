@@ -4,6 +4,7 @@ import type { RealtimeFunctionTool } from "../realtime/xai-session";
 import { ASSISTANCE_TOOLS } from "./assistance";
 import { MSH_TOOLS } from "./msh";
 import { TPA_TOOLS } from "./tpa";
+import { CLAIM_STATUS_TOOLS } from "./claim-status";
 import { TELEHEALTH_TOOLS } from "./telehealth";
 import { findProvidersTool, lookupCaseTool, openRecordTool, searchRecordsTool } from "./assistant";
 import { bookAppointmentTool, searchProvidersTool } from "./booking";
@@ -58,6 +59,7 @@ const ALL_TOOLS: VoiceTool[] = [
   ...COLLECTION_TOOLS,
   ...ASSISTANCE_TOOLS,
   ...TPA_TOOLS,
+  ...CLAIM_STATUS_TOOLS,
   ...MSH_TOOLS,
   ...TELEHEALTH_TOOLS,
   lookupCaseTool,

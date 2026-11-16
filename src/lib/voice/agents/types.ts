@@ -80,6 +80,8 @@ export interface AgentProfile {
   requiresCase?: boolean;
   /** Its brief comes with the API call that places it (POST /api/v1/calls); not offered in the pickers. */
   apiOnly?: boolean;
+  /** An inbound agent offered in the pickers that a client's system may also place through the API, with its own brief (the claim status line). */
+  api?: boolean;
   /** Outbound only: facts for the agent, built from the case before dialling. */
   buildBrief?(caseId: string): Promise<Record<string, unknown>>;
   /** Outbound only: does this case give the agent something to call about? Uses the same selection as buildBrief. */

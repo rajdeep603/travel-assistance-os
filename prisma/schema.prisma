@@ -443,6 +443,8 @@ model Claim {
   settlement    Json?
   // The explanation of benefits sent with the settlement (a generated Document)
   eobDocumentId String?
+  // The treating hospital or clinic, for the claim status line (a provider calling about its payment); else read from the documents
+  providerName  String?
   patient       Patient      @relation(fields: [patientId], references: [id])
   patientId     String
   case          Case?        @relation(fields: [caseId], references: [id])
@@ -615,6 +617,10 @@ model Policy {
   medicalUsed  Decimal  @default(0) @db.Decimal(12, 2)
   // Array of { code, label, covered, limit, unit, excess, waitingHours, conditions[] }
   benefits     Json
+  // The broker who placed the policy: brokers call the claim status line about their clients' claims
+  brokerName   String?
+  brokerCode   String?
+  brokerEmail  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

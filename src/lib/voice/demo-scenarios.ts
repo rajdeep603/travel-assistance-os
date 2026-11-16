@@ -21,11 +21,12 @@ import { toolAbilityLabel } from "./tool-labels";
 // pinned case back the way the agent needs it.
 // ---------------------------------------------------------------------------
 
-export type ScenarioGroup = "travellers-call" | "providers-call" | "we-call-providers" | "we-call-payers" | "we-call-travellers" | "hospital-calls-payers";
+export type ScenarioGroup = "travellers-call" | "providers-call" | "claim-status" | "we-call-providers" | "we-call-payers" | "we-call-travellers" | "hospital-calls-payers";
 
 export const SCENARIO_GROUPS: Record<ScenarioGroup, string> = {
   "travellers-call": "Travellers call us",
   "providers-call": "Hospitals call us",
+  "claim-status": "Members, providers and brokers ask about a claim",
   "we-call-providers": "We call hospitals",
   "we-call-payers": "We call insurers",
   "we-call-travellers": "We call travellers",
@@ -219,6 +220,18 @@ const DEFS: ScenarioDef[] = [
     group: "providers-call",
     youPlay: "A hospital's international patient desk",
     tryLine: "“Marmara Heart Center here. Has the guarantee for Lena Koch, born 29 July 1964, been issued?”",
+  },
+  {
+    agentId: "inbound-claim-status-line",
+    group: "claim-status",
+    youPlay: "A broker in Jakarta (choose Indonesian), a hospital's billing office, or the member",
+    tryLine:
+      "Broker, in Bahasa Indonesia: “Saya Dewi dari PT Mitra Proteksi Indonesia, kode broker M P I nol empat satu tujuh. Bagaimana status klaim Bapak Budi Santoso, lahir 14 Februari 1981?” Or the hospital: “Istanbul Central Demo Hospital billing office. When will the claim for Budi Santoso, born 14 February 1981, be paid?”",
+    // Budi Santoso's claim (and the brokers on the demo policies) are created on demand.
+    prepare: async () => {
+      const { ensureClaimStatusRecords } = await import("@/lib/services/claim-status");
+      await ensureClaimStatusRecords();
+    },
   },
   {
     agentId: "outbound-bill-negotiation",

@@ -32,7 +32,7 @@ export const POST = withErrorHandling(async (req: Request) => {
   const caller = await requireApiCaller(req);
   const body = Body.parse(await req.json().catch(() => ({})));
   const profile = getAgent(body.agent);
-  if (!profile || profile.internal || profile.id === "interpreter" || (profile.direction === "inbound" && !profile.apiOnly)) throw badRequest("Unknown outbound agent.");
+  if (!profile || profile.internal || profile.id === "interpreter" || (profile.direction === "inbound" && !profile.apiOnly && !profile.api)) throw badRequest("Unknown outbound agent.");
   if (profile.apiOnly && !body.brief) throw badRequest(`${profile.label} needs a brief: who to call and what to find out.`);
   if (profile.direction === "inbound") {
     const call = await ringInboundCall({
@@ -74,10 +74,13 @@ function briefKeyterms(brief: Record<string, unknown> | undefined): string[] {
   if (Array.isArray(cases)) {
     for (const c of cases.slice(0, 20)) {
       if (c && typeof c === "object") {
-        for (const key of ["ref", "debtor", "hospital"]) {
+        for (const key of ["ref", "debtor", "hospital", "member", "provider"]) {
           const v = (c as Record<string, unknown>)[key];
-          if (typeof v === "string" && v.trim()) out.add(v.trim().slice(0, 60));
+          if (typeof v === "string" && v.trim()) out.add(v.trim().split(",")[0].slice(0, 60));
         }
+        // The claim status line's brokers ("PT Mitra Proteksi Indonesia (demo)" → "PT Mitra Proteksi Indonesia").
+        const broker = (c as { broker?: { name?: unknown } }).broker?.name;
+        if (typeof broker === "string" && broker.trim()) out.add(broker.replace(/\s*\(.*?\)\s*$/, "").trim().slice(0, 60));
       }
     }
   }
