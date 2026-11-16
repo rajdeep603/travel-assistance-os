@@ -55,6 +55,8 @@ export interface MessageDetail {
   receivedAt: string;
   status: string;
   language: string | null;
+  /** The subject and body in English, when written in another language. */
+  translatedText: string | null;
   riskFlags: string[];
   summary: string | null;
   error: string | null;
@@ -200,7 +202,15 @@ export function MessageDetailPanel({ id, onChanged, onDeleted }: { id: string; o
       {m.bodyText ? (
         <Card>
           <SectionTitle>Message{m.language && m.language !== "en" ? ` (${m.language.toUpperCase()})` : ""}</SectionTitle>
-          <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700">{m.bodyText}</pre>
+          <pre dir="auto" className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700">{m.bodyText}</pre>
+          {m.translatedText ? (
+            <div className="mt-3 rounded-xl bg-canvas p-3 ring-1 ring-line">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                <Languages size={13} aria-hidden /> In English
+              </p>
+              <pre className="mt-1.5 whitespace-pre-wrap font-sans text-sm leading-relaxed text-ink">{m.translatedText}</pre>
+            </div>
+          ) : null}
         </Card>
       ) : null}
 
@@ -272,7 +282,17 @@ export function MessageDetailPanel({ id, onChanged, onDeleted }: { id: string; o
                   ) : null}
                 </div>
                 {showTranslation[d.id] && d.translatedText ? (
-                  <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded-md bg-slate-50 p-2 font-sans text-xs text-slate-700">{d.translatedText}</pre>
+                  <>
+                    <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap rounded-md bg-slate-50 p-2 font-sans text-xs text-slate-700">{d.translatedText}</pre>
+                    <a
+                      href={`/api/documents/${d.id}/translation`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+                    >
+                      <FileText size={12} aria-hidden /> English translation (PDF)
+                    </a>
+                  </>
                 ) : null}
               </div>
             ))}

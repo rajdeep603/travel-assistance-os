@@ -7,6 +7,7 @@ import { EMAIL_SAMPLES, sampleScanText } from "@/lib/intake/samples";
 import { looksLikeEml, parseEml } from "@/lib/intake/eml";
 import { extractTextFromFile } from "@/lib/services/pdf";
 import { MockAIService } from "@/lib/services/ai/mock";
+import { sampleFileTranslation } from "@/lib/samples/translations";
 import { reviewBill } from "@/lib/services/bill-review";
 import { crc32, zip } from "@/lib/zip";
 
@@ -22,6 +23,8 @@ async function readPdf(rel: string) {
   let text = await extractTextFromFile(buffer, "application/pdf");
   const scanned = text.replace(/-- \d+ of \d+ --/g, "").replace(/[^a-z]/gi, "").length < 20;
   if (scanned) text = (await ai.readDocument({ buffer, mimeType: "application/pdf", filename: path.basename(rel) })).text;
+  // As the pipeline does: a sample with a hand-written English version is read from it.
+  text = (await sampleFileTranslation(buffer)) ?? text;
   const kind = await ai.classifyDocument(text, path.basename(rel));
   const { extraction, lineItems, documentNumber } = await ai.extractMedicalDocument(text);
   return { kind, scanned, e: extraction, lineItems: lineItems ?? [], documentNumber };
@@ -62,6 +65,9 @@ describe("sample library", () => {
     "demo-documents/invoice-matteo-ferraro-saranda.pdf": { kind: "HOSPITAL_INVOICE", patient: "Matteo Ferraro", policy: "POL-AL-700101", amount: [342000, "ALL"], overbilled: true },
     "demo-documents/invoice-thandiwe-nkosi-dubai.pdf": { kind: "HOSPITAL_INVOICE", patient: "Thandiwe Nkosi", policy: "POL-ZA-800101", amount: [26330, "AED"], overbilled: true },
     "demo-documents/invoice-khalid-al-suwaidi-geneva.pdf": { kind: "HOSPITAL_INVOICE", patient: "Khalid Al Suwaidi", policy: "POL-AE-900101", amount: [21295, "CHF"], overbilled: true },
+    // Benefit demo: an Arabic scan from Jeddah and a French report from Paris, read through their English versions.
+    "demo-documents/medical-report-ar-hasan-kilic-jeddah.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Hasan Kılıç", policy: "BGA-207733", scanned: true },
+    "demo-documents/compte-rendu-elif-sahin-paris.pdf": { kind: "DISCHARGE_SUMMARY", patient: "Elif Şahin", policy: "BGA-318264" },
   };
 
   it("covers every PDF in the library", () => {

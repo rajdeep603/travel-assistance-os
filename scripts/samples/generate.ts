@@ -6,6 +6,7 @@ import { INTAKE_REQUESTS } from "../../src/lib/samples/intake-requests";
 import { EMAIL_SAMPLES } from "../../src/lib/intake/samples";
 import { SAMPLE_DOCS } from "./documents";
 import { buildEml } from "./eml";
+import { ARABIC_SCAN_FILE, renderArabicScan } from "./arabic-scan";
 import { loadRaster } from "./raster";
 import { liberationFonts, renderPdf } from "./render";
 
@@ -68,6 +69,18 @@ async function main() {
     };
   }
   if (onlyPdfs) return;
+
+  // The Arabic report from Jeddah: drawn by Chrome (pdfkit can't lay out Arabic), kept as it is without Chrome.
+  try {
+    const { pdf, text } = await renderArabicScan();
+    write(`demo-documents/${ARABIC_SCAN_FILE}`, pdf);
+    scans[ARABIC_SCAN_FILE] = { sha256: createHash("sha256").update(pdf).digest("hex"), text };
+  } catch (err) {
+    const previous = JSON.parse(fs.readFileSync(SCAN_TEXT, "utf8"))[ARABIC_SCAN_FILE];
+    if (!previous) throw err;
+    console.warn(`! ${ARABIC_SCAN_FILE} kept as it is: ${(err as Error).message}`);
+    scans[ARABIC_SCAN_FILE] = previous;
+  }
 
   console.log("E-mails");
   for (const kit of SAMPLE_KITS) {

@@ -14,7 +14,7 @@ import type { ClaimIssue } from "./types";
 // reviewer actions for demo claims.
 // ---------------------------------------------------------------------------
 
-type ClaimWithRelations = Claim & {
+export type ClaimWithRelations = Claim & {
   patient: Patient;
   documents: (Document & { extraction: DocumentExtraction | null })[];
 };

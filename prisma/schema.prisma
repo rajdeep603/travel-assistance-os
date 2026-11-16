@@ -633,6 +633,8 @@ model InboundMessage {
   receivedAt      DateTime          @default(now())
   status          InboundStatus     @default(RECEIVED)
   language        String?
+  // English translation of the subject and body, when they aren't in English
+  translatedText  String?
   // Scored case match: { caseId, score, reasons[] } plus runners-up
   matchedCase     Case?             @relation(fields: [matchedCaseId], references: [id])
   matchedCaseId   String?

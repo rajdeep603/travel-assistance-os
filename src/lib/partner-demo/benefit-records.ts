@@ -6,7 +6,8 @@ import type { Benefit } from "@/lib/services/policy";
 // ---------------------------------------------------------------------------
 // The FICTIONAL records behind Benefit Global Assistance's demo portal: two
 // insured members, the Antalya network hospitals and Petra Hoffmann's case
-// (hip fracture in Lara), which the hospital call, the interpreter and the
+// (hip fracture in Lara), plus two members abroad whose hospitals write in
+// Arabic (Jeddah) and French (Paris), for the inbox and Document AI; which the hospital call, the interpreter and the
 // guarantee-of-payment scenario all work on. Created on demand, found again
 // by natural keys (policy numbers, provider refs, the case's patient), so a
 // deploy never needs a re-seed and repeated calls change nothing. Refs come
@@ -61,6 +62,29 @@ export const BENEFIT_MEMBERS = {
     phone: "+49 170 000 1702",
     email: "petra.hoffmann@example.com",
     policyNumber: "BGA-310582",
+    plan: "Premier" as const,
+  },
+  // Abroad, with documents in other languages: the inbox and Document AI scenarios.
+  hasan: {
+    firstName: "Hasan",
+    lastName: "Kılıç",
+    dateOfBirth: "1961-03-22",
+    nationality: "Türkiye",
+    language: "Turkish",
+    phone: "+90 533 000 1704",
+    email: "hasan.kilic@example.com",
+    policyNumber: "BGA-207733",
+    plan: "Plus" as const,
+  },
+  elif: {
+    firstName: "Elif",
+    lastName: "Şahin",
+    dateOfBirth: "1990-07-08",
+    nationality: "Türkiye",
+    language: "Turkish",
+    phone: "+90 535 000 1705",
+    email: "elif.sahin@example.com",
+    policyNumber: "BGA-318264",
     plan: "Premier" as const,
   },
 };
@@ -180,10 +204,69 @@ export const PETRA_CASE = {
   location: "Lara, Antalya",
 };
 
+/** Cases abroad whose hospitals write in Arabic and French (the documents' patients). */
+export const ABROAD_CASES = {
+  hasan: {
+    title: "Pneumonia after an umrah trip — Jeddah, Saudi Arabia",
+    description:
+      "Hasan Kılıç (Türkiye) fell ill with fever and a cough after performing umrah and was admitted to Al Shati Demo Hospital, Jeddah. The hospital writes in Arabic. Fictional demo case for Benefit Global Assistance.",
+    location: "Jeddah",
+    country: "Saudi Arabia",
+    assistanceType: "HOSPITALIZATION" as const,
+    priority: "HIGH" as const,
+    urgency: "Inpatient abroad; fitness to fly and the hospital's costs to settle",
+    symptoms: ["fever", "cough", "shortness of breath"],
+    aiSummary:
+      "Turkish traveller, 65, admitted in Jeddah with suspected pneumonia after umrah. Next: get the medical report, confirm fitness to fly, guarantee the hospital's costs, plan the return home.",
+    event: { title: "Hotline call from the traveller's son: admitted in Jeddah", body: "Son reported fever and breathlessness since the umrah; father admitted to Al Shati Demo Hospital, Jeddah. Case opened, priority high." },
+  },
+  elif: {
+    title: "Acute appendicitis — Paris, France",
+    description:
+      "Elif Şahin (Türkiye) went to the emergency department in Paris with abdominal pain; acute appendicitis, operated at Clinique Démo des Batignolles. The clinic writes in French. Fictional demo case for Benefit Global Assistance.",
+    location: "Paris",
+    country: "France",
+    assistanceType: "HOSPITALIZATION" as const,
+    priority: "HIGH" as const,
+    urgency: "Surgery abroad; the clinic needs the costs confirmed",
+    symptoms: ["abdominal pain", "nausea"],
+    aiSummary:
+      "Turkish traveller, 36, operated in Paris for acute appendicitis. Next: read the clinic's report, confirm the costs with the clinic, confirm when she can fly home.",
+    event: { title: "Hotline call from the traveller: abdominal pain in Paris", body: "Traveller with severe abdominal pain sent to the nearest emergency department in Paris (17th arrondissement). Case opened, priority high." },
+  },
+};
+
 export interface BenefitRecords {
   murat: { patientId: string };
   petra: { patientId: string; caseId: string; caseRef: string };
+  hasan: { patientId: string; caseId: string; caseRef: string };
+  elif: { patientId: string; caseId: string; caseRef: string };
   providers: { id: string; ref: string }[];
+}
+
+/** One of the abroad cases, found again by its patient and title. */
+async function ensureAbroadCase(patientId: string, c: (typeof ABROAD_CASES)[keyof typeof ABROAD_CASES]) {
+  const existing = await prisma.case.findFirst({ where: { patientId, title: c.title }, orderBy: { createdAt: "asc" } });
+  if (existing) return existing;
+  return prisma.case.create({
+    data: {
+      ref: await nextRef("case"),
+      title: c.title,
+      description: c.description,
+      location: c.location,
+      country: c.country,
+      assistanceType: c.assistanceType,
+      priority: c.priority,
+      status: "IN_PROGRESS",
+      urgency: c.urgency,
+      symptoms: c.symptoms,
+      aiSummary: c.aiSummary,
+      patientId,
+      events: {
+        create: [{ type: "CALL", title: c.event.title, body: c.event.body, actor: "agent:inbound-hotline", createdAt: new Date(Date.now() - 30 * 3600_000) }],
+      },
+    },
+  });
 }
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
@@ -297,5 +380,15 @@ export async function ensureBenefitRecords(): Promise<BenefitRecords> {
       },
     });
   }
-  return { murat: { patientId: murat.id }, petra: { patientId: petra.id, caseId: kase.id, caseRef: kase.ref }, providers };
+  const hasan = await ensurePatient(BENEFIT_MEMBERS.hasan);
+  const elif = await ensurePatient(BENEFIT_MEMBERS.elif);
+  const hasanCase = await ensureAbroadCase(hasan.id, ABROAD_CASES.hasan);
+  const elifCase = await ensureAbroadCase(elif.id, ABROAD_CASES.elif);
+  return {
+    murat: { patientId: murat.id },
+    petra: { patientId: petra.id, caseId: kase.id, caseRef: kase.ref },
+    hasan: { patientId: hasan.id, caseId: hasanCase.id, caseRef: hasanCase.ref },
+    elif: { patientId: elif.id, caseId: elifCase.id, caseRef: elifCase.ref },
+    providers,
+  };
 }

@@ -5,14 +5,15 @@ import { FileCheck2, Globe2, Headset, Hospital, Languages, Lock, ShieldAlert, Ti
 import { BrandLogo } from "@/components/brand";
 import { CallResult, fmtDuration, fmtWhen } from "@/components/partner-demo/call-result";
 import { GuaranteeScenario } from "@/components/partner-demo/guarantee-scenario";
+import { ModulesSection } from "@/components/partner-demo/modules-section";
 import { IntegrationSection, LearnsSection, PilotSection, SectionHeading, WelcomeSection, type Knowledge } from "@/components/partner-demo/sections";
 import { VoiceScenario } from "@/components/partner-demo/voice-scenario";
 import { POWERED_BY } from "@/lib/brand";
 import { PORTAL_COPY, type PortalCopy } from "@/lib/partner-demo/copy";
 import { kitOf, type PortalKit, type PortalLang, type ScenarioId } from "@/lib/partner-demo/kit";
 
-type SectionId = "welcome" | "try" | "results" | "learns" | "integration" | "pilot";
-const SECTIONS: SectionId[] = ["welcome", "try", "results", "learns", "integration", "pilot"];
+type SectionId = "welcome" | "try" | "modules" | "results" | "learns" | "integration" | "pilot";
+const SECTIONS: SectionId[] = ["welcome", "try", "modules", "results", "learns", "integration", "pilot"];
 
 interface Usage {
   budgetSeconds: number;
@@ -470,6 +471,8 @@ export function PortalApp({ token }: { token: string }) {
         />
       ) : section === "try" ? (
         <TrySection token={token} kit={kit} copy={copy} lang={lang} info={info} onSessionChange={onSessionChange} />
+      ) : section === "modules" ? (
+        <ModulesSection token={token} kit={kit} copy={copy} lang={lang} />
       ) : section === "results" ? (
         <ResultsSection token={token} copy={copy} lang={lang} refreshKey={refreshKey} />
       ) : section === "learns" ? (

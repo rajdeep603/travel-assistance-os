@@ -19,11 +19,13 @@ import { CaseContextBanner, useCaseContext } from "@/components/case-context";
 import { SampleFiles } from "@/components/sample-files";
 import { BillReviewCard, type BillReview } from "@/components/bill-review-card";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { TranslationCard } from "@/components/documents/translation-card";
 import { formatEnum } from "@/lib/format";
 import { useQueryParam } from "@/lib/client/use-query-param";
 
 /** The kind of document a sample's file name starts with, as it reads on screen. */
 const SAMPLE_KINDS: [prefix: string, label: string][] = [
+  ["medical-report-ar", "Medical report (Arabic, scanned)"],
   ["medical-report", "Medical report"],
   ["hospital-invoice", "Hospital invoice"],
   ["final-invoice", "Final invoice"],
@@ -39,7 +41,7 @@ const SAMPLE_KINDS: [prefix: string, label: string][] = [
 ];
 
 /** Places some sample file names end with, so the name reads "Pierre Lambert, Sousse". */
-const SAMPLE_PLACES = ["punta-cana", "sousse", "hurghada", "bangkok", "florida", "geneva", "saranda", "dubai"];
+const SAMPLE_PLACES = ["punta-cana", "sousse", "hurghada", "bangkok", "florida", "geneva", "saranda", "dubai", "jeddah", "paris"];
 
 const titleCase = (s: string) =>
   s
@@ -62,6 +64,7 @@ const PIPELINE_STAGES = [
   "Reading the PDF",
   "Classifying the document",
   "Extracting structured fields",
+  "Translating into English when it isn't",
   "Checking for missing information",
 ];
 
@@ -406,13 +409,15 @@ export default function DocumentsPage() {
             )}
           </Card>
 
-          {current?.translatedText ? (
-            <Card>
-              <SectionTitle>English translation ({current.language?.toUpperCase()} original)</SectionTitle>
-              <pre className="mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
-                {current.translatedText}
-              </pre>
-            </Card>
+          {current?.translatedText && !pipeline.visible ? (
+            <TranslationCard
+              key={current.id}
+              documentId={current.id}
+              language={current.language ?? "und"}
+              ocr={Boolean(current.ocr)}
+              original={current.textContent ?? null}
+              english={current.translatedText}
+            />
           ) : null}
 
           {e && current?.billReview ? (

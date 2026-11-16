@@ -73,6 +73,26 @@ export const EMAIL_SAMPLES: EmailSample[] = [
     attachments: ["demo-inbound/maliyet-tahmini-petra-hoffmann.pdf"],
   },
   {
+    id: "benefit-arabic-report-jeddah",
+    label: "Jeddah hospital e-mails an Arabic medical report, scanned (Benefit demo: Hasan Kılıç, pneumonia)",
+    from: "مستشفى الشاطئ التجريبي – مكتب المرضى الدوليين <international@demo-alshati.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "تقرير طبي – حسن كيليتش – BGA-207733",
+    body:
+      "السادة شركة Benefit Global Assistance المحترمين،\n\nتحية طيبة وبعد،\n\nنرفق لكم التقرير الطبي الخاص بالمريض حسن كيليتش، رقم الوثيقة BGA-207733، الذي أُدخل إلى مستشفانا يوم 11 نوفمبر بسبب التهاب رئوي. حالته مستقرة وقد خرج اليوم، وهو لائق للسفر اعتباراً من 16 نوفمبر.\n\nنرجو تأكيد استلام التقرير وإرسال خطاب ضمان الدفع لتغطية تكاليف الإقامة.\n\nمع خالص التحية،\nمكتب المرضى الدوليين\nمستشفى الشاطئ التجريبي – جدة",
+    attachments: ["demo-documents/medical-report-ar-hasan-kilic-jeddah.pdf"],
+  },
+  {
+    id: "benefit-french-report-paris",
+    label: "Paris clinic e-mails a French hospital report (Benefit demo: Elif Şahin, appendicitis)",
+    from: "Clinique Démo des Batignolles – Patients internationaux <international@demo-batignolles.example>",
+    to: "medical@inbound.demo-assistance.example",
+    subject: "Compte rendu d'hospitalisation – Elif Şahin (BGA-318264)",
+    body:
+      "Madame, Monsieur,\n\nVeuillez trouver ci-joint le compte rendu d'hospitalisation de votre assurée, Mme Elif Şahin (police BGA-318264), opérée d'une appendicite le 10 novembre. La patiente est sortie le 12 novembre en bon état.\n\nMerci de nous confirmer la prise en charge des frais d'hospitalisation, afin que nous puissions vous adresser la facture définitive.\n\nBien cordialement,\nService des patients internationaux\nClinique Démo des Batignolles",
+    attachments: ["demo-documents/compte-rendu-elif-sahin-paris.pdf"],
+  },
+  {
     id: "hospital-final-invoice",
     label: "Hospital bills the final invoice against a guarantee (overbilled)",
     from: "Marmara Demo Heart Center Billing <billing@demo-heart.example>",

@@ -16,6 +16,7 @@ import type {
 import { ApiError } from "@/lib/errors";
 import { detectLanguage } from "@/lib/intake/language";
 import { sampleScanText } from "@/lib/intake/samples";
+import { sampleTextTranslation } from "@/lib/samples/translations";
 import {
   countryOf,
   emergencyNumber,
@@ -129,7 +130,7 @@ export class MockAIService implements AIService {
       admissionDate: grab(text, ["Admission Date", "Date of Admission", "Admitted", "Planned Admission", "Yatış Tarihi", "Date d'admission", "Fecha de ingreso", "Data de internação"]),
       dischargeDate: grab(text, ["Discharge Date", "Date of Discharge", "Discharged", "Taburcu Tarihi", "Date de sortie", "Fecha de alta", "Data de alta"]),
       procedures: grabList(text, ["Procedures", "Procedures Performed", "Treatment Provided", "Planned Treatment", "Yapılan İşlemler", "Planlanan Tedavi", "Actes réalisés", "Procedimientos", "Procedimentos"]),
-      medications: grabList(text, ["Medications", "Medications Prescribed", "Prescription", "Prescribed", "İlaçlar", "Traitement de sortie", "Medicamentos"]),
+      medications: grabList(text, ["Medications", "Medications Prescribed", "Discharge medication", "Discharge treatment", "Prescription", "Prescribed", "İlaçlar", "Traitement de sortie", "Medicamentos"]),
       invoiceAmount,
       currency,
       policyReference: grab(text, [
@@ -315,6 +316,9 @@ export class MockAIService implements AIService {
    */
   async translateText(text: string, targetLanguage: string): Promise<string> {
     await thinkingDelay();
+    // A bundled sample e-mail has a hand-written English version.
+    const curated = targetLanguage === "English" ? sampleTextTranslation(text) : null;
+    if (curated) return curated;
     const glossary = targetLanguage === "English" ? GLOSSARIES[detectLanguage(text)] : undefined;
     if (!glossary) {
       return `[Translation needs the live AI model — original text follows]\n${text}`;

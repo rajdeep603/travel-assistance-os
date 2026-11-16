@@ -5,7 +5,7 @@ import { logPortalEventOnce, requireViewer } from "@/lib/partner-demo/portal";
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
-  type: z.enum(["SECTION", "SCENARIO", "LANGUAGE", "DOCUMENT"]),
+  type: z.enum(["SECTION", "SCENARIO", "MODULE", "LANGUAGE", "DOCUMENT"]),
   value: z.string().trim().min(1).max(60),
 });
 

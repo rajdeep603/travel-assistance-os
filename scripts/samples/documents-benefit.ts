@@ -1,10 +1,12 @@
 import type { Issuer, SampleDoc } from "./model";
-import { billingOffice } from "./issuers";
+import { billingOffice, copieConforme } from "./issuers";
 
 // ---------------------------------------------------------------------------
 // Benefit Global Assistance's private demo portal: the Antalya hospital's
 // cost estimate for Petra Hoffmann (hip fracture), in Turkish, which the
-// guarantee-of-payment scenario reads. Patient, policy and hospital match
+// guarantee-of-payment scenario reads, and a Paris clinic's report in French
+// for Elif Şahin, which Document AI translates (the Arabic report from
+// Jeddah is a scan: scripts/samples/arabic-scan.ts). Patient, policy and hospital match
 // src/lib/partner-demo/benefit-records.ts. ALL CONTENT IS FICTIONAL DEMO DATA.
 // ---------------------------------------------------------------------------
 
@@ -110,4 +112,93 @@ export const petraEstimate: SampleDoc = {
   ],
 };
 
-export const BENEFIT_SAMPLE_DOCS: SampleDoc[] = [petraEstimate];
+export const BATIGNOLLES_CLINIC: Issuer = {
+  name: "Clinique Démo des Batignolles",
+  tagline: "Chirurgie viscérale · Urgences 24h/24 · Patients internationaux",
+  address: ["18 rue Démo des Batignolles", "75017 Paris, France"],
+  phone: "+33 1 00 00 22 17",
+  fax: "+33 1 00 00 22 18",
+  email: "international@demo-batignolles.example",
+  web: "www.demo-batignolles.example",
+  color: "#1d4ed8",
+  tint: "#eff6ff",
+  logo: "cross",
+  registry: "Établissement de santé privé DEMO-75-2217 · SIRET 000 000 002 00017",
+};
+
+/** Elif Şahin's hospital report, in French: Document AI translates it into English. */
+export const elifReportFr: SampleDoc = {
+  file: "compte-rendu-elif-sahin-paris.pdf",
+  dir: "demo-documents",
+  lang: "fr",
+  issuer: BATIGNOLLES_CLINIC,
+  title: "COMPTE RENDU",
+  subtitle: "Compte rendu d'hospitalisation · Chirurgie viscérale",
+  meta: [
+    ["N° dossier:", "CDB-2026-31877"],
+    ["Date:", "2026-11-12"],
+  ],
+  blocks: [
+    {
+      type: "fields",
+      title: "Patient",
+      left: [
+        ["Nom du patient:", "Elif Şahin"],
+        ["Date de naissance:", "1990-07-08"],
+        ["Nationalité:", "Turquie"],
+      ],
+      right: [
+        ["Numéro de police:", "BGA-318264"],
+        ["Assureur:", "Benefit Global Assistance"],
+        ["Sexe:", "Féminin"],
+      ],
+      split: 0.52,
+      labelWidth: 108,
+    },
+    {
+      type: "fields",
+      title: "Séjour",
+      left: [
+        ["Établissement:", "Clinique Démo des Batignolles"],
+        ["Médecin traitant:", "Dr Camille Rousseau"],
+        ["Service:", "Chirurgie viscérale"],
+      ],
+      right: [
+        ["Date d'admission:", "2026-11-09"],
+        ["Date de sortie:", "2026-11-12"],
+        ["Chambre:", "318"],
+      ],
+      split: 0.6,
+      labelWidth: 104,
+    },
+    {
+      type: "section",
+      heading: "Synthèse médicale",
+      labelWidth: 108,
+      fields: [
+        ["Diagnostic:", "Appendicite aiguë non compliquée"],
+        ["Symptômes:", "douleur de la fosse iliaque droite; nausées; fièvre à 38,4 °C"],
+        ["Actes réalisés:", "Scanner abdominal; appendicectomie par cœlioscopie le 2026-11-10"],
+        ["Traitement de sortie:", "Paracétamol 1 g trois fois par jour pendant 5 jours; soins de pansement"],
+      ],
+    },
+    {
+      type: "section",
+      heading: "Évolution",
+      text: [
+        "Patiente admise par les urgences le 9 novembre pour une douleur abdominale apparue la veille. Le scanner confirme une appendicite aiguë sans perforation. Appendicectomie par cœlioscopie le 10 novembre, sans complication.",
+        "Suites opératoires simples, reprise alimentaire à J1. Sortie le 12 novembre en bon état général. Apte au voyage en vol commercial à partir du 19 novembre. Ablation des fils et contrôle par un médecin en Turquie à J10.",
+      ],
+    },
+    {
+      type: "signature",
+      caption: "Signature et cachet",
+      name: "Dr Camille Rousseau",
+      role: "Chirurgie viscérale",
+      place: "Paris, 2026-11-12",
+      stamp: copieConforme(BATIGNOLLES_CLINIC, "Paris"),
+    },
+  ],
+};
+
+export const BENEFIT_SAMPLE_DOCS: SampleDoc[] = [petraEstimate, elifReportFr];

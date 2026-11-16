@@ -16,6 +16,7 @@ import { MATCH_THRESHOLD, matchCase, type CaseCandidate } from "./case-matching"
 import { LANGUAGE_NAMES, detectLanguage, languageCode } from "./language";
 import { guaranteeEnquiryReply, missingItem, travellerReply, type MissingItem, type TravellerFacts } from "./replies";
 import { intakeSummary } from "./summary";
+import { messageText } from "@/lib/samples/translations";
 
 // ---------------------------------------------------------------------------
 // Intake automation for inbound e-mail, fax and WhatsApp:
@@ -127,6 +128,18 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
     // 2. Language and risk.
     const bodyText = [message.subject, message.bodyText].filter(Boolean).join("\n");
     const language = detectLanguage(bodyText || processed[0]?.textContent || "");
+    // The sender's words in English for the team, when they wrote in another language.
+    const messageWords = messageText(message.subject, message.bodyText);
+    let translatedText: string | null = null;
+    if (bodyText && detectLanguage(bodyText) !== "en") {
+      try {
+        const value = (await runAI("translateText", (ai) => ai.translateText(messageWords, "English"))).value;
+        // Offline, a language without a glossary comes back untranslated: keep nothing rather than a copy.
+        translatedText = value.startsWith("[Translation needs the live AI model") ? null : value.slice(0, 20000);
+      } catch (err) {
+        notes.push(`The message could not be translated: ${processingErrorMessage(err)}`);
+      }
+    }
     const allText = [bodyText, ...processed.map((d) => d.textContent ?? "")].join("\n");
     // Risk comes from what the sender wrote, not from attached clinical
     // documents (a medical report routinely says "emergency department").
@@ -304,6 +317,7 @@ export async function processInbound(messageId: string, files: InboundFile[]): P
       data: {
         status,
         language,
+        translatedText,
         riskFlags,
         summary,
         error: notes.length ? notes.join(" ") : null,

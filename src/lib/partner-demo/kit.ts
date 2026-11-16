@@ -55,6 +55,27 @@ export interface Scenario {
   scripts: ScriptCard[];
 }
 
+export type ModuleId = "inbox" | "documents" | "claims";
+
+/** A sample message the inbox module receives (an EMAIL_SAMPLES, FAX_SAMPLES or WHATSAPP_SAMPLES id). */
+export interface InboxSampleCard {
+  id: string;
+  channel: "email" | "fax" | "whatsapp";
+  from: string;
+  title: Bi;
+  note: Bi;
+  /** ISO 639-1 code of what the sender wrote. */
+  language: string;
+}
+
+/** A sample file Document AI reads (a path under public/). */
+export interface DocumentSampleCard {
+  file: string;
+  title: Bi;
+  note: Bi;
+  language: string;
+}
+
 export interface PortalKit {
   id: string;
   company: string;
@@ -65,6 +86,8 @@ export interface PortalKit {
   /** Keyterms for the recogniser on every session: names and places of the scenarios. */
   keyterms: string[];
   scenarios: Scenario[];
+  /** The rest of the platform, on samples: the inbox and Document AI (the claim uses the bundled claim pack). */
+  modules: { inbox: InboxSampleCard[]; documents: DocumentSampleCard[] };
 }
 
 const bi = (tr: string, en: string): Bi => ({ tr, en });
@@ -296,6 +319,74 @@ export const BENEFIT_KIT: PortalKit = {
       scripts: [],
     },
   ],
+  modules: {
+    inbox: [
+      {
+        id: "benefit-arabic-report-jeddah",
+        channel: "email",
+        from: "Al Shati Demo Hospital, Jeddah",
+        title: bi("Cidde'den Arapça e-posta ve taranmış rapor", "An Arabic e-mail and a scanned report from Jeddah"),
+        note: bi(
+          "Hastane, umre dönüşü zatürre olan Hasan Kılıç için yazıyor. E-posta ve rapor İngilizceye çevrilir, rapor görüntüden okunur ve Hasan'ın dosyasına eklenir.",
+          "The hospital writes about Hasan Kılıç, admitted with pneumonia after umrah. The e-mail and the report are translated into English, the report is read from the image, and both are filed on his case."
+        ),
+        language: "ar",
+      },
+      {
+        id: "benefit-french-report-paris",
+        channel: "email",
+        from: "Clinique Démo des Batignolles, Paris",
+        title: bi("Paris'ten Fransızca hastane raporu", "A French hospital report from Paris"),
+        note: bi(
+          "Klinik, Elif Şahin'in apandisit ameliyatı raporunu gönderiyor ve masrafların onayını istiyor. E-posta ve rapor İngilizceye çevrilir ve dosyasına eklenir.",
+          "The clinic sends Elif Şahin's appendicitis surgery report and asks you to confirm the costs. The e-mail and the report are translated into English and filed on her case."
+        ),
+        language: "fr",
+      },
+      {
+        id: "fax-medical-report",
+        channel: "fax",
+        from: "+90 212 000 2005",
+        title: bi("El yazısıyla doldurulmuş faks", "A fax filled in by hand"),
+        note: bi(
+          "Metin katmanı olmayan bir tıbbi rapor faksı: görüntüden okunur (OCR), alanlar çıkarılır ve doğru vakaya eklenir.",
+          "A medical report fax with no text layer: read from the image (OCR), its fields extracted and filed on the right case."
+        ),
+        language: "en",
+      },
+      {
+        id: "wa-traveller-status-es",
+        channel: "whatsapp",
+        from: "+34 600 000 109",
+        title: bi("WhatsApp'tan İspanyolca soru", "A question on WhatsApp, in Spanish"),
+        note: bi(
+          "Bir sigortalı dosyasının durumunu soruyor: dosya bulunur ve yanıt, kayıtlardaki gerçek durumla, kendi dilinde gider.",
+          "A traveller asks where their case stands: the case is found and the answer goes back in Spanish, with the case's real status."
+        ),
+        language: "es",
+      },
+    ],
+    documents: [
+      {
+        file: "demo-documents/medical-report-ar-hasan-kilic-jeddah.pdf",
+        title: bi("Arapça tıbbi rapor (taranmış)", "Arabic medical report (scanned)"),
+        note: bi("Cidde · zatürre · görüntüden okunur, İngilizceye çevrilir", "Jeddah · pneumonia · read from the image, translated into English"),
+        language: "ar",
+      },
+      {
+        file: "demo-documents/compte-rendu-elif-sahin-paris.pdf",
+        title: bi("Fransızca hastane raporu", "French hospital report"),
+        note: bi("Paris · apandisit ameliyatı · İngilizceye çevrilir", "Paris · appendicitis surgery · translated into English"),
+        language: "fr",
+      },
+      {
+        file: "demo-inbound/fax-medical-report-lena-koch.pdf",
+        title: bi("El yazısı faks", "Handwritten fax"),
+        note: bi("İstanbul · göğüs ağrısı · görüntüden okunur (OCR)", "Istanbul · chest pain · read from the image (OCR)"),
+        language: "en",
+      },
+    ],
+  },
 };
 
 export const PORTAL_KITS: Record<string, PortalKit> = { benefit: BENEFIT_KIT };

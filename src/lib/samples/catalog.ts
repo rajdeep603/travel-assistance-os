@@ -47,6 +47,8 @@ export const SAMPLE_KITS: SampleKit[] = [
       { path: doc("final-invoice-rachel-lim-bangkok.pdf"), title: "Overbilled invoice (THB)", note: "Rachel Lim · 115,550 THB · open CASE-1006 first to review it" },
       { path: doc("informe-medico-sarah-whitfield.pdf"), title: "Spanish medical report", note: "Sarah Whitfield · wrist fracture, Punta Cana · read in Spanish" },
       { path: doc("compte-rendu-pierre-lambert-sousse.pdf"), title: "French discharge report", note: "Pierre Lambert · pyelonephritis, Sousse · translated to English" },
+      { path: doc("medical-report-ar-hasan-kilic-jeddah.pdf"), title: "Arabic medical report (scan)", note: "Hasan Kılıç · pneumonia, Jeddah · read with OCR, translated to English" },
+      { path: doc("compte-rendu-elif-sahin-paris.pdf"), title: "French hospital report", note: "Elif Şahin · appendicitis, Paris · translated to English" },
     ],
   },
   {
@@ -146,6 +148,18 @@ export const SAMPLE_KITS: SampleKit[] = [
         title: "Antalya hospital asks for a guarantee (Turkish)",
         note: "Turkish cost estimate for a hip fracture · Benefit demo · starts a Letter of Guarantee",
         email: { sample: "benefit-cost-estimate-antalya", sentAt: "2026-11-15T20:40:00+03:00" },
+      },
+      {
+        path: "samples/inbox/alshati-arabic-report-hasan-kilic.eml",
+        title: "Jeddah hospital writes in Arabic",
+        note: "Arabic e-mail and a scanned Arabic report · Benefit demo · translated to English",
+        email: { sample: "benefit-arabic-report-jeddah", sentAt: "2026-11-14T15:10:00+03:00" },
+      },
+      {
+        path: "samples/inbox/batignolles-compte-rendu-elif-sahin.eml",
+        title: "Paris clinic writes in French",
+        note: "French e-mail and hospital report · Benefit demo · translated to English",
+        email: { sample: "benefit-french-report-paris", sentAt: "2026-11-12T17:30:00+01:00" },
       },
       {
         path: "samples/inbox/marmara-final-invoice-lena-koch.eml",

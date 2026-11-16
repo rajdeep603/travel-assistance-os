@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/errors";
 import { detectLanguage } from "@/lib/intake/language";
 import { processingErrorMessage } from "@/lib/uploads";
 import { isSampleFile } from "@/lib/samples/fingerprints";
+import { sampleFileTranslation } from "@/lib/samples/translations";
 import { getAIService, runAI, withOfflineAI } from "./ai";
 import { extractTextFromFile } from "./pdf";
 import type { MedicalExtractionResult } from "./types";
@@ -55,12 +56,16 @@ async function runPipeline(
       throw new ApiError("No readable text was found in the document.", 422, "UNREADABLE_DOCUMENT");
     }
     const language = detectLanguage(text);
+    // A bundled foreign-language sample has a hand-written English version
+    // (the offline rules can't translate it); its fields are read from that.
+    const curated = language === "en" ? null : await sampleFileTranslation(buffer);
+    const readable = curated ?? text;
 
     const ai = getAIService();
     const [kind, result, translatedText] = await Promise.all([
-      ai.classifyDocument(text, doc.filename),
-      ai.extractMedicalDocument(text),
-      language === "en" ? Promise.resolve(null) : ai.translateText(text, "English"),
+      ai.classifyDocument(readable, doc.filename),
+      ai.extractMedicalDocument(readable),
+      language === "en" ? Promise.resolve(null) : curated ? Promise.resolve(curated) : ai.translateText(text, "English"),
     ]);
 
     await prisma.documentExtraction.upsert({
