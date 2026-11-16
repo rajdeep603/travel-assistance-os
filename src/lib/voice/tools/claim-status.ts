@@ -26,9 +26,9 @@ async function casesFor(ctx: ToolContext): Promise<ClaimStatusFacts[]> {
   return Array.isArray(brief._cases) ? brief._cases : claimStatusCases();
 }
 
-/** Words that say what an organisation is, not which one ("hospital", "rumah sakit", "demo"). */
+/** Words that say what or where an organisation is, not which one ("hospital", "rumah sakit", "demo", "Indonesia"). */
 const GENERIC = new Set(
-  "the of and de del la le du di da hospital hospitals hastanesi hastane clinic clinique clinica klinik medical medika medica center centre centro health healthcare care rumah sakit rs umum demo international insurance insurances broker brokers brokerage benefits benefit services group pt tbk ltd limited inc llc co company sdn bhd sa gmbh".split(" ")
+  "the of and de del la le du di da dan hospital hospitals hastanesi hastane clinic clinique clinica klinik medical medika medica center centre centro health healthcare care rumah sakit rs rsu umum demo international insurance insurances asuransi broker brokers brokerage benefits benefit services group pt tbk ltd limited inc llc co company sdn bhd sa gmbh global asia pacific indonesia singapore malaysia thailand turkey turkiye jakarta bali denpasar surabaya bandung medan istanbul antalya".split(" ")
 );
 
 const tokens = (s: string | null | undefined) =>
@@ -40,13 +40,18 @@ const tokens = (s: string | null | undefined) =>
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length > 1);
 
-/** "Kuta Medika", "RS Kuta Medika Denpasar" → "Rumah Sakit Kuta Medika Demo, Denpasar": a distinctive word in common, a phone line's spelling allowed. */
+/**
+ * "Kuta Medika", "RS Kuta Medika Denpasar" → "Rumah Sakit Kuta Medika Demo, Denpasar": its distinctive words in
+ * common, a phone line's spelling allowed; two when it has two or more, so "PT Jaya Indonesia" or "Mitra Sehat"
+ * never pass for "PT Mitra Proteksi Indonesia", and a city or country alone never verifies anyone.
+ */
 export function organisationMatches(said: string | undefined, onFile: string | null | undefined): boolean {
   if (!said || !onFile) return false;
   const theirs = tokens(onFile).filter((w) => !GENERIC.has(w));
   const given = tokens(said).filter((w) => !GENERIC.has(w));
   if (!theirs.length || !given.length) return false;
-  return given.some((g) => theirs.some((t) => g === t || (g.length >= 5 && t.length >= 5 && editDistance(g, t) <= 2) || (g.length >= 4 && t.startsWith(g))));
+  const hit = (t: string) => given.some((g) => g === t || (g.length >= 5 && t.length >= 5 && editDistance(g, t) <= 2) || (g.length >= 4 && t.startsWith(g)));
+  return theirs.filter(hit).length >= Math.min(2, theirs.length);
 }
 
 /** "M P I zero four one seven", "MPI-0417", "0417" → the code's digits match. */

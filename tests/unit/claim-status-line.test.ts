@@ -115,6 +115,13 @@ describe("matching who is calling", () => {
     expect(organisationMatches("Rumah Sakit Kuta Medica Denpasar", bali.provider)).toBe(true);
     expect(organisationMatches("Rumah Sakit Bali Sehat", bali.provider)).toBe(false);
     expect(organisationMatches("the hospital", bali.provider)).toBe(false);
+    expect(organisationMatches("Rumah Sakit Denpasar", bali.provider)).toBe(false);
+  });
+
+  it("knows a brokerage by its distinctive words, never by the country alone", () => {
+    expect(organisationMatches("Mitra Proteksi", "PT Mitra Proteksi Indonesia (demo)")).toBe(true);
+    expect(organisationMatches("PT Jaya Indonesia", "PT Mitra Proteksi Indonesia (demo)")).toBe(false);
+    expect(organisationMatches("Mitra Sehat", "PT Mitra Proteksi Indonesia (demo)")).toBe(false);
   });
 
   it("reads broker codes as heard", () => {
