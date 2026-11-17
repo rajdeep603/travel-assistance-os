@@ -102,7 +102,7 @@ export const findCareNearbyTool = defineTool({
     "Search HAS's own provider network near where the traveller is now, for what they need. Returns up to three providers, nearest suitable first: name, kind, address, distance, whether it's open now and until when, whether it bills HAS directly, whether staff speak Spanish, and the provider id to pass to open_assistance_case. Offer the first; mention the second only if they ask or the first doesn't suit.",
   schema: z.object({
     location: z.string().describe("Where they are now, as precise as they can give it: the hotel name and street, or the address, with the city, e.g. 'Hyatt Regency, International Drive, Orlando'"),
-    need: z.enum(NEEDS).describe("urgent = urgent care (minor illness or injury); gp = a doctor's consultation; emergency = a hospital emergency room; peds = a child; ent = ear, nose, throat; ortho = bones, joints, sports injury; eye; dental; pharmacy; imaging = X-ray or scan; derm = skin; gyn"),
+    need: z.enum(NEEDS).describe("urgent = urgent care: the first stop for almost everything a traveller calls about (fever, ear or throat pain, a cut, a sprain, a rash, an eye irritation, vomiting); peds = a child under 18; dental = tooth pain; emergency = a hospital emergency room (red flags only); pharmacy = a prescription to fill. gp, ent, ortho, eye, derm, gyn, imaging only when the caller asks for that specialist or a doctor already sent them to one"),
     spanish_speaking: z.boolean().optional().describe("True if they would rather be seen by Spanish-speaking staff"),
   }),
   async execute(args, ctx) {
