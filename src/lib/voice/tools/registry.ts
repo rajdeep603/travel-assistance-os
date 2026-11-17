@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ApiError } from "@/lib/errors";
 import type { RealtimeFunctionTool } from "../realtime/xai-session";
 import { ASSISTANCE_TOOLS } from "./assistance";
+import { HAS_TOOLS } from "./has";
 import { MSH_TOOLS } from "./msh";
 import { TPA_TOOLS } from "./tpa";
 import { CLAIM_STATUS_TOOLS } from "./claim-status";
@@ -61,6 +62,7 @@ const ALL_TOOLS: VoiceTool[] = [
   ...TPA_TOOLS,
   ...CLAIM_STATUS_TOOLS,
   ...MSH_TOOLS,
+  ...HAS_TOOLS,
   ...TELEHEALTH_TOOLS,
   lookupCaseTool,
   searchRecordsTool,
