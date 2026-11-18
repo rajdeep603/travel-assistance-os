@@ -57,6 +57,10 @@ const LABELS: Record<string, [activity: string, chip: string]> = {
   record_clinic_booking: ["Recording what the clinic agreed", "Clinic booking"],
   record_traveller_followup: ["Recording the follow-up", "Follow-up"],
   hand_to_care_team: ["Handing over to the care team", "Handover"],
+  find_specialist: ["Searching the doctors' agendas", "Specialist search"],
+  book_hospital_appointment: ["Booking the appointment in the hospital's agenda", "Appointment booked"],
+  record_caller_request: ["Logging the caller's request", "Call logged"],
+  hand_to_staff: ["Handing over to the hospital team", "Handover"],
   transfer_to_human: ["Handing over to a person", "Handover"],
   end_call: ["Ending the call", "Call ended"],
 };
