@@ -5,6 +5,7 @@ import { ASSISTANCE_TOOLS } from "./assistance";
 import { CMPDH_TOOLS } from "./cmpdh";
 import { HAS_TOOLS } from "./has";
 import { MSH_TOOLS } from "./msh";
+import { MSH_PROVIDER_TOOLS } from "./msh-provider";
 import { TPA_TOOLS } from "./tpa";
 import { CLAIM_STATUS_TOOLS } from "./claim-status";
 import { TELEHEALTH_TOOLS } from "./telehealth";
@@ -63,6 +64,7 @@ const ALL_TOOLS: VoiceTool[] = [
   ...TPA_TOOLS,
   ...CLAIM_STATUS_TOOLS,
   ...MSH_TOOLS,
+  ...MSH_PROVIDER_TOOLS,
   ...HAS_TOOLS,
   ...CMPDH_TOOLS,
   ...TELEHEALTH_TOOLS,
