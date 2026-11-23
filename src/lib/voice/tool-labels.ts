@@ -77,6 +77,12 @@ const LABELS: Record<string, [activity: string, chip: string]> = {
   book_hospital_appointment: ["Booking the appointment in the hospital's agenda", "Appointment booked"],
   record_caller_request: ["Logging the caller's request", "Call logged"],
   hand_to_staff: ["Handing over to the hospital team", "Handover"],
+  save_lead_profile: ["Recording the lead in Organo's sales system", "Lead saved"],
+  check_visit_slots: ["Checking the site-visit slots", "Visit slots"],
+  book_site_visit: ["Booking the site visit", "Visit booked"],
+  send_whatsapp_info: ["Sending the details on WhatsApp", "WhatsApp sent"],
+  record_lead_call: ["Recording how the call ended", "Lead call"],
+  hand_to_sales_manager: ["Handing over to a relationship manager", "Handover"],
   transfer_to_human: ["Handing over to a person", "Handover"],
   end_call: ["Ending the call", "Call ended"],
 };

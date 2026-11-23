@@ -7,6 +7,7 @@ import { CMPDH_AGENTS } from "./cmpdh";
 import { HAS_AGENTS } from "./has";
 import { MSH_AGENTS } from "./msh";
 import { HERO_AGENTS } from "./hero";
+import { ORGANO_AGENTS } from "./organo";
 import { TPA_AGENTS } from "./tpa";
 import { TELEHEALTH_AGENTS } from "./telehealth";
 import { inboundHotlineAgent } from "./inbound-hotline";
@@ -37,7 +38,7 @@ export const interpreterProfile: AgentProfile = {
 };
 
 const PROFILES = new Map<string, AgentProfile>(
-  [appointmentBookingAgent, inboundHotlineAgent, providerLineAgent, claimStatusLineAgent, ...OUTBOUND_AGENTS, ...ASSISTANCE_AGENTS, providerValidationAgent, ...COLLECTION_AGENTS, ...TPA_AGENTS, ...TELEHEALTH_AGENTS, ...MSH_AGENTS, ...HAS_AGENTS, ...CMPDH_AGENTS, ...HERO_AGENTS, conversationInterpreterAgent, interpreterProfile, internalAssistantAgent].map((p) => [p.id, p])
+  [appointmentBookingAgent, inboundHotlineAgent, providerLineAgent, claimStatusLineAgent, ...OUTBOUND_AGENTS, ...ASSISTANCE_AGENTS, providerValidationAgent, ...COLLECTION_AGENTS, ...TPA_AGENTS, ...TELEHEALTH_AGENTS, ...MSH_AGENTS, ...HAS_AGENTS, ...CMPDH_AGENTS, ...HERO_AGENTS, ...ORGANO_AGENTS, conversationInterpreterAgent, interpreterProfile, internalAssistantAgent].map((p) => [p.id, p])
 );
 
 /** Adds profiles (later phases register the hotline and outbound agents). */
