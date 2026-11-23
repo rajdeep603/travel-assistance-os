@@ -125,7 +125,7 @@ export const recordMemberCallTool = defineTool({
   name: "record_member_call",
   description: "Save how the member call ended: the outcome, what the member asked, any call-back time agreed. Call it once, before ending.",
   schema: z.object({
-    outcome: z.enum(["status_given", "benefits_given", "case_opened", "callback_requested", "escalated", "not_verified", "wrong_person", "no_answer"]),
+    outcome: z.enum(["status_given", "benefits_given", "case_opened", "intake_completed", "callback_requested", "escalated", "not_verified", "wrong_person", "no_answer"]),
     member_question: z.string().optional().describe("What they wanted to know, in a few words"),
     callback_time: z.string().optional().describe("When a case manager should call back, as agreed"),
     notes: z.string().optional(),

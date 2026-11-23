@@ -20,6 +20,16 @@ import { defineTool, type ToolContext } from "./types";
 interface Brief {
   client?: string;
   _crm_url?: string;
+  /** The patient call: the referred case it is about. */
+  _case_number?: string;
+}
+
+interface InsurerOnCall {
+  name: string;
+  caller: string;
+  role?: string | null;
+  callback?: string | null;
+  known?: boolean;
 }
 
 interface Identity {
@@ -46,10 +56,15 @@ interface CrmTraveller {
   address_as?: string | null;
 }
 
-async function stateOf(ctx: ToolContext): Promise<{ brief: Brief; identity: Identity; hospital: HospitalOnCall | null }> {
+async function stateOf(ctx: ToolContext): Promise<{ brief: Brief; identity: Identity; hospital: HospitalOnCall | null; insurer: InsurerOnCall | null }> {
   const call = await prisma.call.findUnique({ where: { id: ctx.callId }, select: { outcome: true } });
   const outcome = (call?.outcome as Record<string, unknown> | null) ?? {};
-  return { brief: (outcome.brief as Brief | undefined) ?? {}, identity: (outcome.identity as Identity | undefined) ?? {}, hospital: (outcome.provider as HospitalOnCall | undefined) ?? null };
+  return {
+    brief: (outcome.brief as Brief | undefined) ?? {},
+    identity: (outcome.identity as Identity | undefined) ?? {},
+    hospital: (outcome.provider as HospitalOnCall | undefined) ?? null,
+    insurer: (outcome.insurer as InsurerOnCall | undefined) ?? null,
+  };
 }
 
 const DIGIT_WORDS: Record<string, string> = {
@@ -373,4 +388,143 @@ export const logHospitalInvoiceChangeTool = defineTool({
   },
 });
 
-export const HERO_TOOLS = [verifyTravellerTool, lookupTravellerFileTool, openHeroCaseTool, verifyHospitalTool, verifyInsuredPatientTool, lookupPatientForHospitalTool, requestHeroGuaranteeTool, logHospitalUpdateTool, logHospitalInvoiceChangeTool];
+
+// ---- the insurer line: a client insurer refers a case to Hero Assist ----
+
+const SYSTEM_DOWN_INSURER = { error: "Hero Assist's system isn't answering just now. Apologise, take the caller's name, their reference and a call-back number, and say a Hero Assist coordinator opens the case and calls them back within 15 minutes. If the insured is in danger, they should call the local emergency number (192 in Brazil) now." };
+
+export const verifyInsurerClientTool = defineTool({
+  name: "verify_insurer_client",
+  description:
+    "Check that the calling insurance or assistance company is one of Hero Assist's clients, first thing once you have the company's name and the caller's name. Returns known true (then take the referral), or what to do for a company that isn't a client.",
+  schema: z.object({
+    insurer: z.string().describe("The company calling, as they named it"),
+    caller_name: z.string().describe("The caller's name"),
+    caller_role: z.string().optional().describe("e.g. case handler, assistance coordinator, medical officer"),
+    callback_number: z.string().optional(),
+  }),
+  async execute(args, ctx) {
+    const { brief, insurer } = await stateOf(ctx);
+    if (insurer?.known) return { known: true, client: { name: insurer.name }, note: "Already checked on this call. Take the referral, one question at a time." };
+    const found = await system<{ client: { name: string; country?: string; reports_to?: string } | null }>(ctx, brief, "find_client", { insurer: args.insurer, caller: args.caller_name }, SYSTEM_DOWN_INSURER);
+    if ("error" in found) return found;
+    if (!found.client) {
+      await ctx.setOutcome({ insurer: { name: args.insurer, known: false, caller: args.caller_name, role: args.caller_role ?? null, callback: args.callback_number ?? null } as Prisma.InputJsonValue });
+      return { known: false, say: "This company isn't among Hero Assist's clients. Say so politely, take a call-back number, and say Hero Assist's commercial team will call them back. Open nothing. Then record_member_call (escalated) and end politely." };
+    }
+    const entry: InsurerOnCall = { name: found.client.name, caller: args.caller_name, role: args.caller_role ?? null, callback: args.callback_number ?? null, known: true };
+    await ctx.setOutcome({ insurer: entry as unknown as Prisma.InputJsonValue });
+    ctx.emit({ type: "provider", provider: entry.name });
+    return {
+      known: true,
+      client: found.client,
+      next: "Thank them. Then take the referral one question at a time (skip what they already said): their own case reference; the insured's full name; date of birth; their policy number if they have it; where the insured is now (city, and the hotel or address); what happened and since when; the care they want Hero Assist to arrange and how urgent; the amount they authorise and its currency; the insured's mobile or WhatsApp with the country code (read it back); the insured's language. Then open_insurer_case.",
+    };
+  },
+});
+
+export const openInsurerCaseTool = defineTool({
+  name: "open_insurer_case",
+  description:
+    "Open a Hero Assist case for the insured the client insurer is referring. Call it once you have the details. Returns the new case number to read back and what happens next (Hero Assist calls the insured to complete the details and arrange care, and confirms to the insurer by e-mail).",
+  schema: z.object({
+    client_reference: z.string().describe("The insurer's own case or claim reference, as given"),
+    insured_name: z.string().describe("The insured's first name and surname"),
+    insured_date_of_birth: z.string().describe("YYYY-MM-DD"),
+    insurer_policy_number: z.string().optional(),
+    insured_phone: z.string().optional().describe("Mobile or WhatsApp, with the country code"),
+    insured_language: z.enum(["pt", "es", "en", "other"]).optional(),
+    city: z.string().describe("Where the insured is now"),
+    country: z.string().optional().describe("In English; Brazil if in Brazil"),
+    location: z.string().optional().describe("Hotel, address or hospital where they are"),
+    problem: z.string().describe("What happened, in a few English words, as the insurer described it"),
+    since: z.string().optional().describe("When it started, in English"),
+    care_requested: z.enum(["teleconsultation", "doctor_visit", "clinic_visit", "emergency_room", "hospital_admission", "dental", "pharmacy", "other"]),
+    urgency: z.enum(["emergency", "urgent", "routine"]),
+    authorised_amount: z.number().optional(),
+    currency: z.string().optional().describe("USD, GBP, EUR, ARS, BRL…"),
+    send_reports_to: z.string().optional().describe("Only if they give an address other than the usual one"),
+    notes: z.string().optional().describe("Anything else, in English"),
+  }),
+  async execute(args, ctx) {
+    const { brief, insurer } = await stateOf(ctx);
+    if (!insurer?.known) return { error: "Check the company first with verify_insurer_client (its name and the caller's name)." };
+    const res = await system<{ case?: { number: string; spoken: string }; client_record?: string; say?: string; next_steps?: string[] }>(
+      ctx,
+      brief,
+      "client_case",
+      { insurer: insurer.name, handler: [insurer.caller, insurer.role].filter(Boolean).join(", "), ...args },
+      SYSTEM_DOWN_INSURER
+    );
+    if ("error" in res) return res;
+    if (!res.case?.number) return { error: "The case could not be opened. Apologise and say a Hero Assist coordinator opens it and calls them back within 15 minutes." };
+    await ctx.setOutcome({
+      referral: { insurer: insurer.name, client_reference: args.client_reference, insured: args.insured_name, case_number: res.case.number, care_requested: args.care_requested, urgency: args.urgency } as Prisma.InputJsonValue,
+      caseOpened: { case_number: res.case.number, incident: args.problem, care_type: args.care_requested } as Prisma.InputJsonValue,
+    });
+    ctx.emit({ type: "case_opened", caseNumber: res.case.number });
+    return { opened: true, ...res };
+  },
+});
+
+// ---- the patient call: Hero Assist calls the insured a client referred ----
+
+export const confirmReferredPatientTool = defineTool({
+  name: "confirm_referred_patient",
+  description:
+    "Confirm you are speaking with the insured the client insurer referred, on their full name and date of birth. Call it once you have both. Returns verified true with the case (what the insurer said, where they are, the care asked for), or what to do. Nothing about the case may be said before it returns verified true. After two failed attempts it locks.",
+  schema: z.object({
+    full_name: z.string().describe("First name and surname as given"),
+    date_of_birth: z.string().describe("YYYY-MM-DD"),
+  }),
+  async execute(args, ctx) {
+    const { brief, identity } = await stateOf(ctx);
+    if (identity.verified) return { verified: true, note: "Already confirmed on this call." };
+    if (identity.locked || (identity.attempts ?? 0) >= 2) return { verified: false, locked: true, say: "Confirmation is locked. Apologise, say a Hero Assist coordinator will call back, say nothing about the case, record_member_call (not_verified) and end politely." };
+    if (!brief._case_number) return { error: "This call has no case. Apologise and say a Hero Assist coordinator will call back." };
+    if (nameWords(args.full_name).length < 2) return { verified: false, reason: "Ask for their first name and surname. This did not count as an attempt." };
+    if (!parseDob(args.date_of_birth)) return { verified: false, reason: "Ask for their date of birth again: day, month and year. This did not count as an attempt." };
+    const res = await system<{ patient: { name: string; dob: string; language?: string } | null; case?: Record<string, unknown> }>(ctx, brief, "referral_file", { case_number: brief._case_number }, SYSTEM_DOWN_TRAVELLER);
+    if ("error" in res) return res;
+    if (!res.patient) return { error: "The case isn't in Hero Assist's system. Apologise and say a coordinator will call back." };
+    const attempts = (identity.attempts ?? 0) + 1;
+    const checks = { name: fullNameMatches(args.full_name, res.patient.name), dob: dobMatches(args.date_of_birth, res.patient.dob) };
+    const verified = checks.name && checks.dob;
+    await ctx.setOutcome({ identity: { verified, attempts, locked: !verified && attempts >= 2, checks, by: "referral", member_number: verified ? String(res.case?.client_record ?? "") : undefined } as Prisma.InputJsonValue, identityVerified: verified });
+    ctx.emit({ type: "identity", verified, attempts });
+    void system(ctx, brief, "identity_result", { verified, attempts, checks, case_number: brief._case_number, referral: true }, SYSTEM_DOWN_TRAVELLER).catch(() => undefined);
+    if (verified) return { verified: true, case: res.case, next: "Thank them. Then ask, one at a time, what the case still needs (see 'still_needed'), and then complete_patient_intake." };
+    return attempts >= 2
+      ? { verified: false, locked: true, say: "The details still don't match. Apologise, say that for their privacy a Hero Assist coordinator will call back, say nothing about the case, and don't say which detail was wrong." }
+      : { verified: false, reason: "The details don't match the referral. Don't say which. Ask for the full name and the date of birth again, slowly." };
+  },
+});
+
+export const completePatientIntakeTool = defineTool({
+  name: "complete_patient_intake",
+  description:
+    "Save what the confirmed patient told you on the referred case and arrange the care: symptoms and since when, other conditions, medicines, allergies, exactly where they are, whether they can get to a clinic, and the care chosen. Returns the care arranged and what to tell them.",
+  schema: z.object({
+    symptoms: z.string().describe("In English, in their words: e.g. 'fever 39 since last night, vomited four times'"),
+    since: z.string().optional().describe("In English"),
+    other_conditions: z.string().optional().describe("In English; 'none' if none"),
+    medications: z.string().optional().describe("What they take or took; 'none' if none"),
+    allergies: z.string().optional().describe("'none' if none"),
+    location: z.string().describe("Where they are now: hotel or address, room, city"),
+    can_travel: z.boolean().describe("Whether they can get to a clinic themselves"),
+    care: z.enum(["teleconsultation", "doctor_visit", "clinic_visit", "emergency_room"]).describe("What they agreed to"),
+    whatsapp: z.string().optional().describe("Only if different from the number you called"),
+    notes: z.string().optional().describe("In English"),
+  }),
+  async execute(args, ctx) {
+    const { brief, identity } = await stateOf(ctx);
+    if (!identity.verified) return { error: "Confirm the patient first with confirm_referred_patient; say nothing about the case until then." };
+    const res = await system<{ arranged?: string; case?: { number: string; spoken: string }; say?: string }>(ctx, brief, "patient_intake", { case_number: brief._case_number, ...args }, SYSTEM_DOWN_TRAVELLER);
+    if ("error" in res) return res;
+    await ctx.setOutcome({ patientIntake: { ...args, case_number: brief._case_number ?? null, arranged: res.arranged ?? null } as Prisma.InputJsonValue });
+    ctx.emit({ type: "intake", caseNumber: brief._case_number });
+    return res;
+  },
+});
+
+export const HERO_TOOLS = [verifyTravellerTool, lookupTravellerFileTool, openHeroCaseTool, verifyHospitalTool, verifyInsuredPatientTool, lookupPatientForHospitalTool, requestHeroGuaranteeTool, logHospitalUpdateTool, logHospitalInvoiceChangeTool, verifyInsurerClientTool, openInsurerCaseTool, confirmReferredPatientTool, completePatientIntakeTool];

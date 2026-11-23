@@ -41,6 +41,13 @@ interface CallOutcome {
   guaranteeResent?: { ref?: string; via?: string };
   topUpRequest?: { letter_ref?: string; new_estimated_total?: number; currency?: string; reason?: string };
   statusGiven?: { caseRef?: string };
+  /** Client CRM lines (Hero…): what the call did in the client's system. */
+  caseOpened?: { case_number?: string; incident?: string; care_type?: string };
+  referral?: { insurer?: string; client_reference?: string; insured?: string; case_number?: string; care_requested?: string };
+  patientIntake?: { case_number?: string | null; arranged?: string | null; care?: string };
+  gopRequest?: { ref?: string | null; case_number?: string | null; service?: string; estimated_cost?: number; currency?: string };
+  medicalUpdate?: { case_number?: string | null; condition?: string };
+  invoiceChange?: { case_number?: string | null; reason?: string };
   answeredBy?: string;
   endReason?: string;
 }
@@ -258,6 +265,23 @@ function updateSentences(o: CallOutcome, context: ConversationSummaryContext): s
     );
   }
   if (o.statusGiven?.caseRef) out.push(`Gave ${patient ?? "the caller"} an update on ${o.statusGiven.caseRef}.`);
+  if (o.referral?.case_number) {
+    const r = o.referral;
+    out.push(`${plain(r.insurer) ?? "A client insurer"} referred ${plain(r.insured) ?? "an insured"}${r.client_reference ? ` (their ref. ${r.client_reference})` : ""}; opened ${r.case_number}${r.care_requested ? ` for ${r.care_requested.replace(/_/g, " ")}` : ""}.`);
+  } else if (o.caseOpened?.case_number) {
+    out.push(`Opened ${o.caseOpened.case_number}${o.caseOpened.incident ? ` (${clause(o.caseOpened.incident)})` : ""}.`);
+  }
+  if (o.patientIntake) {
+    out.push(`Completed${o.patientIntake.case_number ? ` ${o.patientIntake.case_number}` : " the case"} with the patient${o.patientIntake.arranged ? `; arranged ${clause(o.patientIntake.arranged)}` : ""}.`);
+  }
+  if (o.gopRequest?.ref) {
+    const g = o.gopRequest;
+    out.push(
+      `Logged guarantee of payment request ${g.ref}${g.case_number ? ` on ${g.case_number}` : ""}${g.service ? ` for ${clause(g.service)}` : ""}${g.estimated_cost != null ? `, estimate ${Number(g.estimated_cost).toLocaleString("en-GB")}${g.currency ? ` ${g.currency}` : ""}` : ""}; for the medical team.`
+    );
+  }
+  if (o.medicalUpdate) out.push(`Logged a medical update${o.medicalUpdate.case_number ? ` on ${o.medicalUpdate.case_number}` : ""}${o.medicalUpdate.condition ? ` (${o.medicalUpdate.condition})` : ""}.`);
+  if (o.invoiceChange) out.push(`Logged an invoice change${o.invoiceChange.case_number ? ` on ${o.invoiceChange.case_number}` : ""}${o.invoiceChange.reason ? `: ${clause(o.invoiceChange.reason)}` : ""}.`);
 
   if (out.length && context.caseRef && context.direction === "outbound") {
     out[0] = `${out[0].slice(0, -1)} (case ${context.caseRef}).`;
