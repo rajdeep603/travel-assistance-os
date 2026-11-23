@@ -45,6 +45,17 @@ describe("Organo agents", () => {
     expect(prompt).toMatch(/Open in English\. If the other person answers in Hindi or Telugu/);
   });
 
+  it("Auto opens in the brief's opening language (Telugu) and switches to the caller's", () => {
+    const callback = organoLeadCallbackAgent.instructions(ctx({ ...BRIEF, opening_language: "Telugu" }));
+    expect(callback).toMatch(/Open in Telugu, the language most callers here speak/);
+    expect(callback).toMatch(/If the other person answers in English or Hindi/);
+    expect(callback).toContain("నేను Priya గారితో మాట్లాడుతున్నానా?");
+    const line = organoSalesLineAgent.instructions(ctx({ ...BRIEF, lead: undefined, call_reason: undefined, opening_language: "Telugu" }));
+    expect(line).toContain("Organo Eco Habitats కి కాల్ చేసినందుకు ధన్యవాదాలు");
+    // A language chosen for the call wins over the opening language.
+    expect(organoSalesLineAgent.instructions(ctx({ ...BRIEF, opening_language: "Telugu" }, "English"))).toMatch(/Language for this call: English/);
+  });
+
   it("the Expo call talks about the registration and the Westin", () => {
     const prompt = organoLeadCallbackAgent.instructions(ctx({ ...BRIEF, call_reason: "expo_registration", lead: { ...BRIEF.lead, expo: { day: "Saturday 12 December", budget_band: "3–4 Cr" } } }));
     expect(prompt).toMatch(/registered for Organo's Rurban Home Expo at the Westin for Saturday 12 December/);
