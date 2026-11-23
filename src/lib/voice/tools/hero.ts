@@ -423,44 +423,85 @@ export const verifyInsurerClientTool = defineTool({
   },
 });
 
+/** "doctor at the hotel, urgent" → the care type the system files. */
+function careFrom(text: string): string {
+  const t = text.toLowerCase();
+  if (/tele|video|vídeo|online/.test(t)) return "teleconsultation";
+  if (/dent|odonto/.test(t)) return "dental";
+  if (/pharm|farm/.test(t)) return "pharmacy";
+  if (/admi|interna|ingreso|hospitaliz|ricover/.test(t)) return "hospital_admission";
+  if (/emergenc|urgencias|pronto[- ]socorro|\ber\b|a&e/.test(t)) return "emergency_room";
+  if (/hotel|pousada|home|domicil|casa|visit|médico en|medico en|médico no|doctor at|doctor to|doctor come|que venga/.test(t)) return "doctor_visit";
+  if (/clinic|clínic|consult/.test(t)) return "clinic_visit";
+  return "other";
+}
+
+function urgencyFrom(text: string): "emergency" | "urgent" | "routine" {
+  const t = text.toLowerCase();
+  if (/emergenc/.test(t)) return "emergency";
+  if (/routine|rutina|rotina|not urgent|no urgente|não urgente|nao urgente|planned|programad/.test(t)) return "routine";
+  return "urgent";
+}
+
+/** "USD 1500", "1.500 dólares", "£2,000" → amount and currency. */
+function authorisedFrom(text: string | undefined): { amount: number | null; currency: string | null } {
+  if (!text) return { amount: null, currency: null };
+  const t = text.toLowerCase();
+  const currency = /usd|dollar|dólar|dolar|us\$/.test(t) ? "USD" : /gbp|pound|libra|£/.test(t) ? "GBP" : /eur|euro|€/.test(t) ? "EUR" : /ars|peso/.test(t) ? "ARS" : /brl|real|reais|r\$/.test(t) ? "BRL" : null;
+  const digits = t.replace(/(\d)[.,\s](?=\d{3}\b)/g, "$1").match(/\d+(?:[.,]\d+)?/);
+  return { amount: digits ? Number(digits[0].replace(",", ".")) : null, currency };
+}
+
 export const openInsurerCaseTool = defineTool({
   name: "open_insurer_case",
   description:
-    "Open a Hero Assist case for the insured the client insurer is referring. Call it once you have the details. Returns the new case number to read back and what happens next (Hero Assist calls the insured to complete the details and arrange care, and confirms to the insurer by e-mail).",
+    "Open a Hero Assist case for the insured the client insurer is referring, once you have the details. Pass every field you have, in plain words. Returns the new case number to read back and what happens next (Hero Assist calls the insured, and confirms to the insurer by e-mail).",
   schema: z.object({
     client_reference: z.string().describe("The insurer's own case or claim reference, as given"),
     insured_name: z.string().describe("The insured's first name and surname"),
     insured_date_of_birth: z.string().describe("YYYY-MM-DD"),
+    where: z.string().describe("Where the insured is now: city, and the hotel, address or hospital, e.g. 'Florianópolis, Pousada Mar Azul, Jurerê'"),
+    what_happened: z.string().describe("In English: what happened and since when, e.g. 'high fever and vomiting since last night'"),
+    care_and_urgency: z.string().describe("In English: the care to arrange and how urgent, e.g. 'doctor at the guesthouse, urgent'"),
+    authorised: z.string().optional().describe("The amount and currency the insurer authorises, e.g. 'USD 1500'"),
+    insured_phone: z.string().optional().describe("Mobile or WhatsApp with the country code"),
+    insured_language: z.string().optional().describe("e.g. Spanish"),
     insurer_policy_number: z.string().optional(),
-    insured_phone: z.string().optional().describe("Mobile or WhatsApp, with the country code"),
-    insured_language: z.enum(["pt", "es", "en", "other"]).optional(),
-    city: z.string().describe("Where the insured is now"),
-    country: z.string().optional().describe("In English; Brazil if in Brazil"),
-    location: z.string().optional().describe("Hotel, address or hospital where they are"),
-    problem: z.string().describe("What happened, in a few English words, as the insurer described it"),
-    since: z.string().optional().describe("When it started, in English"),
-    care_requested: z.enum(["teleconsultation", "doctor_visit", "clinic_visit", "emergency_room", "hospital_admission", "dental", "pharmacy", "other"]),
-    urgency: z.enum(["emergency", "urgent", "routine"]),
-    authorised_amount: z.number().optional(),
-    currency: z.string().optional().describe("USD, GBP, EUR, ARS, BRL…"),
-    send_reports_to: z.string().optional().describe("Only if they give an address other than the usual one"),
-    notes: z.string().optional().describe("Anything else, in English"),
   }),
   async execute(args, ctx) {
     const { brief, insurer } = await stateOf(ctx);
     if (!insurer?.known) return { error: "Check the company first with verify_insurer_client (its name and the caller's name)." };
+    const care = careFrom(args.care_and_urgency);
+    const urgency = urgencyFrom(args.care_and_urgency);
+    const { amount, currency } = authorisedFrom(args.authorised);
+    const lang = (args.insured_language ?? "").toLowerCase();
     const res = await system<{ case?: { number: string; spoken: string }; client_record?: string; say?: string; next_steps?: string[] }>(
       ctx,
       brief,
       "client_case",
-      { insurer: insurer.name, handler: [insurer.caller, insurer.role].filter(Boolean).join(", "), ...args },
+      {
+        insurer: insurer.name,
+        handler: [insurer.caller, insurer.role].filter(Boolean).join(", "),
+        client_reference: args.client_reference,
+        insured_name: args.insured_name,
+        insured_date_of_birth: args.insured_date_of_birth,
+        insurer_policy_number: args.insurer_policy_number ?? null,
+        insured_phone: args.insured_phone ?? null,
+        insured_language: /span|espa/.test(lang) ? "es" : /engl|ingl/.test(lang) ? "en" : /portu/.test(lang) ? "pt" : null,
+        where: args.where,
+        problem: args.what_happened,
+        care_requested: care,
+        urgency,
+        authorised_amount: amount,
+        currency,
+      },
       SYSTEM_DOWN_INSURER
     );
     if ("error" in res) return res;
     if (!res.case?.number) return { error: "The case could not be opened. Apologise and say a Hero Assist coordinator opens it and calls them back within 15 minutes." };
     await ctx.setOutcome({
-      referral: { insurer: insurer.name, client_reference: args.client_reference, insured: args.insured_name, case_number: res.case.number, care_requested: args.care_requested, urgency: args.urgency } as Prisma.InputJsonValue,
-      caseOpened: { case_number: res.case.number, incident: args.problem, care_type: args.care_requested } as Prisma.InputJsonValue,
+      referral: { insurer: insurer.name, client_reference: args.client_reference, insured: args.insured_name, case_number: res.case.number, care_requested: care, urgency } as Prisma.InputJsonValue,
+      caseOpened: { case_number: res.case.number, incident: args.what_happened, care_type: care } as Prisma.InputJsonValue,
     });
     ctx.emit({ type: "case_opened", caseNumber: res.case.number });
     return { opened: true, ...res };
@@ -503,25 +544,29 @@ export const confirmReferredPatientTool = defineTool({
 export const completePatientIntakeTool = defineTool({
   name: "complete_patient_intake",
   description:
-    "Save what the confirmed patient told you on the referred case and arrange the care: symptoms and since when, other conditions, medicines, allergies, exactly where they are, whether they can get to a clinic, and the care chosen. Returns the care arranged and what to tell them.",
+    "Save what the confirmed patient told you on the referred case and arrange the care. Pass every field you have, in plain English words. Returns the care arranged and what to tell them.",
   schema: z.object({
-    symptoms: z.string().describe("In English, in their words: e.g. 'fever 39 since last night, vomited four times'"),
-    since: z.string().optional().describe("In English"),
-    other_conditions: z.string().optional().describe("In English; 'none' if none"),
-    medications: z.string().optional().describe("What they take or took; 'none' if none"),
-    allergies: z.string().optional().describe("'none' if none"),
+    symptoms: z.string().describe("How they feel and since when, e.g. 'fever 39 since last night, vomited four times'"),
+    history: z.string().optional().describe("Other illnesses, medicines and allergies, e.g. 'no other illness; paracetamol this morning; allergic to penicillin'"),
     location: z.string().describe("Where they are now: hotel or address, room, city"),
-    can_travel: z.boolean().describe("Whether they can get to a clinic themselves"),
-    care: z.enum(["teleconsultation", "doctor_visit", "clinic_visit", "emergency_room"]).describe("What they agreed to"),
+    care: z.string().describe("The care agreed, e.g. 'doctor at the guesthouse', 'teleconsultation', 'network clinic', 'emergency room'"),
+    can_travel: z.string().optional().describe("'yes' or 'no': whether they can get to a clinic themselves"),
     whatsapp: z.string().optional().describe("Only if different from the number you called"),
-    notes: z.string().optional().describe("In English"),
   }),
   async execute(args, ctx) {
     const { brief, identity } = await stateOf(ctx);
     if (!identity.verified) return { error: "Confirm the patient first with confirm_referred_patient; say nothing about the case until then." };
-    const res = await system<{ arranged?: string; case?: { number: string; spoken: string }; say?: string }>(ctx, brief, "patient_intake", { case_number: brief._case_number, ...args }, SYSTEM_DOWN_TRAVELLER);
+    const c = careFrom(args.care);
+    const care = c === "teleconsultation" || c === "doctor_visit" || c === "emergency_room" ? c : "clinic_visit";
+    const res = await system<{ arranged?: string; case?: { number: string; spoken: string }; say?: string }>(
+      ctx,
+      brief,
+      "patient_intake",
+      { case_number: brief._case_number, symptoms: args.symptoms, other_conditions: args.history ?? null, location: args.location, can_travel: /^(y|s)/i.test(args.can_travel ?? "") , care, whatsapp: args.whatsapp ?? null },
+      SYSTEM_DOWN_TRAVELLER
+    );
     if ("error" in res) return res;
-    await ctx.setOutcome({ patientIntake: { ...args, case_number: brief._case_number ?? null, arranged: res.arranged ?? null } as Prisma.InputJsonValue });
+    await ctx.setOutcome({ patientIntake: { ...args, care, case_number: brief._case_number ?? null, arranged: res.arranged ?? null } as Prisma.InputJsonValue });
     ctx.emit({ type: "intake", caseNumber: brief._case_number });
     return res;
   },
